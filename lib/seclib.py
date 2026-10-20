@@ -607,7 +607,6 @@ def parse_journal(text, vpn_nets=(), limit_success=200, limit_sources=100):
     cockpit-session: successful logins with source, user and method; failed
     attempts counted per source (one per connection, i.e. per process)."""
     success, failed, sudo = [], {}, {}
-    cockpit_open = 0
     seen_fail = set()
     lines = 0
     for raw in (text or "").splitlines():
@@ -653,9 +652,8 @@ def parse_journal(text, vpn_nets=(), limit_success=200, limit_sources=100):
                 s["uses"] += 1
                 s["last"] = max(s["last"], ts)
         elif ident == "cockpit-session":
-            if PAM_OPEN.search(msg):
-                cockpit_open += 1
-                m = PAM_OPEN.search(msg)
+            m = PAM_OPEN.search(msg)
+            if m:
                 success.append({"ts": ts, "service": "cockpit", "method": "password", "user": clean(m.group(2), 40),
                                 "source": None, "class": None})
                 continue

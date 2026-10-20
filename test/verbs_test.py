@@ -33,18 +33,27 @@ spec.loader.exec_module(security)
 
 
 class Root:
-    """Pretends root for need_root(); the files are in a temporary folder anyway."""
+    """Pretends root for need_root(); the files are in a temporary folder anyway. Pretending
+    root, the files this test writes count as root's: without real root they belong to the user
+    running the test. Write permission for group or others still makes a file untrusted."""
 
     def __init__(self, uid=0):
         self.uid = uid
 
     def __enter__(self):
         self.real = os.geteuid
+        self.trusted = seclib.trusted_file
+        real_uid, trusted = self.real(), self.trusted
         os.geteuid = lambda: self.uid
+        if self.uid == 0:
+            seclib.trusted_file = lambda st: st is not None and trusted(
+                os.stat_result((st.st_mode, st.st_ino, st.st_dev, st.st_nlink,
+                                0 if st.st_uid == real_uid else st.st_uid) + tuple(st)[5:]))
         return self
 
     def __exit__(self, *a):
         os.geteuid = self.real
+        seclib.trusted_file = self.trusted
 
 
 class Arguments(unittest.TestCase):
