@@ -1,0 +1,8 @@
+common:
+  daemonize: true
+  log_media: file
+api:
+  server:
+    listen_uri: 127.0.0.1:8080
+    online_client: # Central API credentials (to push signals and receive bad IPs)
+      credentials_path: /etc/crowdsec/online_api_credentials.yaml

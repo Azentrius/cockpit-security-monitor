@@ -1,0 +1,16 @@
+*filter
+:ufw-user-input - [0:0]
+:ufw-user-limit - [0:0]
+:ufw-user-limit-accept - [0:0]
+### RULES ###
+
+### tuple ### allow tcp 22 0.0.0.0/0 any 10.8.0.0/24 in
+-A ufw-user-input -p tcp --dport 22 -s 10.8.0.0/24 -j ACCEPT
+
+### tuple ### limit tcp 9090 0.0.0.0/0 any 0.0.0.0/0 in
+-A ufw-user-input -p tcp --dport 9090 -m conntrack --ctstate NEW -m recent --set
+-A ufw-user-input -p tcp --dport 9090 -m conntrack --ctstate NEW -m recent --update --seconds 30 --hitcount 6 -j ufw-user-limit
+-A ufw-user-input -p tcp --dport 9090 -j ufw-user-limit-accept
+
+### END RULES ###
+COMMIT

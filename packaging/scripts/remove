@@ -1,0 +1,10 @@
+# shellcheck shell=sh
+# Before cockpit-security-monitor is removed (as root; also `make uninstall`): stop its timer and
+# its services.
+# SPDX-License-Identifier: Apache-2.0
+if [ -d /run/systemd/system ]; then
+    systemctl disable --now cockpit-security-scan.timer > /dev/null 2>&1 || true
+    systemctl stop cockpit-security-scan.service cockpit-security-hetzner.service > /dev/null 2>&1 || true
+fi
+# Bytecode a Python run without -B may have left next to the helpers.
+rm -rf /usr/lib/cockpit-security-monitor/__pycache__

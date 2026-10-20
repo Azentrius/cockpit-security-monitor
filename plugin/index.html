@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Security Monitor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Shared Azentrius design files (identical in every add-on, see
+         tools/design-files.sha256): the theme script comes first so the page
+         never flashes in the wrong brightness, then the shared stylesheet,
+         then what only this page needs. Everything is local, so Cockpit's
+         default (strict) CSP applies unchanged. -->
+    <script src="azentrius-theme.js?v=0.1.0"></script>
+    <link rel="stylesheet" href="azentrius.css?v=0.1.0">
+    <link rel="stylesheet" href="security.css?v=0.1.0">
+    <!-- Cockpit base API + Cockpit's own translation file for the session
+         language (sets cockpit.language, e.g. "de"; absent for English). -->
+    <script src="../base1/cockpit.js"></script>
+    <script src="../base1/po.js"></script>
+    <script src="icons.js?v=0.1.0"></script>
+</head>
+<body>
+    <!-- Static texts are English (the fallback) and get translated by
+         security.js before anything is interactive; see data-i18n. -->
+    <div class="az-page">
+        <header class="az-page-header">
+            <h1 class="az-page-title">Security <span class="az-page-title__suffix">Monitor</span></h1>
+            <div class="az-page-actions">
+                <span id="sm-meta" class="az-meta"></span>
+                <!-- Starts busy: the first load begins as soon as security.js runs. -->
+                <button id="sm-refresh" class="az-btn az-btn--primary is-busy" type="button" disabled aria-busy="true">
+                    <span class="sm-btn-spinner" aria-hidden="true"></span><span data-icon="sync-alt"></span><span class="sm-btn-label" data-i18n="btn.loading">Loading …</span>
+                </button>
+            </div>
+        </header>
+
+        <nav id="sm-tabs" class="az-tabs" role="tablist" aria-label="Areas" data-i18n-aria="tabs.label">
+            <button id="sm-tab-btn-exposure" class="az-tab" role="tab" type="button" aria-selected="true"
+                    aria-controls="sm-tab-exposure" data-tab="exposure" data-i18n="tab.exposure">Exposure</button>
+            <button id="sm-tab-btn-ssh" class="az-tab" role="tab" type="button" aria-selected="false" tabindex="-1"
+                    aria-controls="sm-tab-ssh" data-tab="ssh" data-i18n="tab.ssh">SSH</button>
+            <button id="sm-tab-btn-logins" class="az-tab" role="tab" type="button" aria-selected="false" tabindex="-1"
+                    aria-controls="sm-tab-logins" data-tab="logins" data-i18n="tab.logins">Logins</button>
+            <button id="sm-tab-btn-containers" class="az-tab" role="tab" type="button" aria-selected="false" tabindex="-1"
+                    aria-controls="sm-tab-containers" data-tab="containers" data-i18n="tab.containers">Containers</button>
+            <button id="sm-tab-btn-crowdsec" class="az-tab" role="tab" type="button" aria-selected="false" tabindex="-1"
+                    aria-controls="sm-tab-crowdsec" data-tab="crowdsec" data-i18n="tab.crowdsec" hidden>CrowdSec</button>
+        </nav>
+
+        <!-- Messages for the whole page, in every tab (role="alert" for errors). -->
+        <div id="sm-status" class="sm-status-list"></div>
+
+        <section id="sm-loading" class="az-card sm-loading" aria-live="polite">
+            <span class="sm-spinner" aria-hidden="true"></span>
+            <span><span class="sm-loading-title" data-i18n="loading.title">Checking this server …</span>
+                <span class="sm-loading-sub" data-i18n="loading.sub">Reading the addresses, the listening sockets, the packet filter, Docker, SSH and the journal. Nothing is changed.</span></span>
+        </section>
+
+        <!-- Without administrative access: the summary of status.json only. -->
+        <div id="sm-summary" class="sm-panel" hidden></div>
+
+        <section id="sm-tab-exposure" class="sm-panel" role="tabpanel" aria-labelledby="sm-tab-btn-exposure"></section>
+        <section id="sm-tab-ssh" class="sm-panel" role="tabpanel" aria-labelledby="sm-tab-btn-ssh" hidden></section>
+        <section id="sm-tab-logins" class="sm-panel" role="tabpanel" aria-labelledby="sm-tab-btn-logins" hidden></section>
+        <section id="sm-tab-containers" class="sm-panel" role="tabpanel" aria-labelledby="sm-tab-btn-containers" hidden></section>
+        <section id="sm-tab-crowdsec" class="sm-panel" role="tabpanel" aria-labelledby="sm-tab-btn-crowdsec" hidden></section>
+
+        <footer class="az-signature">
+            <a class="az-signature__mark" href="https://azentrius.com" target="_blank" rel="noopener noreferrer">Azentrius</a>
+            <span class="az-signature__meta"><span id="sm-sig-version">Security Monitor</span><span id="sm-sig-host" hidden></span>
+                <a href="https://github.com/Azentrius/cockpit-security-monitor" target="_blank" rel="noopener noreferrer" data-i18n="sig.source">Source code</a></span>
+        </footer>
+    </div>
+
+    <!-- The one dialog: the regular check, and marking a finding as expected.
+         A description first, then (for a mark) the note, then the live
+         output and the result. -->
+    <dialog id="sm-dialog" class="az-modal sm-dialog" aria-labelledby="sm-dialog-title">
+        <div class="az-modal__header">
+            <h2 id="sm-dialog-title" class="az-modal__title"></h2>
+        </div>
+        <div class="az-modal__body">
+            <p id="sm-dialog-desc" class="sm-dialog-desc"></p>
+            <div id="sm-dialog-note-field" class="az-field" hidden>
+                <label class="az-field__label" for="sm-dialog-input" data-i18n="dlg.expect.note">Note (optional, at most 200 characters)</label>
+                <input id="sm-dialog-input" class="az-input" type="text" maxlength="200" autocomplete="off"
+                       placeholder="Why it is meant to be this way" data-i18n-placeholder="dlg.expect.placeholder">
+            </div>
+            <p class="sm-dialog-note" data-i18n="dlg.note">Runs with administrator privileges via Cockpit.</p>
+            <pre id="sm-dialog-log" class="sm-dialog-log" hidden></pre>
+            <p id="sm-dialog-result" class="sm-dialog-result" role="status" aria-live="polite"></p>
+        </div>
+        <div class="az-modal__footer">
+            <button id="sm-dialog-confirm" class="az-btn az-btn--secondary" type="button">
+                <span class="sm-btn-spinner" aria-hidden="true"></span><span class="sm-btn-label"></span>
+            </button>
+            <button id="sm-dialog-cancel" class="az-btn az-btn--link" type="button" data-i18n="dlg.cancel">Cancel</button>
+        </div>
+    </dialog>
+
+    <script src="i18n.js?v=0.1.0"></script>
+    <script src="security.js?v=0.1.0"></script>
+</body>
+</html>

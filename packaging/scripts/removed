@@ -1,0 +1,15 @@
+# shellcheck shell=sh
+# After cockpit-security-monitor was removed (as root; also `make uninstall`): forget its units
+# and its state. The state is only what the scan saw; /etc/cockpit-security-monitor (the marks and
+# the Hetzner token) stays, as configuration does.
+# SPDX-License-Identifier: Apache-2.0
+rm -f /var/lib/cockpit-security-monitor/state.json /var/lib/cockpit-security-monitor/status.json \
+    /run/cockpit-security-monitor-scan.lock /run/cockpit-security-monitor-marks.lock
+rmdir /var/lib/cockpit-security-monitor 2> /dev/null || true
+# The answer of the Hetzner service (systemd's DynamicUser keeps it below /var/lib/private).
+rm -f /var/lib/private/cockpit-security-hetzner/hetzner.json
+rmdir /var/lib/private/cockpit-security-hetzner 2> /dev/null || true
+rm -f /var/lib/cockpit-security-hetzner
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload || true
+fi

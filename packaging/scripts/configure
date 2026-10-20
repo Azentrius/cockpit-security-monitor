@@ -1,0 +1,16 @@
+# shellcheck shell=sh
+# After every install and upgrade of cockpit-security-monitor (as root; also `make install`).
+# SPDX-License-Identifier: Apache-2.0
+#
+# The timer stays as it was: off on a new install (it is set up from the page), on after an
+# upgrade if it was on. A timer that is on gets a scan right away, so the state has the format
+# of this version. /etc/cockpit-security-monitor holds the marks and the optional token and
+# stays root's.
+install -d -m 755 -o root -g root /etc/cockpit-security-monitor
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload || true
+    if systemctl is-enabled --quiet cockpit-security-scan.timer 2> /dev/null; then
+        systemctl restart cockpit-security-scan.timer || true
+        systemctl start --no-block cockpit-security-scan.service || true
+    fi
+fi

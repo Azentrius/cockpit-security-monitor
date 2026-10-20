@@ -1,0 +1,12 @@
+[Unit]
+Description=Security Monitor: check this host every 15 minutes
+
+[Timer]
+# Off until set up from the page (security.py install timer).
+OnCalendar=*:04/15
+RandomizedDelaySec=1min
+OnBootSec=3min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

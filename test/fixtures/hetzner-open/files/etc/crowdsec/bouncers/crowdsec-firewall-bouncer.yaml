@@ -1,0 +1,37 @@
+mode: nftables
+pid_dir: /var/run/
+update_frequency: 10s
+daemonize: true
+log_mode: file
+log_dir: /var/log/
+log_level: info
+api_url: http://127.0.0.1:8080/
+api_key: ${API_KEY}
+disable_ipv6: false
+deny_action: DROP
+deny_log: false
+supported_decisions_types:
+  - ban
+#to change log prefix
+#deny_log_prefix: "crowdsec: "
+#to change the blacklists name
+blacklists_ipv4: crowdsec-blacklists
+blacklists_ipv6: crowdsec6-blacklists
+#if present, insert rule in those chains
+iptables_chains:
+  - INPUT
+#  - FORWARD
+#  - DOCKER-USER
+
+## nftables
+nftables:
+  ipv4:
+    enabled: true
+    set-only: false
+    table: crowdsec
+    chain: crowdsec-chain
+  ipv6:
+    enabled: true
+    set-only: false
+    table: crowdsec6
+    chain: crowdsec6-chain

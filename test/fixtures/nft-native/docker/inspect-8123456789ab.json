@@ -1,0 +1,74 @@
+{
+ "Id": "8123456789ab8888888888888888888888888888888888888888888888888888",
+ "Created": "2026-10-18T08:00:00Z",
+ "Name": "/forgejo",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Hostname": "8123456789ab",
+  "User": "git",
+  "Image": "codeberg.org/forgejo/forgejo:13",
+  "ExposedPorts": {
+   "3000/tcp": {},
+   "22/tcp": {}
+  },
+  "Labels": {
+   "com.docker.compose.project": "app",
+   "com.docker.compose.service": "forgejo"
+  }
+ },
+ "HostConfig": {
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "CapDrop": null,
+  "NetworkMode": "bridge",
+  "SecurityOpt": [
+   "no-new-privileges"
+  ],
+  "PortBindings": {
+   "3000/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "3000"
+    }
+   ],
+   "22/tcp": [
+    {
+     "HostIp": "10.8.0.4",
+     "HostPort": "2222"
+    }
+   ]
+  }
+ },
+ "Mounts": [],
+ "NetworkSettings": {
+  "Ports": {
+   "3000/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "3000"
+    }
+   ],
+   "22/tcp": [
+    {
+     "HostIp": "10.8.0.4",
+     "HostPort": "2222"
+    }
+   ]
+  },
+  "Networks": {
+   "bridge": {
+    "NetworkID": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "IPAddress": "172.17.0.2",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": "",
+    "Gateway": "172.17.0.1"
+   }
+  }
+ },
+ "State": {
+  "Status": "running",
+  "Running": true,
+  "Pid": 4000
+ }
+}

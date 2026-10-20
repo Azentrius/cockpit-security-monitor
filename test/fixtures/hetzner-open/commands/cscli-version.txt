@@ -1,0 +1,10 @@
+version: v1.4.6-6~deb12u1-debian
+Codename: alphaga
+BuildDate: 2024-02-05_09:57:27
+GoVersion: 1.19.8
+Platform: linux
+libre2: C++
+Constraint_parser: >= 1.0, <= 2.0
+Constraint_scenario: >= 1.0, < 3.0
+Constraint_api: v1
+Constraint_acquis: >= 1.0, < 2.0

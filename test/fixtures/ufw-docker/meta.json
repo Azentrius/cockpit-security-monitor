@@ -1,0 +1,27 @@
+{
+ "now": "2026-10-20T12:00:00Z",
+ "uid": 0,
+ "stat": {
+  "/root/.ssh/authorized_keys": {
+   "mode": "600",
+   "uid": 0
+  },
+  "/root/.ssh": {
+   "mode": "700",
+   "uid": 0,
+   "type": "dir"
+  },
+  "/home/alex/.ssh/authorized_keys": {
+   "mode": "664",
+   "uid": 1000
+  },
+  "/home/alex/.ssh": {
+   "mode": "700",
+   "uid": 1000,
+   "type": "dir"
+  }
+ },
+ "exists": [
+  "/var/run/docker.sock"
+ ]
+}

@@ -1,0 +1,52 @@
+{
+ "Id": "3123456789ab3333333333333333333333333333333333333333333333333333",
+ "Created": "2026-10-18T08:00:00Z",
+ "Name": "/runner",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Hostname": "3123456789ab",
+  "User": "",
+  "Image": "gitea/act_runner:0.2.13",
+  "ExposedPorts": {},
+  "Labels": {
+   "com.docker.compose.project": "app",
+   "com.docker.compose.service": "runner"
+  }
+ },
+ "HostConfig": {
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "CapDrop": null,
+  "NetworkMode": "app",
+  "SecurityOpt": null,
+  "PortBindings": {}
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/var/run/docker.sock",
+   "Destination": "/var/run/docker.sock",
+   "Mode": "",
+   "RW": true,
+   "Propagation": "rprivate"
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {},
+  "Networks": {
+   "app": {
+    "NetworkID": "1a2b3c4d5e6f7777777777777777777777777777777777777777777777777777",
+    "IPAddress": "172.18.0.4",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": "",
+    "Gateway": "172.18.0.1"
+   }
+  }
+ },
+ "State": {
+  "Status": "running",
+  "Running": true,
+  "Pid": 4000
+ }
+}

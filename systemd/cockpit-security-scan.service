@@ -1,0 +1,49 @@
+[Unit]
+Description=Security Monitor: what is reachable from where on this host (read-only scan)
+Documentation=https://github.com/Azentrius/cockpit-security-monitor
+# The Hetzner Cloud Firewall comes first when a token is set up; without one that unit is skipped,
+# and when it fails the scan runs anyway (Wants, not Requires).
+Wants=cockpit-security-hetzner.service
+After=cockpit-security-hetzner.service docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -IB /usr/lib/cockpit-security-monitor/security-scan.py --output /var/lib/cockpit-security-monitor/state.json --status /var/lib/cockpit-security-monitor/status.json
+# Creates /var/lib/cockpit-security-monitor (root, 0755): state.json is 0600 with every
+# detail, status.json 0644 with only numbers and states for the Status Board.
+StateDirectory=cockpit-security-monitor
+StateDirectoryMode=0755
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=5min
+
+# Hardening. The scan runs in the host's network namespace, since it lists that namespace's
+# addresses, sockets and packet filter (PrivateNetwork= would show an empty one). No IP traffic
+# except the loopback (cscli asks CrowdSec's local API there); netlink for ip, ss, nft and
+# iptables-save. Root's powers are cut to what listing needs: the packet filter (CAP_NET_ADMIN,
+# CAP_NET_RAW for iptables-legacy), the processes of every user (CAP_SYS_PTRACE for ss -p) and
+# reading files of every user (CAP_DAC_READ_SEARCH: authorized_keys, the journal).
+IPAddressDeny=any
+IPAddressAllow=localhost
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077

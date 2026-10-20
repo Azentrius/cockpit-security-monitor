@@ -1,0 +1,188 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Everything that runs without a server: lint, the offline tests, the packages (built twice to
+  # the same bytes), installed on Debian and Fedora with a scan as root and the status as a user,
+  # and the preview in a browser (no JavaScript errors, no sideways scrolling on a phone).
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Check tools (pinned in test/requirements.txt)
+        run: pip install -r test/requirements.txt
+      - name: Lint (shellcheck, ruff, systemd units and their hardening)
+        run: make lint
+      # The helpers against the scenarios in test/fixtures (ufw-docker, hetzner-open, nft-native
+      # and variants), the packet filter model, the status contract and its verb, the page's
+      # verbs, the Hetzner API; the page under jsdom; texts, files, design, version.
+      - name: Offline tests
+        run: make check
+      - name: Packages (.deb, .rpm) with valid AppStream data, built twice to the same bytes
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends rpm appstream > /dev/null
+          appstreamcli validate --no-net packaging/*.metainfo.xml
+          make packages
+          (cd dist && sha256sum *.deb *.rpm) > first.sha256
+          rm -rf dist && make packages > /dev/null
+          (cd dist && sha256sum -c ../first.sha256)
+      - name: Package dependencies name the minimum versions (Cockpit 264, Python 3.8)
+        run: |
+          test "$(dpkg-deb -f dist/*.deb Depends)" = "cockpit-bridge (>= 264), python3 (>= 3.8), iproute2"
+          rpm -qp --requires dist/*.rpm | grep -qx 'cockpit-bridge >= 264'
+          rpm -qp --requires dist/*.rpm | grep -qx 'python3 >= 3.8'
+      - name: Install and remove the .deb on Debian 13, the .rpm on Fedora 43
+        run: |
+          for image in debian:13 fedora:43; do
+            docker run --rm -e IMAGE="$image" -v "$PWD/dist:/dist:ro" "$image" sh -ec '
+              case "$IMAGE" in
+                debian*) apt-get update -qq; apt-get install -y -qq /dist/*.deb > /dev/null ;;
+                fedora*) dnf install -y -q /dist/*.rpm ;;
+              esac
+              test -x /usr/lib/cockpit-security-monitor/security-scan.py
+              test -x /usr/lib/cockpit-security-monitor/security.py
+              test -f /usr/lib/systemd/system/cockpit-security-scan.timer
+              test -f /usr/lib/systemd/system/cockpit-security-hetzner.service
+              test -f /usr/share/cockpit/security/manifest.json
+              test -d /etc/cockpit-security-monitor
+              test "$(stat -c %a /usr/lib/cockpit-security-monitor/seclib.py)" = 644
+              mkdir -p /var/lib/cockpit-security-monitor
+              /usr/lib/cockpit-security-monitor/security-scan.py --output /var/lib/cockpit-security-monitor/state.json \
+                --status /var/lib/cockpit-security-monitor/status.json
+              test "$(stat -c %a /var/lib/cockpit-security-monitor/state.json)" = 600
+              python3 -c "import json; argv = json.load(open(\"/usr/share/cockpit/security/manifest.json\"))[\"azentrius\"][\"status\"]; print(\" \".join(argv))" > /tmp/verb
+              su nobody -s /bin/sh -c "$(cat /tmp/verb) --lang de" | python3 -c "import json, sys; d = json.load(sys.stdin); print(d[\"state\"], d[\"summary\"]); assert d[\"schema\"] == 1 and d[\"version\"] != \"unknown\""
+              case "$IMAGE" in
+                debian*) apt-get remove -y -qq cockpit-security-monitor > /dev/null ;;
+                fedora*) dnf remove -y -q cockpit-security-monitor ;;
+              esac
+              test ! -e /usr/lib/cockpit-security-monitor'
+          done
+      - name: Browser for the preview
+        run: python -m playwright install --with-deps chromium
+      - name: Preview in a browser (no JavaScript errors, no sideways scrolling on a phone) and screenshots
+        run: |
+          python tools/preview/build.py
+          python tools/preview/shoot.py test/shots
+      - name: Keep screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots
+          path: test/shots/
+
+  # The oldest Python the helpers support (README, Requirements): the helper tests on 3.8.
+  python-min:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Helper tests on Python 3.8
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src/test python:3.8-slim sh -ec '
+            python3 --version
+            for t in lib_test.py fw_test.py scan_test.py status_test.py verbs_test.py hetzner_test.py; do
+              python3 -B "$t" > "/tmp/$t.log" 2>&1 || { cat "/tmp/$t.log"; exit 1; }; echo "PASS $t"; done'
+
+  # Spec 4.7 on this throw-away runner: a real Cockpit with systemd, UFW on (incoming denied,
+  # the VPN allowed), Docker publishing 0.0.0.0:8080, a public address and a VPN as dummy
+  # interfaces (test/e2e/setup.sh). Playwright drives Chromium through Cockpit
+  # (test/e2e_session.py): 8080 "reachable from the internet, UFW does not apply here", marked
+  # and unmarked from the page, then "VPN only" with a DOCKER-USER rule; the timer; a user
+  # without administrative access; a link #/ssh; no JavaScript or resource errors. The steps,
+  # screenshots and the raw outputs of the sources (for fixtures) are in the artifact e2e-session.
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Cockpit and the packages of this build
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends cockpit-ws cockpit-system cockpit-bridge rpm > /dev/null
+          sudo systemctl start cockpit.socket
+          make packages
+          {
+            echo "NEW_VERSION=$(sh tools/check-version.sh)"
+            echo "NEW_DEB=$(ls "$PWD"/dist/*.deb)"
+          } >> "$GITHUB_ENV"
+      - name: Browser (Playwright, pinned in test/requirements.txt)
+        run: |
+          pip install -q -r test/requirements.txt
+          python -m playwright install --with-deps chromium > /dev/null
+      - name: Two users, UFW on, Docker publishing 8080, a public address and a VPN
+        run: |
+          admin_pw=$(openssl rand -hex 16)
+          plain_pw=$(openssl rand -hex 16)
+          echo "::add-mask::$admin_pw"
+          echo "::add-mask::$plain_pw"
+          printf 'ADMIN_USER=smadmin\nADMIN_PW=%s\nPLAIN_USER=smplain\nPLAIN_PW=%s\n' "$admin_pw" "$plain_pw" >> "$GITHUB_ENV"
+          sudo env ADMIN_USER=smadmin ADMIN_PW="$admin_pw" PLAIN_USER=smplain PLAIN_PW="$plain_pw" sh test/e2e/setup.sh
+          for user_pw in "smadmin:$admin_pw" "smplain:$plain_pw"; do
+            code=$(curl -sk -u "$user_pw" -o /dev/null -w '%{http_code}' https://localhost:9090/cockpit/login)
+            echo "login ${user_pw%%:*}: HTTP $code"
+            if [ "$code" != 200 ]; then
+              sudo journalctl --no-pager -n 60 | grep -iE "cockpit|pam|auth" || true
+              exit 1
+            fi
+          done
+      - name: The add-on in Cockpit (test/e2e_session.py)
+        run: python test/e2e_session.py e2e-session
+      - name: Report and logs
+        if: always()
+        run: |
+          mkdir -p e2e-session
+          [ ! -f e2e-session/report.md ] || cat e2e-session/report.md >> "$GITHUB_STEP_SUMMARY"
+          sudo journalctl --no-pager -n 2000 > e2e-session/journal.txt || true
+          sudo cat /var/lib/cockpit-security-monitor/state.json > e2e-session/state.json 2> /dev/null || true
+          sudo chown -R "$(id -u)" e2e-session || true
+      - name: Keep screenshots, report and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-session
+          path: e2e-session/
+
+  # Secrets in the files and in the whole history (gitleaks, pinned with its checksum). The
+  # findings are redacted in the log; GitHub's own secret scanning with push protection runs
+  # as well (repository settings).
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: gitleaks 8.21.2 over the history and the files
+        run: |
+          curl -fsSLo gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz
+          echo "5bc41815076e6ed6ef8fbecc9d9b75bcae31f39029ceb55da08086315316e3ba  gitleaks.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          tar -xzf gitleaks.tar.gz -C "$RUNNER_TEMP/gitleaks" gitleaks
+          rm gitleaks.tar.gz
+          "$RUNNER_TEMP/gitleaks/gitleaks" git --redact --no-banner --verbose .
+          "$RUNNER_TEMP/gitleaks/gitleaks" dir --redact --no-banner .

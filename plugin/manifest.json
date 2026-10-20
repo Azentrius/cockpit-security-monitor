@@ -1,0 +1,20 @@
+{
+    "version": 0,
+    "requires": {
+        "cockpit": "264"
+    },
+    "menu": {
+        "index": {
+            "label": "Security Monitor",
+            "order": 37,
+            "keywords": [
+                {
+                    "matches": ["security", "firewall", "ufw", "nftables", "iptables", "ports", "exposure", "docker", "ssh", "logins", "crowdsec", "hetzner"]
+                }
+            ]
+        }
+    },
+    "azentrius": {
+        "status": ["/usr/lib/cockpit-security-monitor/security.py", "status"]
+    }
+}

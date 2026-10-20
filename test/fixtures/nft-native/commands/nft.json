@@ -1,0 +1,437 @@
+{
+ "nftables": [
+  {
+   "metainfo": {
+    "version": "1.1.3",
+    "release_name": "Commodore Bullmoose #4",
+    "json_schema_version": 1
+   }
+  },
+  {
+   "table": {
+    "family": "inet",
+    "name": "filter",
+    "handle": 1
+   }
+  },
+  {
+   "chain": {
+    "family": "inet",
+    "table": "filter",
+    "name": "input",
+    "handle": 1,
+    "type": "filter",
+    "hook": "input",
+    "prio": 0,
+    "policy": "drop"
+   }
+  },
+  {
+   "chain": {
+    "family": "inet",
+    "table": "filter",
+    "name": "forward",
+    "handle": 2,
+    "type": "filter",
+    "hook": "forward",
+    "prio": 0,
+    "policy": "accept"
+   }
+  },
+  {
+   "chain": {
+    "family": "inet",
+    "table": "filter",
+    "name": "output",
+    "handle": 3,
+    "type": "filter",
+    "hook": "output",
+    "prio": 0,
+    "policy": "accept"
+   }
+  },
+  {
+   "chain": {
+    "family": "inet",
+    "table": "filter",
+    "name": "vpn_in",
+    "handle": 4
+   }
+  },
+  {
+   "table": {
+    "family": "ip",
+    "name": "filter",
+    "handle": 2
+   }
+  },
+  {
+   "table": {
+    "family": "ip",
+    "name": "nat",
+    "handle": 3
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "input",
+    "handle": 10,
+    "expr": [
+     {
+      "vmap": {
+       "key": {
+        "meta": {
+         "key": "iifname"
+        }
+       },
+       "data": {
+        "set": [
+         [
+          "lo",
+          {
+           "accept": null
+          }
+         ],
+         [
+          "wg0",
+          {
+           "jump": {
+            "target": "vpn_in"
+           }
+          }
+         ]
+        ]
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "input",
+    "handle": 11,
+    "expr": [
+     {
+      "match": {
+       "op": "in",
+       "left": {
+        "ct": {
+         "key": "state"
+        }
+       },
+       "right": [
+        "established",
+        "related"
+       ]
+      }
+     },
+     {
+      "counter": {
+       "packets": 0,
+       "bytes": 0
+      }
+     },
+     {
+      "accept": null
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "input",
+    "handle": 12,
+    "expr": [
+     {
+      "match": {
+       "op": "in",
+       "left": {
+        "ct": {
+         "key": "state"
+        }
+       },
+       "right": "invalid"
+      }
+     },
+     {
+      "drop": null
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "input",
+    "handle": 13,
+    "expr": [
+     {
+      "match": {
+       "op": "==",
+       "left": {
+        "meta": {
+         "key": "l4proto"
+        }
+       },
+       "right": "ipv6-icmp"
+      }
+     },
+     {
+      "accept": null
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "input",
+    "handle": 14,
+    "expr": [
+     {
+      "match": {
+       "op": "==",
+       "left": {
+        "meta": {
+         "key": "l4proto"
+        }
+       },
+       "right": "icmp"
+      }
+     },
+     {
+      "accept": null
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "input",
+    "handle": 15,
+    "expr": [
+     {
+      "match": {
+       "op": "==",
+       "left": {
+        "payload": {
+         "protocol": "tcp",
+         "field": "dport"
+        }
+       },
+       "right": {
+        "set": [
+         80,
+         443
+        ]
+       }
+      }
+     },
+     {
+      "counter": {
+       "packets": 0,
+       "bytes": 0
+      }
+     },
+     {
+      "accept": null
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "input",
+    "handle": 16,
+    "expr": [
+     {
+      "match": {
+       "op": "==",
+       "left": {
+        "payload": {
+         "protocol": "udp",
+         "field": "dport"
+        }
+       },
+       "right": 51820
+      }
+     },
+     {
+      "counter": {
+       "packets": 0,
+       "bytes": 0
+      }
+     },
+     {
+      "accept": null
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "input",
+    "handle": 17,
+    "expr": [
+     {
+      "match": {
+       "op": "==",
+       "left": {
+        "payload": {
+         "protocol": "tcp",
+         "field": "dport"
+        }
+       },
+       "right": {
+        "range": [
+         60000,
+         60010
+        ]
+       }
+      }
+     },
+     {
+      "match": {
+       "op": "==",
+       "left": {
+        "payload": {
+         "protocol": "ip",
+         "field": "saddr"
+        }
+       },
+       "right": {
+        "prefix": {
+         "addr": "192.0.2.0",
+         "len": 24
+        }
+       }
+      }
+     },
+     {
+      "accept": null
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "input",
+    "handle": 18,
+    "expr": [
+     {
+      "xt": {
+       "type": "match",
+       "name": "recent"
+      }
+     },
+     {
+      "drop": null
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "input",
+    "handle": 19,
+    "expr": [
+     {
+      "counter": null
+     },
+     {
+      "log": {
+       "prefix": "nft drop: "
+      }
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "vpn_in",
+    "handle": 20,
+    "expr": [
+     {
+      "match": {
+       "op": "==",
+       "left": {
+        "payload": {
+         "protocol": "tcp",
+         "field": "dport"
+        }
+       },
+       "right": 9090
+      }
+     },
+     {
+      "accept": null
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "vpn_in",
+    "handle": 21,
+    "expr": [
+     {
+      "match": {
+       "op": "==",
+       "left": {
+        "payload": {
+         "protocol": "tcp",
+         "field": "dport"
+        }
+       },
+       "right": {
+        "set": [
+         22,
+         9100
+        ]
+       }
+      }
+     },
+     {
+      "accept": null
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "filter",
+    "chain": "vpn_in",
+    "handle": 22,
+    "expr": [
+     {
+      "return": null
+     }
+    ]
+   }
+  }
+ ]
+}

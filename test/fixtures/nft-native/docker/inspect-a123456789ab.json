@@ -1,0 +1,44 @@
+{
+ "Id": "a123456789abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+ "Created": "2026-10-18T08:00:00Z",
+ "Name": "/monitor",
+ "AppArmorProfile": "unconfined",
+ "Config": {
+  "Hostname": "a123456789ab",
+  "User": "nobody",
+  "Image": "prom/node-exporter:v1.9",
+  "ExposedPorts": {},
+  "Labels": {
+   "com.docker.compose.project": "app",
+   "com.docker.compose.service": "monitor"
+  }
+ },
+ "HostConfig": {
+  "Privileged": false,
+  "PidMode": "host",
+  "CapAdd": null,
+  "CapDrop": null,
+  "NetworkMode": "host",
+  "SecurityOpt": null,
+  "PortBindings": {}
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/",
+   "Destination": "/host",
+   "Mode": "ro",
+   "RW": false,
+   "Propagation": "rprivate"
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {},
+  "Networks": {}
+ },
+ "State": {
+  "Status": "running",
+  "Running": true,
+  "Pid": 4000
+ }
+}

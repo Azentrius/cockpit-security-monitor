@@ -1,0 +1,104 @@
+{
+ "schema": 1,
+ "addon": "security",
+ "label": "Security Monitor",
+ "version": "0.1.0",
+ "checked_at": "2026-10-20T12:00:00Z",
+ "state": "warning",
+ "summary": "Findings in 5 areas: Reachable from the internet, SSH, Logins, Container hardening, CrowdSec.",
+ "items": [
+  {
+   "id": "exposure",
+   "state": "info",
+   "title": "Reachable from the internet",
+   "value": "4",
+   "detail": "80/tcp http, 443/tcp https, 443/udp http3, 8443/tcp onlyoffice",
+   "link": "#/exposure",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "ssh",
+   "state": "warning",
+   "title": "SSH",
+   "value": "2",
+   "detail": "password login on; root may log in with a password; 2 keys without from=",
+   "link": "#/ssh",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "logins",
+   "state": "warning",
+   "title": "Logins",
+   "value": "1",
+   "detail": "1 successful login from outside VPN and private networks",
+   "link": "#/logins",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "containers",
+   "state": "warning",
+   "title": "Container hardening",
+   "value": "2",
+   "detail": "privileged: onlyoffice; extra capabilities: rustdesk",
+   "link": "#/containers",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "crowdsec",
+   "state": "warning",
+   "title": "CrowdSec",
+   "value": "2",
+   "detail": "outdated version 1.4.6; bouncer does not protect container ports; 2 active decisions",
+   "link": "#/crowdsec",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "scan",
+   "state": "ok",
+   "title": "Check",
+   "detail": "checked every 15 minutes when set up",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  }
+ ],
+ "i18n": {
+  "de": {
+   "summary": "Befunde in 5 Bereichen: Aus dem Internet erreichbar, SSH, Anmeldungen, Container-Härtung, CrowdSec.",
+   "items": {
+    "exposure": {
+     "title": "Aus dem Internet erreichbar",
+     "detail": "80/tcp http, 443/tcp https, 443/udp http3, 8443/tcp onlyoffice"
+    },
+    "ssh": {
+     "title": "SSH",
+     "detail": "Anmeldung mit Passwort an; root darf sich mit Passwort anmelden; 2 Schlüssel ohne from="
+    },
+    "logins": {
+     "title": "Anmeldungen",
+     "detail": "1 erfolgreiche Anmeldung von außerhalb von VPN und Privatnetz"
+    },
+    "containers": {
+     "title": "Container-Härtung",
+     "detail": "privilegiert: onlyoffice; zusätzliche Capabilities: rustdesk"
+    },
+    "crowdsec": {
+     "title": "CrowdSec",
+     "detail": "veraltete Version 1.4.6; Bouncer schützt keine Container-Ports; 2 aktive Sperren"
+    },
+    "scan": {
+     "title": "Prüfung",
+     "detail": "alle 15 Minuten, wenn eingerichtet"
+    }
+   },
+   "scan_old": "die letzte Prüfung ist älter als eine Stunde"
+  },
+  "en": {
+   "scan_old": "the last check is older than an hour"
+  }
+ }
+}

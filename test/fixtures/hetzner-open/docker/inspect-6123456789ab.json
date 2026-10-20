@@ -1,0 +1,87 @@
+{
+ "Id": "6123456789ab6666666666666666666666666666666666666666666666666666",
+ "Created": "2026-10-18T08:00:00Z",
+ "Name": "/rustdesk",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Hostname": "6123456789ab",
+  "User": "",
+  "Image": "rustdesk/rustdesk-server:1.1.14",
+  "ExposedPorts": {
+   "21115/tcp": {},
+   "21116/tcp": {},
+   "21116/udp": {}
+  },
+  "Labels": {
+   "com.docker.compose.project": "app",
+   "com.docker.compose.service": "rustdesk"
+  }
+ },
+ "HostConfig": {
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": [
+   "NET_ADMIN"
+  ],
+  "CapDrop": null,
+  "NetworkMode": "bridge",
+  "SecurityOpt": null,
+  "PortBindings": {
+   "21115/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "21115"
+    }
+   ],
+   "21116/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "21116"
+    }
+   ],
+   "21116/udp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "21116"
+    }
+   ]
+  }
+ },
+ "Mounts": [],
+ "NetworkSettings": {
+  "Ports": {
+   "21115/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "21115"
+    }
+   ],
+   "21116/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "21116"
+    }
+   ],
+   "21116/udp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "21116"
+    }
+   ]
+  },
+  "Networks": {
+   "bridge": {
+    "NetworkID": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "IPAddress": "172.17.0.4",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": "",
+    "Gateway": "172.17.0.1"
+   }
+  }
+ },
+ "State": {
+  "Status": "running",
+  "Running": true,
+  "Pid": 4000
+ }
+}

@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Bug report
+description: Something in Security Monitor does not work as described, or a port, a finding or a reason is wrong.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Security problems do not belong here.** Report them privately as described in
+        [SECURITY.md](https://github.com/Azentrius/cockpit-security-monitor/blob/main/SECURITY.md).
+
+        This issue is public. Remove passwords, tokens, repository credentials, host names, IP addresses
+        and other private data from everything you paste.
+  - type: input
+    id: version
+    attributes:
+      label: Add-on version
+      description: >-
+        Shown in the page footer ("Security Monitor X.Y.Z"), or the output of `dpkg -s cockpit-security-monitor`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and version
+      placeholder: "Ubuntu 24.04"
+    validations:
+      required: true
+  - type: input
+    id: cockpit
+    attributes:
+      label: Cockpit version
+      description: In Cockpit under Help › About Web Console, or `cockpit-bridge --version`.
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: The output of `python3 --version`.
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: For a wrong reach or finding, say which tab and port, and what the page said.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Publish a port with `docker run -d -p 8080:80 nginx`
+        2. Open Security Monitor in Cockpit and click "Refresh"
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Relevant output
+      description: >-
+        For example the browser console, `journalctl -u cockpit-security-scan.service -n 20`, or the
+        rules concerned from `sudo iptables-save` or `sudo nft list ruleset`.
+        **Before pasting, remove passwords, tokens, repository credentials, host names, IP addresses and
+        any other private data.**
+      render: shell
+  - type: checkboxes
+    id: no-secrets
+    attributes:
+      label: Private data
+      options:
+        - label: >-
+            I have removed passwords, tokens, repository credentials and any other secrets or private
+            data from everything above.
+          required: true

@@ -1,0 +1,31 @@
+Security Monitor, a Cockpit add-on
+Copyright 2026 Azentrius
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+The shared Azentrius design files plugin/azentrius.css and
+plugin/azentrius-theme.js (identical in every Azentrius add-on, see
+tools/design-files.sha256) are part of this project under the same license.
+
+This project includes third-party material under its own license:
+
+DM Sans (plugin/DMSans.woff2, a Latin subset)
+  Copyright 2014 The DM Sans Project Authors (https://github.com/googlefonts/dm-fonts)
+  SIL Open Font License 1.1, see plugin/OFL.txt
+
+DM Serif Display (plugin/DMSerifDisplay-Regular.woff2, subset to the word mark;
+plugin/DMSerifDisplay-Italic.woff2, subset to the letters of "Monitor")
+  Copyright 2014 - 2017 Adobe Systems Incorporated (http://www.adobe.com/), with
+  Reserved Font Name 'Source'. Copyright 2019 Google LLC.
+  SIL Open Font License 1.1, see plugin/OFL.txt
+
+Red Hat Mono (plugin/RedHatMono.woff2, a Latin subset)
+  Copyright 2024 The Red Hat Project Authors (https://github.com/RedHatOfficial/RedHatFont)
+  SIL Open Font License 1.1, see plugin/OFL.txt
+
+Icons (plugin/icons.js): Font Awesome Free 5.15.4 (Solid) by Fonticons, Inc.
+  (https://fontawesome.com), as shipped in @patternfly/react-icons 6.4.0
+  (Red Hat, Inc.); the path data is unchanged.
+  Creative Commons Attribution 4.0 International (CC BY 4.0), see
+  plugin/CC-BY-4.0-Font-Awesome.txt (installed next to the page and as
+  /usr/share/doc/cockpit-security-monitor/CC-BY-4.0-Font-Awesome.txt) and
+  https://creativecommons.org/licenses/by/4.0/

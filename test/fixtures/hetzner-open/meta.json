@@ -1,0 +1,23 @@
+{
+ "now": "2026-10-20T12:00:00Z",
+ "uid": 0,
+ "stat": {
+  "/root/.ssh/authorized_keys": {
+   "mode": "600",
+   "uid": 0
+  },
+  "/root/.ssh": {
+   "mode": "700",
+   "uid": 0,
+   "type": "dir"
+  },
+  "/etc/cockpit-security-monitor/hetzner.token": {
+   "mode": "600",
+   "uid": 0
+  }
+ },
+ "exists": [
+  "/var/run/docker.sock",
+  "/usr/bin/cscli"
+ ]
+}

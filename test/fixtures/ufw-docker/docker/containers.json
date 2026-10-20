@@ -1,0 +1,65 @@
+[
+ {
+  "Id": "0123456789ab0000000000000000000000000000000000000000000000000000",
+  "Names": [
+   "/web"
+  ],
+  "Image": "nginx:1.27-alpine",
+  "State": "running",
+  "Ports": [
+   {
+    "IP": "0.0.0.0",
+    "PrivatePort": 80,
+    "PublicPort": 8080,
+    "Type": "tcp"
+   },
+   {
+    "IP": "::",
+    "PrivatePort": 80,
+    "PublicPort": 8080,
+    "Type": "tcp"
+   }
+  ]
+ },
+ {
+  "Id": "1123456789ab1111111111111111111111111111111111111111111111111111",
+  "Names": [
+   "/db"
+  ],
+  "Image": "postgres:17",
+  "State": "running",
+  "Ports": [
+   {
+    "IP": "127.0.0.1",
+    "PrivatePort": 5432,
+    "PublicPort": 5432,
+    "Type": "tcp"
+   }
+  ]
+ },
+ {
+  "Id": "2123456789ab2222222222222222222222222222222222222222222222222222",
+  "Names": [
+   "/cache"
+  ],
+  "Image": "redis:7.4",
+  "State": "running",
+  "Ports": [
+   {
+    "IP": "10.8.0.1",
+    "PrivatePort": 6379,
+    "PublicPort": 6379,
+    "Type": "tcp"
+   }
+  ]
+ },
+ {
+  "Id": "3123456789ab3333333333333333333333333333333333333333333333333333",
+  "Names": [
+   "/runner"
+  ],
+  "Image": "gitea/act_runner:0.2.13",
+  "State": "running",
+  "Ports": []
+ }
+]

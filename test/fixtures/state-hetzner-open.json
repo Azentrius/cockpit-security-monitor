@@ -1,0 +1,2540 @@
+{
+ "format": 1,
+ "generated": "2026-10-20T12:00:00Z",
+ "root": true,
+ "network": {
+  "interfaces": [
+   {
+    "name": "lo",
+    "kind": "local",
+    "up": true,
+    "addrs": [
+     {
+      "addr": "127.0.0.1",
+      "prefix": 8,
+      "family": 4,
+      "class": "local"
+     },
+     {
+      "addr": "::1",
+      "prefix": 128,
+      "family": 6,
+      "class": "local"
+     }
+    ]
+   },
+   {
+    "name": "eth0",
+    "kind": "net",
+    "up": true,
+    "addrs": [
+     {
+      "addr": "203.0.113.20",
+      "prefix": 32,
+      "family": 4,
+      "class": "internet"
+     },
+     {
+      "addr": "2001:db8:20::1",
+      "prefix": 64,
+      "family": 6,
+      "class": "internet"
+     },
+     {
+      "addr": "fe80::5054:ff:fe00:2",
+      "prefix": 64,
+      "family": 6,
+      "class": "link"
+     }
+    ]
+   },
+   {
+    "name": "enp7s0",
+    "kind": "net",
+    "up": true,
+    "addrs": [
+     {
+      "addr": "10.0.0.3",
+      "prefix": 32,
+      "family": 4,
+      "class": "private"
+     }
+    ]
+   }
+  ],
+  "public": {
+   "4": true,
+   "6": true
+  }
+ },
+ "firewall": {
+  "iptables": {
+   "version": "1.8.10",
+   "variant": "nf_tables"
+  },
+  "tables": [
+   {
+    "src": "iptables",
+    "family": "ip",
+    "table": "filter",
+    "chains": 10,
+    "rules": 19,
+    "owners": [
+     "docker"
+    ]
+   },
+   {
+    "src": "iptables",
+    "family": "ip",
+    "table": "nat",
+    "chains": 5,
+    "rules": 11,
+    "owners": [
+     "docker"
+    ]
+   },
+   {
+    "src": "iptables",
+    "family": "ip6",
+    "table": "filter",
+    "chains": 6,
+    "rules": 2,
+    "owners": [
+     "docker"
+    ]
+   },
+   {
+    "src": "nft",
+    "family": "ip",
+    "table": "crowdsec",
+    "chains": 1,
+    "rules": 1,
+    "owners": [
+     "crowdsec"
+    ]
+   }
+  ],
+  "legacy_rules": false,
+  "docker_user": {
+   "4": 0,
+   "6": 0
+  },
+  "input_filter": {
+   "4": "off",
+   "6": "off"
+  },
+  "ufw": {
+   "installed": true,
+   "enabled": false,
+   "loaded": {
+    "4": false,
+    "6": false
+   },
+   "ipv6": true,
+   "default_input": "drop",
+   "default_forward": "drop",
+   "rules": [
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "tcp",
+     "port": "22",
+     "to": "0.0.0.0/0",
+     "sport": "any",
+     "from": "10.8.0.0/24",
+     "app": "",
+     "direction": "in",
+     "iface_in": "",
+     "iface_out": "",
+     "comment": "",
+     "family": 4
+    },
+    {
+     "action": "limit",
+     "log": "",
+     "route": false,
+     "proto": "tcp",
+     "port": "9090",
+     "to": "0.0.0.0/0",
+     "sport": "any",
+     "from": "0.0.0.0/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "",
+     "iface_out": "",
+     "comment": "",
+     "family": 4
+    }
+   ],
+   "rules_total": 2
+  },
+  "docker": {
+   "version": "28.5.1",
+   "backend": "iptables",
+   "backend_known": true,
+   "containers": 4
+  },
+  "hetzner": {
+   "configured": true,
+   "ok_at": "2026-10-20T11:59:00Z",
+   "tried_at": "2026-10-20T11:59:00Z",
+   "error": null,
+   "server": {
+    "id": 4711,
+    "name": "web-1"
+   },
+   "firewalls": [
+    {
+     "id": 38,
+     "name": "web",
+     "status": "applied",
+     "rules": [
+      {
+       "direction": "in",
+       "protocol": "tcp",
+       "port": "80",
+       "source_ips": [
+        "0.0.0.0/0",
+        "::/0"
+       ],
+       "description": "HTTP"
+      },
+      {
+       "direction": "in",
+       "protocol": "tcp",
+       "port": "443",
+       "source_ips": [
+        "0.0.0.0/0",
+        "::/0"
+       ],
+       "description": "HTTPS"
+      },
+      {
+       "direction": "in",
+       "protocol": "udp",
+       "port": "443",
+       "source_ips": [
+        "0.0.0.0/0",
+        "::/0"
+       ],
+       "description": "HTTP/3"
+      },
+      {
+       "direction": "in",
+       "protocol": "tcp",
+       "port": "8443",
+       "source_ips": [
+        "198.51.100.0/24"
+       ],
+       "description": "Office"
+      },
+      {
+       "direction": "in",
+       "protocol": "icmp",
+       "port": null,
+       "source_ips": [
+        "0.0.0.0/0",
+        "::/0"
+       ],
+       "description": null
+      }
+     ]
+    }
+   ],
+   "state": "ok"
+  }
+ },
+ "ports": [
+  {
+   "id": "tcp-22",
+   "proto": "tcp",
+   "port": 22,
+   "name": "ssh",
+   "weight": "danger",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "sshd"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "0.0.0.0:22",
+    "[::]:22"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "nft",
+         "family": "ip",
+         "table": "crowdsec",
+         "chain": "crowdsec-chain",
+         "policy": "accept",
+         "owner": "crowdsec"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input",
+      "hetzner": {
+       "result": "blocks",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38
+        }
+       ],
+       "sources": []
+      },
+      "host_result": "open"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "nft",
+         "family": "ip",
+         "table": "crowdsec",
+         "chain": "crowdsec-chain",
+         "policy": "accept",
+         "owner": "crowdsec"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "input"
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "nft",
+         "family": "ip",
+         "table": "crowdsec",
+         "chain": "crowdsec-chain",
+         "policy": "accept",
+         "owner": "crowdsec"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input",
+      "hetzner": {
+       "result": "blocks",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38
+        }
+       ],
+       "sources": []
+      },
+      "host_result": "open"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "hetzner"
+  },
+  {
+   "id": "tcp-53",
+   "proto": "tcp",
+   "port": 53,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "systemd-resolve"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "127.0.0.53%lo:53"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "nft",
+         "family": "ip",
+         "table": "crowdsec",
+         "chain": "crowdsec-chain",
+         "policy": "accept",
+         "owner": "crowdsec"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "local"
+  },
+  {
+   "id": "udp-53",
+   "proto": "udp",
+   "port": 53,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "systemd-resolve"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "127.0.0.53%lo:53"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "nft",
+         "family": "ip",
+         "table": "crowdsec",
+         "chain": "crowdsec-chain",
+         "policy": "accept",
+         "owner": "crowdsec"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "local"
+  },
+  {
+   "id": "tcp-80",
+   "proto": "tcp",
+   "port": 80,
+   "name": "http",
+   "weight": "info",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "caddy"
+    ],
+    "images": [
+     "caddy:2.10"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     80
+    ]
+   },
+   "binds": [
+    "0.0.0.0:80",
+    "[::]:80"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 1,
+         "text": "-d 172.17.0.2/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 80 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 80,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 10,
+        "text": "! -i docker0 -p tcp -m tcp --dport 80 -j DNAT --to-destination 172.17.0.2:80",
+        "comment": "",
+        "owner": "docker"
+       }
+      },
+      "hetzner": {
+       "result": "allows",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38,
+         "rule": "HTTP",
+         "port": "80"
+        }
+       ],
+       "sources": []
+      }
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 1,
+         "text": "-d 172.17.0.2/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 80 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 80,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 10,
+        "text": "! -i docker0 -p tcp -m tcp --dport 80 -j DNAT --to-destination 172.17.0.2:80",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 80,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 10,
+        "text": "! -i docker0 -p tcp -m tcp --dport 80 -j DNAT --to-destination 172.17.0.2:80",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input",
+      "proxy": true,
+      "hetzner": {
+       "result": "allows",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38,
+         "rule": "HTTP",
+         "port": "80"
+        }
+       ],
+       "sources": []
+      }
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input",
+      "proxy": true
+     }
+    }
+   },
+   "state": "info",
+   "why": "public-expected"
+  },
+  {
+   "id": "tcp-443",
+   "proto": "tcp",
+   "port": 443,
+   "name": "https",
+   "weight": "info",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "caddy"
+    ],
+    "images": [
+     "caddy:2.10"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     443
+    ]
+   },
+   "binds": [
+    "0.0.0.0:443",
+    "[::]:443"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 2,
+         "text": "-d 172.17.0.2/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 443 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 443,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 11,
+        "text": "! -i docker0 -p tcp -m tcp --dport 443 -j DNAT --to-destination 172.17.0.2:443",
+        "comment": "",
+        "owner": "docker"
+       }
+      },
+      "hetzner": {
+       "result": "allows",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38,
+         "rule": "HTTPS",
+         "port": "443"
+        }
+       ],
+       "sources": []
+      }
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 2,
+         "text": "-d 172.17.0.2/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 443 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 443,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 11,
+        "text": "! -i docker0 -p tcp -m tcp --dport 443 -j DNAT --to-destination 172.17.0.2:443",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 443,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 11,
+        "text": "! -i docker0 -p tcp -m tcp --dport 443 -j DNAT --to-destination 172.17.0.2:443",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input",
+      "proxy": true,
+      "hetzner": {
+       "result": "allows",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38,
+         "rule": "HTTPS",
+         "port": "443"
+        }
+       ],
+       "sources": []
+      }
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input",
+      "proxy": true
+     }
+    }
+   },
+   "state": "info",
+   "why": "public-expected"
+  },
+  {
+   "id": "udp-443",
+   "proto": "udp",
+   "port": 443,
+   "name": "http3",
+   "weight": "info",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "caddy"
+    ],
+    "images": [
+     "caddy:2.10"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     443
+    ]
+   },
+   "binds": [
+    "0.0.0.0:443",
+    "[::]:443"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 3,
+         "text": "-d 172.17.0.2/32 ! -i docker0 -o docker0 -p udp -m udp --dport 443 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 443,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 12,
+        "text": "! -i docker0 -p udp -m udp --dport 443 -j DNAT --to-destination 172.17.0.2:443",
+        "comment": "",
+        "owner": "docker"
+       }
+      },
+      "hetzner": {
+       "result": "allows",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38,
+         "rule": "HTTP/3",
+         "port": "443"
+        }
+       ],
+       "sources": []
+      }
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 3,
+         "text": "-d 172.17.0.2/32 ! -i docker0 -o docker0 -p udp -m udp --dport 443 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 443,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 12,
+        "text": "! -i docker0 -p udp -m udp --dport 443 -j DNAT --to-destination 172.17.0.2:443",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 443,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 12,
+        "text": "! -i docker0 -p udp -m udp --dport 443 -j DNAT --to-destination 172.17.0.2:443",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input",
+      "proxy": true,
+      "hetzner": {
+       "result": "allows",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38,
+         "rule": "HTTP/3",
+         "port": "443"
+        }
+       ],
+       "sources": []
+      }
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input",
+      "proxy": true
+     }
+    }
+   },
+   "state": "info",
+   "why": "public-expected"
+  },
+  {
+   "id": "tcp-5432",
+   "proto": "tcp",
+   "port": 5432,
+   "name": "postgresql",
+   "weight": "danger",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "postgres"
+    ],
+    "images": [
+     "postgres:16"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     5432
+    ]
+   },
+   "binds": [
+    "0.0.0.0:5432"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 8,
+         "text": "-d 172.17.0.5/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 5432 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.5",
+       "port": 5432,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 17,
+        "text": "! -i docker0 -p tcp -m tcp --dport 5432 -j DNAT --to-destination 172.17.0.5:5432",
+        "comment": "",
+        "owner": "docker"
+       }
+      },
+      "hetzner": {
+       "result": "blocks",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38
+        }
+       ],
+       "sources": []
+      },
+      "host_result": "open"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 8,
+         "text": "-d 172.17.0.5/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 5432 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.5",
+       "port": 5432,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 17,
+        "text": "! -i docker0 -p tcp -m tcp --dport 5432 -j DNAT --to-destination 172.17.0.5:5432",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.5",
+       "port": 5432,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 17,
+        "text": "! -i docker0 -p tcp -m tcp --dport 5432 -j DNAT --to-destination 172.17.0.5:5432",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "hetzner"
+  },
+  {
+   "id": "tcp-8443",
+   "proto": "tcp",
+   "port": 8443,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "onlyoffice"
+    ],
+    "images": [
+     "onlyoffice/documentserver:9.1"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     80
+    ]
+   },
+   "binds": [
+    "0.0.0.0:8443",
+    "[::]:8443"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "restricted",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 4,
+         "text": "-d 172.17.0.3/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 80 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [
+       "198.51.100.0/24"
+      ],
+      "iface": "eth0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.3",
+       "port": 80,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 13,
+        "text": "! -i docker0 -p tcp -m tcp --dport 8443 -j DNAT --to-destination 172.17.0.3:80",
+        "comment": "",
+        "owner": "docker"
+       }
+      },
+      "hetzner": {
+       "result": "restricted",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38,
+         "rule": "Office",
+         "port": "8443"
+        }
+       ],
+       "sources": [
+        "198.51.100.0/24"
+       ]
+      },
+      "host_result": "open"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 4,
+         "text": "-d 172.17.0.3/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 80 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.3",
+       "port": 80,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 13,
+        "text": "! -i docker0 -p tcp -m tcp --dport 8443 -j DNAT --to-destination 172.17.0.3:80",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.3",
+       "port": 80,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 13,
+        "text": "! -i docker0 -p tcp -m tcp --dport 8443 -j DNAT --to-destination 172.17.0.3:80",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input",
+      "proxy": true,
+      "hetzner": {
+       "result": "blocks",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38
+        }
+       ],
+       "sources": []
+      },
+      "host_result": "open"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input",
+      "proxy": true
+     }
+    }
+   },
+   "state": "info",
+   "why": "restricted"
+  },
+  {
+   "id": "tcp-21115",
+   "proto": "tcp",
+   "port": 21115,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "rustdesk"
+    ],
+    "images": [
+     "rustdesk/rustdesk-server:1.1.14"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     21115
+    ]
+   },
+   "binds": [
+    "0.0.0.0:21115"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 5,
+         "text": "-d 172.17.0.4/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 21115 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.4",
+       "port": 21115,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 14,
+        "text": "! -i docker0 -p tcp -m tcp --dport 21115 -j DNAT --to-destination 172.17.0.4:21115",
+        "comment": "",
+        "owner": "docker"
+       }
+      },
+      "hetzner": {
+       "result": "blocks",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38
+        }
+       ],
+       "sources": []
+      },
+      "host_result": "open"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 5,
+         "text": "-d 172.17.0.4/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 21115 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.4",
+       "port": 21115,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 14,
+        "text": "! -i docker0 -p tcp -m tcp --dport 21115 -j DNAT --to-destination 172.17.0.4:21115",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.4",
+       "port": 21115,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 14,
+        "text": "! -i docker0 -p tcp -m tcp --dport 21115 -j DNAT --to-destination 172.17.0.4:21115",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "hetzner"
+  },
+  {
+   "id": "tcp-21116",
+   "proto": "tcp",
+   "port": 21116,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "rustdesk"
+    ],
+    "images": [
+     "rustdesk/rustdesk-server:1.1.14"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     21116
+    ]
+   },
+   "binds": [
+    "0.0.0.0:21116"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 6,
+         "text": "-d 172.17.0.4/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 21116 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.4",
+       "port": 21116,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 15,
+        "text": "! -i docker0 -p tcp -m tcp --dport 21116 -j DNAT --to-destination 172.17.0.4:21116",
+        "comment": "",
+        "owner": "docker"
+       }
+      },
+      "hetzner": {
+       "result": "blocks",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38
+        }
+       ],
+       "sources": []
+      },
+      "host_result": "open"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 6,
+         "text": "-d 172.17.0.4/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 21116 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.4",
+       "port": 21116,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 15,
+        "text": "! -i docker0 -p tcp -m tcp --dport 21116 -j DNAT --to-destination 172.17.0.4:21116",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.4",
+       "port": 21116,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 15,
+        "text": "! -i docker0 -p tcp -m tcp --dport 21116 -j DNAT --to-destination 172.17.0.4:21116",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "hetzner"
+  },
+  {
+   "id": "udp-21116",
+   "proto": "udp",
+   "port": 21116,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "rustdesk"
+    ],
+    "images": [
+     "rustdesk/rustdesk-server:1.1.14"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     21116
+    ]
+   },
+   "binds": [
+    "0.0.0.0:21116"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 7,
+         "text": "-d 172.17.0.4/32 ! -i docker0 -o docker0 -p udp -m udp --dport 21116 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.4",
+       "port": 21116,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 16,
+        "text": "! -i docker0 -p udp -m udp --dport 21116 -j DNAT --to-destination 172.17.0.4:21116",
+        "comment": "",
+        "owner": "docker"
+       }
+      },
+      "hetzner": {
+       "result": "blocks",
+       "refs": [
+        {
+         "firewall": "web",
+         "id": 38
+        }
+       ],
+       "sources": []
+      },
+      "host_result": "open"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 7,
+         "text": "-d 172.17.0.4/32 ! -i docker0 -o docker0 -p udp -m udp --dport 21116 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.4",
+       "port": 21116,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 16,
+        "text": "! -i docker0 -p udp -m udp --dport 21116 -j DNAT --to-destination 172.17.0.4:21116",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.4",
+       "port": 21116,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 16,
+        "text": "! -i docker0 -p udp -m udp --dport 21116 -j DNAT --to-destination 172.17.0.4:21116",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "hetzner"
+  }
+ ],
+ "ssh": {
+  "sshd": {
+   "state": "ok",
+   "match": []
+  },
+  "findings": [
+   {
+    "key": "passwordauthentication",
+    "value": "yes",
+    "state": "warning",
+    "code": "password-on"
+   },
+   {
+    "key": "kbdinteractiveauthentication",
+    "value": "no",
+    "state": "ok",
+    "code": "kbd-off"
+   },
+   {
+    "key": "permitrootlogin",
+    "value": "yes",
+    "state": "warning",
+    "code": "root-yes"
+   },
+   {
+    "key": "pubkeyauthentication",
+    "value": "yes",
+    "state": "ok",
+    "code": "pubkey-on"
+   },
+   {
+    "key": "maxauthtries",
+    "value": "6",
+    "state": "ok",
+    "code": "tries-ok"
+   },
+   {
+    "key": "allowusers",
+    "value": "",
+    "state": "info",
+    "code": "no-allow-list"
+   },
+   {
+    "key": "x11forwarding",
+    "value": "no",
+    "state": "ok",
+    "code": "x11-off"
+   },
+   {
+    "key": "allowagentforwarding",
+    "value": "yes",
+    "state": "info",
+    "code": "agent-on"
+   }
+  ],
+  "keys": [
+   {
+    "user": "root",
+    "file": "/root/.ssh/authorized_keys",
+    "mode": "600",
+    "problems": [],
+    "keys": [
+     {
+      "line": 1,
+      "type": "ssh-ed25519",
+      "bits": 256,
+      "fingerprint": "SHA256:qDKmFG/9kyw+c70mRjy835t7UXT1U0DlyvkwDDsFSKc",
+      "comment": "bastion",
+      "options": [],
+      "findings": [
+       {
+        "code": "no-from",
+        "state": "info"
+       }
+      ],
+      "state": "info"
+     },
+     {
+      "line": 2,
+      "type": "ecdsa-sha2-nistp384",
+      "bits": 384,
+      "fingerprint": "SHA256:iSx73k0WdMOLPwpNKHTTluWQy1GbTOSbSZDzltQ/wTg",
+      "comment": "phone",
+      "options": [],
+      "findings": [
+       {
+        "code": "no-from",
+        "state": "info"
+       }
+      ],
+      "state": "info"
+     }
+    ],
+    "state": "info"
+   }
+  ],
+  "counts": {
+   "keys": 2,
+   "files": 1
+  },
+  "ports": [
+   "22"
+  ],
+  "listen": [
+   "[::]:22",
+   "0.0.0.0:22"
+  ],
+  "state": "warning"
+ },
+ "logins": {
+  "entries": 15,
+  "success": [
+   {
+    "service": "ssh",
+    "method": "publickey",
+    "user": "root",
+    "source": "198.51.100.20",
+    "class": "internet",
+    "time": "2026-10-20T10:30:00Z"
+   }
+  ],
+  "success_total": 1,
+  "failed": [
+   {
+    "source": "192.0.2.50",
+    "class": "internet",
+    "count": 6,
+    "last": "2026-10-20T08:40:00Z",
+    "services": [
+     "ssh"
+    ],
+    "users": 1
+   },
+   {
+    "source": "192.0.2.90",
+    "class": "internet",
+    "count": 1,
+    "last": "2026-10-20T11:30:00Z",
+    "services": [
+     "cockpit"
+    ],
+    "users": 1
+   },
+   {
+    "source": "192.0.2.77",
+    "class": "internet",
+    "count": 1,
+    "last": "2026-10-20T05:20:00Z",
+    "services": [
+     "ssh"
+    ],
+    "users": 1
+   }
+  ],
+  "failed_sources": 3,
+  "failed_total": 8,
+  "sudo": [],
+  "outside": 1,
+  "state": "ok",
+  "truncated": false,
+  "assessment": "warning"
+ },
+ "containers": {
+  "state": "ok",
+  "items": [
+   {
+    "name": "caddy",
+    "image": "caddy:2.10",
+    "findings": [
+     {
+      "kind": "root-user",
+      "state": "info"
+     },
+     {
+      "kind": "no-new-privileges",
+      "state": "info"
+     }
+    ]
+   },
+   {
+    "name": "onlyoffice",
+    "image": "onlyoffice/documentserver:9.1",
+    "findings": [
+     {
+      "kind": "privileged",
+      "state": "warning"
+     },
+     {
+      "kind": "root-user",
+      "state": "info"
+     },
+     {
+      "kind": "no-new-privileges",
+      "state": "info"
+     }
+    ]
+   },
+   {
+    "name": "postgres",
+    "image": "postgres:16",
+    "findings": [
+     {
+      "kind": "root-user",
+      "state": "info"
+     },
+     {
+      "kind": "no-new-privileges",
+      "state": "info"
+     }
+    ]
+   },
+   {
+    "name": "rustdesk",
+    "image": "rustdesk/rustdesk-server:1.1.14",
+    "findings": [
+     {
+      "kind": "cap-add",
+      "state": "warning",
+      "detail": "NET_ADMIN"
+     },
+     {
+      "kind": "root-user",
+      "state": "info"
+     },
+     {
+      "kind": "no-new-privileges",
+      "state": "info"
+     }
+    ]
+   }
+  ]
+ },
+ "crowdsec": {
+  "installed": true,
+  "active": "active",
+  "version": "1.4.6",
+  "sharing": true,
+  "bouncers": [
+   {
+    "name": "cs-firewall-bouncer-1729000000",
+    "type": "crowdsec-firewall-bouncer",
+    "version": "v0.0.25-debian-pragmatic-e2cba8fa",
+    "last_pull": "2026-10-20T11:59:50Z",
+    "revoked": false
+   }
+  ],
+  "bouncer_conf": {
+   "mode": "nftables",
+   "iptables_chains": [
+    "INPUT"
+   ]
+  },
+  "decisions": [
+   {
+    "value": "192.0.2.50",
+    "scope": "Ip",
+    "type": "ban",
+    "scenario": "crowdsecurity/ssh-bf",
+    "origin": "crowdsec",
+    "duration": "3h37m",
+    "country": "XX"
+   },
+   {
+    "value": "192.0.2.77",
+    "scope": "Ip",
+    "type": "ban",
+    "scenario": "crowdsecurity/ssh-slow-bf",
+    "origin": "crowdsec",
+    "duration": "3h20m",
+    "country": "XX"
+   }
+  ],
+  "decisions_total": 2,
+  "alerts_total": 3,
+  "scenarios": [
+   {
+    "scenario": "crowdsecurity/ssh-bf",
+    "count": 2
+   },
+   {
+    "scenario": "crowdsecurity/ssh-slow-bf",
+    "count": 1
+   }
+  ],
+  "findings": [
+   {
+    "code": "old-engine",
+    "state": "warning",
+    "value": "1.4.6"
+   },
+   {
+    "code": "bouncer-input-only",
+    "state": "warning",
+    "value": "nftables"
+   }
+  ],
+  "errors": {},
+  "state": "warning"
+ },
+ "sources": {
+  "ip": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "ss": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "docker": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "rules": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "ufw": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "hetzner": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "sshd": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "keys": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "journal": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "crowdsec": {
+   "state": "ok",
+   "took_ms": 0
+  }
+ },
+ "took_ms": 0
+}

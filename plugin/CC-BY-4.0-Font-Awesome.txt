@@ -1,0 +1,17 @@
+Font Awesome Free 5.15.4 - icons
+
+Icons by Fonticons, Inc. (https://fontawesome.com), as shipped in
+@patternfly/react-icons 6.4.0 (Red Hat, Inc.).
+
+Used in Cron Jobs for every icon in icons.js.
+
+Changes: the path data is unchanged. Each icon is kept in icons.js as its
+viewBox and path data and drawn as an inline SVG in the colour of the text
+next to it.
+
+Licensed under the Creative Commons Attribution 4.0 International License
+(CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
+Legal code: https://creativecommons.org/licenses/by/4.0/legalcode
+
+Font Awesome Free license overview: https://fontawesome.com/license/free
+(Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License)

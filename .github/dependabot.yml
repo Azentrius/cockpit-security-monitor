@@ -1,0 +1,38 @@
+# Dependabot version updates for the test tooling (jsdom and the Python check
+# tools in test/) and the GitHub Actions in the workflows. The add-on itself has
+# no runtime dependencies.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/test"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    groups:
+      test-dependencies:
+        patterns:
+          - "*"
+  - package-ecosystem: "pip"
+    directory: "/test"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    groups:
+      check-tools:
+        patterns:
+          - "*"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns:
+          - "*"

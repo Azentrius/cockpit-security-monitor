@@ -1,0 +1,33 @@
+{
+ "now": "2026-10-20T12:00:00Z",
+ "uid": 0,
+ "rc": {
+  "sshd-T": 255
+ },
+ "stderr": {
+  "sshd-T": "Missing privilege separation directory: /run/sshd\n"
+ },
+ "stat": {
+  "/root/.ssh/authorized_keys": {
+   "mode": "600",
+   "uid": 0
+  },
+  "/root/.ssh": {
+   "mode": "700",
+   "uid": 0,
+   "type": "dir"
+  },
+  "/home/ci/.ssh/authorized_keys": {
+   "mode": "644",
+   "uid": 1001
+  },
+  "/home/ci/.ssh": {
+   "mode": "777",
+   "uid": 1001,
+   "type": "dir"
+  }
+ },
+ "exists": [
+  "/var/run/docker.sock"
+ ]
+}

@@ -1,0 +1,12 @@
+node_modules/
+__pycache__/
+*.pyc
+.ruff_cache/
+tools/preview/out/
+test/shots/
+e2e-session/
+build/
+dist/
+first.sha256
+*.tar.gz
+SHA256SUMS

@@ -1,0 +1,42 @@
+[
+ {
+  "Id": "8123456789ab8888888888888888888888888888888888888888888888888888",
+  "Names": [
+   "/forgejo"
+  ],
+  "Image": "codeberg.org/forgejo/forgejo:13",
+  "State": "running",
+  "Ports": [
+   {
+    "IP": "0.0.0.0",
+    "PrivatePort": 3000,
+    "PublicPort": 3000,
+    "Type": "tcp"
+   },
+   {
+    "IP": "10.8.0.4",
+    "PrivatePort": 22,
+    "PublicPort": 2222,
+    "Type": "tcp"
+   }
+  ]
+ },
+ {
+  "Id": "9123456789ab9999999999999999999999999999999999999999999999999999",
+  "Names": [
+   "/runner"
+  ],
+  "Image": "data.forgejo.org/forgejo/runner:11",
+  "State": "running",
+  "Ports": []
+ },
+ {
+  "Id": "a123456789abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "Names": [
+   "/monitor"
+  ],
+  "Image": "prom/node-exporter:v1.9",
+  "State": "running",
+  "Ports": []
+ }
+]

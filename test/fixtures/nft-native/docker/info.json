@@ -1,0 +1,16 @@
+{
+ "ID": "fixture",
+ "Containers": 3,
+ "ContainersRunning": 3,
+ "ServerVersion": "28.5.1",
+ "OperatingSystem": "Ubuntu 24.04.3 LTS",
+ "KernelVersion": "6.8.0-85-generic",
+ "SecurityOptions": [
+  "name=apparmor",
+  "name=seccomp,profile=builtin",
+  "name=cgroupns"
+ ],
+ "FirewallBackend": {
+  "Driver": "iptables"
+ }
+}

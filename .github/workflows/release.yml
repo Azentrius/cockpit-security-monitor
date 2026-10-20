@@ -1,0 +1,138 @@
+# Makes a release on request: Actions › release › Run workflow (on main).
+# Checks the version, requires the test workflow to have passed for this commit, runs the tests,
+# builds the .deb and the source archive and creates the tag vVERSION with a GitHub release
+# (package, archive, SHA256SUMS, signed build provenance, notes from CHANGELOG.md). Releases of
+# 0.1 carry no .rpm: the page is tested only on Debian and Ubuntu so far.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version, e.g. 0.1.0 (empty: the VERSION in plugin/security.js)"
+        required: false
+        default: ""
+      prerelease:
+        description: "Mark as pre-release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write       # tag and release
+  id-token: write       # signing the build provenance
+  attestations: write   # storing the build provenance
+  actions: read         # the test workflow's result for this commit
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Releases are made from main only (this run: $GITHUB_REF)."
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          code=$(sh tools/check-version.sh)
+          version=${INPUT_VERSION:-$code}
+          version=${version#v}
+          if [ "$version" != "$code" ]; then
+            echo "::error::Version $version differs from VERSION in plugin/security.js ($code). Change plugin/security.js first."
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$version" > /dev/null; then
+            echo "::error::Tag v$version exists already."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # Every job of the test workflow on this very commit, not only the required check "test":
+      # also Python 3.8 and the real Cockpit session with UFW and Docker.
+      - name: The test workflow passed for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          conclusion=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow test.yml --commit "$GITHUB_SHA" \
+            --event push --limit 1 --json conclusion --jq '.[0].conclusion')
+          if [ "$conclusion" != success ]; then
+            echo "::error::The test workflow has not passed for $GITHUB_SHA (${conclusion:-no run}). Wait for it, or fix it first."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Tests
+        run: make check
+
+      - name: Package (.deb) and source archive
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends rpm > /dev/null
+          make packages
+          make dist
+          rm -f dist/*.rpm
+          { sha256sum "cockpit-security-monitor-$VERSION.tar.gz"; (cd dist && sha256sum *.deb); } > SHA256SUMS
+
+      - name: Build provenance for the package and the archive
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            cockpit-security-monitor-${{ steps.version.outputs.version }}.tar.gz
+            dist/*.deb
+
+      - name: Release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          sh tools/release-notes.sh "$VERSION" > notes.md
+          deb=cockpit-security-monitor_$(printf '%s' "$VERSION" | tr '-' '~')-1_all.deb
+          {
+            echo
+            echo "### Install"
+            echo
+            echo "From the Azentrius package repository (Debian, Ubuntu): set up https://packages.azentrius.com once, then install Security Monitor in Cockpit under Applications, or with \`sudo apt install cockpit-security-monitor\`. The repository takes this release within an hour."
+            echo
+            echo "From the files of this release: download the package and \`SHA256SUMS\`, check that the download is complete and that this repository's release workflow built it, then install it:"
+            echo
+            echo '```sh'
+            echo "sha256sum --ignore-missing -c SHA256SUMS"
+            echo "gh attestation verify $deb --repo $GITHUB_REPOSITORY"
+            echo "sudo apt install ./$deb"
+            echo '```'
+            echo
+            echo "Security Monitor is tested on Debian and Ubuntu so far; there is no \`.rpm\` yet (firewalld, the packet filter of Fedora and RHEL, is not read on its own yet)."
+          } >> notes.md
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -- --target "$GITHUB_SHA" --title "Security Monitor $VERSION" --notes-file notes.md
+          if [ "$PRERELEASE" = "true" ]; then
+            set -- "$@" --prerelease
+          fi
+          gh release create "v$VERSION" dist/*.deb "cockpit-security-monitor-$VERSION.tar.gz" SHA256SUMS "$@"

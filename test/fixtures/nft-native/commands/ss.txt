@@ -1,0 +1,13 @@
+udp   UNCONN 0      0        127.0.0.53%lo:53          0.0.0.0:*    users:(("systemd-resolve",pid=600,fd=14))
+udp   UNCONN 0      0              0.0.0.0:51820       0.0.0.0:*
+tcp   LISTEN 0      4096     127.0.0.53%lo:53          0.0.0.0:*    users:(("systemd-resolve",pid=600,fd=15))
+tcp   LISTEN 0      4096           0.0.0.0:22          0.0.0.0:*    users:(("sshd",pid=900,fd=3))
+tcp   LISTEN 0      4096           0.0.0.0:3000        0.0.0.0:*    users:(("docker-proxy",pid=3400,fd=7))
+tcp   LISTEN 0      4096          10.8.0.4:2222        0.0.0.0:*    users:(("docker-proxy",pid=3410,fd=7))
+tcp   LISTEN 0      4096              [::]:22             [::]:*    users:(("sshd",pid=900,fd=4))
+tcp   LISTEN 0      4096              [::]:3000           [::]:*    users:(("docker-proxy",pid=3405,fd=7))
+tcp   LISTEN 0      4096                 *:80                *:*    users:(("caddy",pid=1200,fd=7))
+tcp   LISTEN 0      4096                 *:443               *:*    users:(("caddy",pid=1200,fd=8))
+tcp   LISTEN 0      4096                 *:9090              *:*    users:(("systemd",pid=1,fd=58))
+tcp   LISTEN 0      4096                 *:9100              *:*    users:(("node_exporter",pid=980,fd=3))
+tcp   LISTEN 0      4096                 *:60001             *:*    users:(("syncthing",pid=1300,fd=12))

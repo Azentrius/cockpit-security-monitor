@@ -1,0 +1,67 @@
+{
+ "Id": "5123456789ab5555555555555555555555555555555555555555555555555555",
+ "Created": "2026-10-18T08:00:00Z",
+ "Name": "/onlyoffice",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Hostname": "5123456789ab",
+  "User": "",
+  "Image": "onlyoffice/documentserver:9.1",
+  "ExposedPorts": {
+   "80/tcp": {}
+  },
+  "Labels": {
+   "com.docker.compose.project": "app",
+   "com.docker.compose.service": "onlyoffice"
+  }
+ },
+ "HostConfig": {
+  "Privileged": true,
+  "PidMode": "",
+  "CapAdd": null,
+  "CapDrop": null,
+  "NetworkMode": "bridge",
+  "SecurityOpt": null,
+  "PortBindings": {
+   "80/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "8443"
+    },
+    {
+     "HostIp": "::",
+     "HostPort": "8443"
+    }
+   ]
+  }
+ },
+ "Mounts": [],
+ "NetworkSettings": {
+  "Ports": {
+   "80/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "8443"
+    },
+    {
+     "HostIp": "::",
+     "HostPort": "8443"
+    }
+   ]
+  },
+  "Networks": {
+   "bridge": {
+    "NetworkID": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "IPAddress": "172.17.0.3",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": "",
+    "Gateway": "172.17.0.1"
+   }
+  }
+ },
+ "State": {
+  "Status": "running",
+  "Running": true,
+  "Pid": 4000
+ }
+}

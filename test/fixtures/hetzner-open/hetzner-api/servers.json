@@ -1,0 +1,55 @@
+{
+ "servers": [
+  {
+   "id": 4711,
+   "name": "web-1",
+   "status": "running",
+   "public_net": {
+    "ipv4": {
+     "ip": "203.0.113.20",
+     "blocked": false
+    },
+    "ipv6": {
+     "ip": "2001:db8:20::/64"
+    },
+    "firewalls": [
+     {
+      "id": 38,
+      "status": "applied"
+     }
+    ],
+    "floating_ips": []
+   },
+   "private_net": [
+    {
+     "network": 100,
+     "ip": "10.0.0.3"
+    }
+   ]
+  },
+  {
+   "id": 4712,
+   "name": "other",
+   "status": "running",
+   "public_net": {
+    "ipv4": {
+     "ip": "203.0.113.21"
+    },
+    "ipv6": {
+     "ip": "2001:db8:21::/64"
+    },
+    "firewalls": []
+   }
+  }
+ ],
+ "meta": {
+  "pagination": {
+   "page": 1,
+   "per_page": 50,
+   "previous_page": null,
+   "next_page": null,
+   "last_page": 1,
+   "total_entries": 2
+  }
+ }
+}

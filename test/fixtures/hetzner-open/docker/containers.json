@@ -1,0 +1,114 @@
+[
+ {
+  "Id": "4123456789ab4444444444444444444444444444444444444444444444444444",
+  "Names": [
+   "/caddy"
+  ],
+  "Image": "caddy:2.10",
+  "State": "running",
+  "Ports": [
+   {
+    "IP": "0.0.0.0",
+    "PrivatePort": 80,
+    "PublicPort": 80,
+    "Type": "tcp"
+   },
+   {
+    "IP": "::",
+    "PrivatePort": 80,
+    "PublicPort": 80,
+    "Type": "tcp"
+   },
+   {
+    "IP": "0.0.0.0",
+    "PrivatePort": 443,
+    "PublicPort": 443,
+    "Type": "tcp"
+   },
+   {
+    "IP": "::",
+    "PrivatePort": 443,
+    "PublicPort": 443,
+    "Type": "tcp"
+   },
+   {
+    "IP": "0.0.0.0",
+    "PrivatePort": 443,
+    "PublicPort": 443,
+    "Type": "udp"
+   },
+   {
+    "IP": "::",
+    "PrivatePort": 443,
+    "PublicPort": 443,
+    "Type": "udp"
+   }
+  ]
+ },
+ {
+  "Id": "5123456789ab5555555555555555555555555555555555555555555555555555",
+  "Names": [
+   "/onlyoffice"
+  ],
+  "Image": "onlyoffice/documentserver:9.1",
+  "State": "running",
+  "Ports": [
+   {
+    "IP": "0.0.0.0",
+    "PrivatePort": 80,
+    "PublicPort": 8443,
+    "Type": "tcp"
+   },
+   {
+    "IP": "::",
+    "PrivatePort": 80,
+    "PublicPort": 8443,
+    "Type": "tcp"
+   }
+  ]
+ },
+ {
+  "Id": "6123456789ab6666666666666666666666666666666666666666666666666666",
+  "Names": [
+   "/rustdesk"
+  ],
+  "Image": "rustdesk/rustdesk-server:1.1.14",
+  "State": "running",
+  "Ports": [
+   {
+    "IP": "0.0.0.0",
+    "PrivatePort": 21115,
+    "PublicPort": 21115,
+    "Type": "tcp"
+   },
+   {
+    "IP": "0.0.0.0",
+    "PrivatePort": 21116,
+    "PublicPort": 21116,
+    "Type": "tcp"
+   },
+   {
+    "IP": "0.0.0.0",
+    "PrivatePort": 21116,
+    "PublicPort": 21116,
+    "Type": "udp"
+   }
+  ]
+ },
+ {
+  "Id": "7123456789ab7777777777777777777777777777777777777777777777777777",
+  "Names": [
+   "/postgres"
+  ],
+  "Image": "postgres:16",
+  "State": "running",
+  "Ports": [
+   {
+    "IP": "0.0.0.0",
+    "PrivatePort": 5432,
+    "PublicPort": 5432,
+    "Type": "tcp"
+   }
+  ]
+ }
+]

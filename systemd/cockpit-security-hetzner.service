@@ -1,0 +1,43 @@
+[Unit]
+Description=Security Monitor: the Hetzner Cloud Firewall of this server (read-only API call)
+Documentation=https://github.com/Azentrius/cockpit-security-monitor
+# Only with a token: /etc/cockpit-security-monitor/hetzner.token (root, 0600, a token with read
+# permission of the Hetzner Cloud project). Without it the unit is skipped.
+ConditionPathExists=/etc/cockpit-security-monitor/hetzner.token
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -IB /usr/lib/cockpit-security-monitor/security-hetzner.py --output /var/lib/cockpit-security-hetzner/hetzner.json
+# Network, but no root: a user of its own for each run, which gets the token (and only it) as a
+# credential. The answer goes to /var/lib/cockpit-security-hetzner, which the scan reads.
+DynamicUser=yes
+LoadCredential=hetzner.token:/etc/cockpit-security-monitor/hetzner.token
+StateDirectory=cockpit-security-hetzner
+TimeoutStartSec=2min
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077

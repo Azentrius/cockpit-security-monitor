@@ -1,0 +1,386 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+"""Every check of seccheck.py against the scenarios in test/fixtures/ (through
+test/fakesys.py): reach of each port from each class with the reason, the
+assessment of spec 4.2, SSH, logins, containers, CrowdSec; variants of the
+scenarios (a DOCKER-USER rule, no Hetzner token, a stale Hetzner answer, no
+root, Docker failing, iptables-legacy rules); the marks; and that the
+state-*.json and status-*.json fixtures are current. Offline."""
+
+import json
+import os
+import sys
+import unittest
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.dont_write_bytecode = True
+sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, "..", "lib"))
+sys.path.insert(0, os.path.join(HERE, "fixtures"))
+import fakesys  # noqa: E402
+import make_states  # noqa: E402
+import seccheck  # noqa: E402
+import secproc  # noqa: E402
+
+FIX = os.path.join(HERE, "fixtures")
+
+
+def scan(scenario, **kw):
+    return seccheck.scan(fakesys.FakeSystem(scenario, **kw))
+
+
+def ports(doc):
+    return {f"{p['port']}/{p['proto']}": p for p in doc["ports"]}
+
+
+def reach(p, fam="4"):
+    return {c: p["reach"][fam][c]["result"] for c in seccheck.CLASSES}
+
+
+def fixture(*parts):
+    with open(os.path.join(FIX, *parts), encoding="utf-8") as f:
+        return f.read()
+
+
+class UfwDocker(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.doc = scan("ufw-docker")
+        cls.p = ports(cls.doc)
+
+    def test_sources(self):
+        self.assertEqual({k: v["state"] for k, v in self.doc["sources"].items()},
+                         {"ip": "ok", "ss": "ok", "docker": "ok", "rules": "ok", "ufw": "ok", "hetzner": "skipped",
+                          "sshd": "ok", "keys": "ok", "journal": "ok", "crowdsec": "missing"})
+        self.assertEqual(self.doc["firewall"]["input_filter"], {4: "on", 6: "on"})
+        self.assertEqual(self.doc["firewall"]["iptables"], {"version": "1.8.10", "variant": "nf_tables"})
+        self.assertEqual(self.doc["network"]["public"], {"4": True, "6": True})
+
+    def test_states(self):
+        got = {k: (p["state"], p["why"]) for k, p in self.p.items()}
+        self.assertEqual(got, {
+            "22/tcp": ("ok", "only-vpn"), "53/tcp": ("ok", "local"), "53/udp": ("ok", "local"),
+            "80/tcp": ("info", "public-expected"), "323/udp": ("ok", "local"), "443/tcp": ("info", "public-expected"),
+            "443/udp": ("info", "public-expected"), "5432/tcp": ("ok", "local"), "6379/tcp": ("ok", "only-vpn"),
+            "8080/tcp": ("warning", "public-other"), "9090/tcp": ("ok", "only-vpn"), "9100/tcp": ("ok", "only-vpn"),
+            "51820/udp": ("info", "public-expected")})
+
+    def test_docker_past_ufw(self):
+        """Docker publishes 0.0.0.0:8080: forwarded past UFW to the container; IPv6 goes to
+        docker-proxy on the host, where UFW applies."""
+        p = self.p["8080/tcp"]
+        self.assertEqual(reach(p, "4"), {"internet": "open", "vpn": "open", "private": "open", "local": "open"})
+        inet = p["reach"]["4"]["internet"]
+        self.assertEqual(inet["path"], "forward")
+        self.assertEqual(inet["to"]["addr"], "172.17.0.2")
+        self.assertEqual(inet["to"]["port"], 80)
+        self.assertEqual(inet["steps"][0]["rule"]["chain"], "DOCKER")
+        self.assertEqual(inet["steps"][0]["rule"]["owner"], "docker")
+        v6 = p["reach"]["6"]["internet"]
+        self.assertEqual((v6["result"], v6["path"], v6.get("proxy")), ("closed", "input", True))
+        self.assertTrue(v6["steps"][-1]["policy"])
+        self.assertEqual(p["service"]["containers"], ["web"])
+        self.assertEqual(p["service"]["container_ports"], [80])
+
+    def test_bound_addresses(self):
+        self.assertEqual(reach(self.p["6379/tcp"]), {"internet": "absent", "vpn": "open", "private": "absent",
+                                                     "local": "open"})
+        self.assertEqual(reach(self.p["5432/tcp"]), {"internet": "absent", "vpn": "absent", "private": "absent",
+                                                     "local": "open"})
+        self.assertEqual(reach(self.p["53/udp"])["local"], "open")
+        self.assertEqual(reach(self.p["22/tcp"], "6")["vpn"], "absent", "wg0 has no IPv6 address")
+
+    def test_ufw_and_services(self):
+        ufw = self.doc["firewall"]["ufw"]
+        self.assertEqual((ufw["enabled"], ufw["loaded"], ufw["rules_total"]), (True, {"4": True, "6": True}, 8))
+        self.assertEqual(self.p["22/tcp"]["service"]["processes"], ["sshd"], "systemd's socket is left out")
+        self.assertEqual(self.p["51820/udp"]["service"]["kind"], "kernel")
+        self.assertEqual(self.p["51820/udp"]["name"], "wireguard")
+        self.assertEqual(self.p["9090/tcp"]["name"], "cockpit")
+        inet = self.p["9090/tcp"]["reach"]["4"]["internet"]
+        self.assertEqual((inet["result"], inet["steps"][-1]["policy"]), ("closed", True))
+        vpn = self.p["9090/tcp"]["reach"]["4"]["vpn"]
+        self.assertEqual(vpn["steps"][0]["rule"]["text"], "-i wg0 -j ACCEPT")
+
+    def test_ssh(self):
+        ssh = self.doc["ssh"]
+        self.assertEqual(ssh["sshd"], {"state": "ok", "match": []})
+        self.assertEqual({f["key"]: f["state"] for f in ssh["findings"] if f["state"] != "ok"},
+                         {"permitrootlogin": "info", "allowusers": "info", "x11forwarding": "info",
+                          "allowagentforwarding": "info"})
+        files = {f["user"]: f for f in ssh["keys"]}
+        self.assertEqual(sorted(files), ["alex", "root"])
+        self.assertEqual((files["alex"]["problems"], files["alex"]["state"]), (["file-writable"], "warning"))
+        self.assertEqual(files["root"]["state"], "ok")
+        self.assertEqual(ssh["state"], "warning")
+        self.assertEqual(ssh["ports"], ["22"])
+
+    def test_logins(self):
+        lg = self.doc["logins"]
+        self.assertEqual((lg["state"], lg["success_total"], lg["outside"], lg["failed_total"]), ("ok", 3, 0, 1))
+        self.assertEqual(lg["success"][0]["time"], "2026-10-20T11:55:00Z")
+        self.assertEqual(lg["assessment"], "ok")
+
+    def test_containers(self):
+        items = {c["name"]: [(f["kind"], f["state"]) for f in c["findings"]] for c in self.doc["containers"]["items"]}
+        self.assertEqual(items["runner"], [("docker-socket", "danger"), ("root-user", "info"),
+                                           ("no-new-privileges", "info")])
+        self.assertEqual(items["cache"], [])
+        self.assertEqual(self.doc["firewall"]["docker"], {"version": "28.5.1", "backend": "iptables",
+                                                          "backend_known": True, "containers": 4})
+
+
+class HetznerOpen(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.doc = scan("hetzner-open")
+        cls.p = ports(cls.doc)
+
+    def test_protected_by_hetzner(self):
+        self.assertEqual(self.doc["firewall"]["input_filter"], {4: "off", 6: "off"})
+        self.assertEqual(self.doc["firewall"]["hetzner"]["state"], "ok")
+        got = {k: (p["state"], p["why"]) for k, p in self.p.items()}
+        self.assertEqual(got, {
+            "22/tcp": ("ok", "hetzner"), "53/tcp": ("ok", "local"), "53/udp": ("ok", "local"),
+            "80/tcp": ("info", "public-expected"), "443/tcp": ("info", "public-expected"),
+            "443/udp": ("info", "public-expected"), "5432/tcp": ("ok", "hetzner"),
+            "8443/tcp": ("info", "restricted"), "21115/tcp": ("ok", "hetzner"), "21116/tcp": ("ok", "hetzner"),
+            "21116/udp": ("ok", "hetzner")})
+        pg = self.p["5432/tcp"]["reach"]["4"]["internet"]
+        self.assertEqual((pg["host_result"], pg["hetzner"]["result"]), ("open", "blocks"))
+        self.assertEqual(pg["hetzner"]["refs"], [{"firewall": "web", "id": 38}])
+        office = self.p["8443/tcp"]["reach"]["4"]["internet"]
+        self.assertEqual((office["result"], office["sources"]), ("restricted", ["198.51.100.0/24"]))
+        self.assertEqual(self.p["8443/tcp"]["reach"]["6"]["internet"]["result"], "closed",
+                         "the rule names no IPv6 source")
+        self.assertEqual(reach(self.p["5432/tcp"])["private"], "open", "Hetzner's private network is not filtered")
+
+    def test_without_token(self):
+        """Firewall off and the Hetzner firewall unknown: only rules outside this host could protect
+        the ports (spec 4.2), for databases too."""
+        doc = scan("hetzner-open", files={seccheck.HETZNER_TOKEN: None})
+        got = {k: (p["state"], p["why"]) for k, p in ports(doc).items() if p["why"] != "local"}
+        self.assertEqual(set(got.values()), {("warning", "outside-only")})
+        h = doc["sources"]["hetzner"]
+        self.assertEqual((h["state"], h["reason"]), ("skipped", "no-token"))
+
+    def test_stale_answer_still_counts(self):
+        h = json.loads(fixture("hetzner-open", "files", "var", "lib", "cockpit-security-hetzner", "hetzner.json"))
+        h.update(tried_at="2026-10-20T11:59:00Z", error="HTTP 503 unavailable", ok_at="2026-10-20T08:00:00Z")
+        doc = scan("hetzner-open", files={seccheck.HETZNER_FILE: json.dumps(h)})
+        hz = doc["firewall"]["hetzner"]
+        self.assertEqual((hz["state"], hz["ok_at"], hz["error"]), ("stale", "2026-10-20T08:00:00Z",
+                                                                   "HTTP 503 unavailable"))
+        self.assertEqual(ports(doc)["5432/tcp"]["why"], "hetzner")
+
+    def test_not_matched_or_unreadable(self):
+        h = json.loads(fixture("hetzner-open", "files", "var", "lib", "cockpit-security-hetzner", "hetzner.json"))
+        h.update(server=None, firewalls=[])
+        doc = scan("hetzner-open", files={seccheck.HETZNER_FILE: json.dumps(h)})
+        self.assertEqual(doc["firewall"]["hetzner"]["state"], "not-matched")
+        self.assertEqual(ports(doc)["5432/tcp"]["why"], "outside-only")
+        doc = scan("hetzner-open", files={seccheck.HETZNER_FILE: "{broken"})
+        self.assertEqual(doc["firewall"]["hetzner"]["state"], "unreadable")
+        doc = scan("hetzner-open", files={seccheck.HETZNER_FILE: None})
+        self.assertEqual(doc["firewall"]["hetzner"]["state"], "pending")
+
+    def test_logins_from_outside(self):
+        lg = self.doc["logins"]
+        self.assertEqual((lg["outside"], lg["assessment"], lg["failed_sources"]), (1, "warning", 3))
+
+    def test_crowdsec(self):
+        cs = self.doc["crowdsec"]
+        self.assertEqual([f["code"] for f in cs["findings"]], ["old-engine", "bouncer-input-only"])
+        self.assertEqual((cs["state"], cs["sharing"], cs["decisions_total"], cs["alerts_total"]),
+                         ("warning", True, 2, 3))
+        self.assertEqual(cs["scenarios"][0], {"scenario": "crowdsecurity/ssh-bf", "count": 2})
+        self.assertEqual(cs["bouncers"][0]["version"], "v0.0.25-debian-pragmatic-e2cba8fa")
+
+    def test_crowdsec_bouncer_with_forward_hook(self):
+        conf = fixture("hetzner-open", "files", "etc", "crowdsec", "bouncers", "crowdsec-firewall-bouncer.yaml")
+        conf = conf.replace("mode: nftables", "mode: nftables\nnftables_hooks:\n  - input\n  - forward")
+        doc = scan("hetzner-open", files={seccheck.BOUNCER_CONF: conf})
+        self.assertEqual([f["code"] for f in doc["crowdsec"]["findings"]], ["old-engine"])
+
+    def test_ssh_passwords(self):
+        self.assertEqual({f["code"] for f in self.doc["ssh"]["findings"] if f["state"] == "warning"},
+                         {"password-on", "root-yes"})
+
+    def test_containers(self):
+        items = {c["name"]: [f["kind"] for f in c["findings"] if f["state"] == "warning"]
+                 for c in self.doc["containers"]["items"]}
+        self.assertEqual(items, {"caddy": [], "onlyoffice": ["privileged"], "postgres": [], "rustdesk": ["cap-add"]})
+
+
+class NftNative(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.doc = scan("nft-native")
+        cls.p = ports(cls.doc)
+
+    def test_states(self):
+        got = {k: (p["state"], p["why"]) for k, p in self.p.items()}
+        self.assertEqual(got, {
+            "22/tcp": ("ok", "only-vpn"), "53/tcp": ("ok", "local"), "53/udp": ("ok", "local"),
+            "80/tcp": ("info", "public-expected"), "443/tcp": ("info", "public-expected"),
+            "2222/tcp": ("ok", "only-vpn"), "3000/tcp": ("warning", "public-other"),
+            "9090/tcp": ("ok", "only-vpn"), "9100/tcp": ("ok", "only-vpn"), "51820/udp": ("info", "public-expected"),
+            "60001/tcp": ("info", "restricted")})
+        self.assertEqual(self.p["60001/tcp"]["reach"]["4"]["internet"]["sources"], ["192.0.2.0/24"])
+        self.assertEqual(self.p["9100/tcp"]["service"]["containers"], ["monitor"], "from the process's cgroup")
+        self.assertEqual(self.doc["network"]["public"], {"4": True, "6": False})
+
+    def test_sshd_not_checkable(self):
+        ssh = self.doc["ssh"]
+        self.assertEqual((ssh["sshd"]["state"], ssh["sshd"]["reason"]), ("error", "privsep-dir-missing"))
+        self.assertEqual(ssh["sshd"]["match"], ["/etc/ssh/sshd_config.d/20-vpn.conf"])
+        self.assertEqual(ssh["findings"], [])
+        ci = [f for f in ssh["keys"] if f["user"] == "ci"][0]
+        self.assertEqual((ci["problems"], ci["keys"][0]["state"]), (["dir-writable"], "warning"))
+
+    def test_containers(self):
+        items = {c["name"]: [f["kind"] for f in c["findings"]] for c in self.doc["containers"]["items"]}
+        self.assertEqual(items["monitor"], ["pid-host", "network-host", "no-new-privileges", "apparmor-unconfined"],
+                         "the read-only / mount is no finding")
+        self.assertEqual(items["runner"][:2], ["docker-socket", "privileged"])
+
+
+class Variants(unittest.TestCase):
+    def test_docker_user_rule_makes_it_vpn_only(self):
+        """Spec 4.7: with a DOCKER-USER rule the published port is reachable from the VPN only."""
+        text = fixture("ufw-docker", "commands", "iptables-save.txt").replace(
+            "-A DOCKER -d 172.17.0.2/32",
+            "-A DOCKER-USER -o docker0 -m conntrack --ctstate NEW ! -s 10.8.0.0/24 -j DROP\n"
+            "-A DOCKER -d 172.17.0.2/32", 1)
+        doc = scan("ufw-docker", results={"iptables-save": text})
+        p = ports(doc)["8080/tcp"]
+        self.assertEqual(reach(p), {"internet": "closed", "vpn": "open", "private": "closed", "local": "open"})
+        self.assertEqual((p["state"], p["why"]), ("ok", "only-vpn"))
+        self.assertEqual(p["reach"]["4"]["internet"]["steps"][0]["rule"]["chain"], "DOCKER-USER")
+        self.assertEqual(doc["firewall"]["docker_user"], {"4": 1, "6": 0})
+
+    def test_without_root(self):
+        denied = secproc.Result(1, "", "iptables-save v1.8.10 (nf_tables): Could not fetch rule set generation id: "
+                                       "Permission denied (you must be root)\n")
+        doc = scan("ufw-docker", uid=1000, results={"iptables-save": denied, "ip6tables-save": denied,
+                                                    "nft": secproc.Result(1, "", "Operation not permitted\n")},
+                   docker_error=PermissionError(13, "Permission denied"))
+        self.assertEqual(doc["sources"]["rules"]["state"], "needs-root")
+        self.assertEqual(doc["sources"]["docker"]["state"], "needs-root")
+        self.assertFalse(doc["root"])
+        self.assertEqual({p["state"] for p in doc["ports"] if p["why"] != "local"}, {"none"})
+        self.assertEqual(doc["containers"]["state"], "skipped")
+
+    def test_docker_failing(self):
+        doc = scan("ufw-docker", docker_error=ConnectionRefusedError(111, "Connection refused"))
+        self.assertEqual(doc["sources"]["docker"]["state"], "error")
+        self.assertEqual([k for k, p in ports(doc).items() if p["service"]["kind"] == "docker"], [],
+                         "no mapping is known without Docker's answer")
+
+    def test_no_docker(self):
+        doc = scan("ufw-docker", meta={"exists": []})
+        self.assertEqual(doc["sources"]["docker"]["state"], "missing")
+        p = ports(doc)["8080/tcp"]
+        self.assertEqual((p["service"]["kind"], reach(p)["internet"]), ("process", "closed"),
+                         "without Docker's mapping the docker-proxy socket is a plain socket behind UFW")
+
+    def test_legacy_rules_apply_too(self):
+        legacy = "*filter\n:INPUT ACCEPT [0:0]\n:FORWARD ACCEPT [0:0]\n:OUTPUT ACCEPT [0:0]\n" \
+                 "-A INPUT -p tcp -m tcp --dport 443 -j DROP\nCOMMIT\n"
+        doc = scan("ufw-docker", results={"iptables-legacy-save": legacy},
+                   files={"/proc/net/ip_tables_names": "filter\n"})
+        self.assertTrue(doc["firewall"]["legacy_rules"])
+        self.assertEqual(reach(ports(doc)["443/tcp"])["internet"], "closed")
+
+    def test_unreadable_rule_makes_unknown(self):
+        text = fixture("ufw-docker", "commands", "iptables-save.txt").replace(
+            "-A ufw-user-input -i wg0 -j ACCEPT",
+            "-A ufw-user-input -m set --match-set office src -j ACCEPT\n-A ufw-user-input -i wg0 -j ACCEPT")
+        doc = scan("ufw-docker", results={"iptables-save": text})
+        p = ports(doc)["9090/tcp"]
+        self.assertEqual((p["state"], p["why"]), ("none", "unknown"))
+        unk = p["reach"]["4"]["internet"]["unknown"]
+        self.assertEqual(unk["rule"]["text"], "-m set --match-set office src -j ACCEPT")
+
+
+class Marks(unittest.TestCase):
+    def test_view(self):
+        doc = scan("ufw-docker")
+        marks = {"ports": {"8080/tcp": "test page", "22/tcp": "not public anyway"},
+                 "containers": {("runner", "docker-socket"): "CI needs it"}}
+        v = seccheck.view(doc, marks)
+        p = ports(v)
+        self.assertEqual((p["8080/tcp"]["state"], p["8080/tcp"]["base_state"], p["8080/tcp"]["expected"]),
+                         ("info", "warning", "test page"))
+        self.assertEqual((p["22/tcp"]["state"], p["22/tcp"]["expected"]), ("ok", "not public anyway"))
+        runner = [c for c in v["containers"]["items"] if c["name"] == "runner"][0]
+        self.assertEqual((runner["findings"][0]["state"], runner["state"]), ("ok", "info"))
+        self.assertEqual(ports(doc)["8080/tcp"]["state"], "warning", "the state itself is unchanged")
+
+    def test_marks_file(self):
+        good = fakesys.FakeSystem("ufw-docker", files={seccheck.MARKS_FILE: "port 8080/tcp x\nnonsense\n"})
+        self.assertEqual(seccheck.read_marks(good), ({"ports": {"8080/tcp": "x"}, "containers": {}}, "lines 2"))
+        bad = fakesys.FakeSystem("ufw-docker", files={seccheck.MARKS_FILE: "port 8080/tcp x\n"},
+                                 meta={"stat": {seccheck.MARKS_FILE: {"mode": "666", "uid": 0}}})
+        self.assertEqual(seccheck.read_marks(bad), ({"ports": {}, "containers": {}}, "untrusted"))
+        other = fakesys.FakeSystem("ufw-docker", files={seccheck.MARKS_FILE: "port 8080/tcp x\n"},
+                                   meta={"stat": {seccheck.MARKS_FILE: {"mode": "644", "uid": 1000}}})
+        self.assertEqual(seccheck.read_marks(other)[1], "untrusted")
+
+
+class ScanScript(unittest.TestCase):
+    """security-scan.py as the service runs it: both files written atomically, the state 0600,
+    the status 0644 and readable by the status verb; the marks file counts."""
+
+    def test_files(self):
+        import importlib.util
+        import stat as st
+        import tempfile
+        lib = os.path.join(HERE, "..", "lib")
+        spec = importlib.util.spec_from_file_location("security_scan", os.path.join(lib, "security-scan.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        d = tempfile.mkdtemp()
+        mod.LOCK = os.path.join(d, "scan.lock")
+        out, status = os.path.join(d, "state.json"), os.path.join(d, "status.json")
+        system = fakesys.FakeSystem("ufw-docker", files={seccheck.MARKS_FILE: "port 8080/tcp test page\n"})
+        import io
+        from contextlib import redirect_stdout
+        with redirect_stdout(io.StringIO()) as buf:
+            rc = mod.main(["--output", out, "--status", status], system=system)
+        self.assertEqual(rc, 0)
+        self.assertIn("13 ports", buf.getvalue())
+        self.assertEqual(st.S_IMODE(os.stat(out).st_mode), 0o600)
+        self.assertEqual(st.S_IMODE(os.stat(status).st_mode), 0o644)
+        with open(status, encoding="utf-8") as f:
+            doc = json.load(f)
+        self.assertEqual(doc["items"][0]["state"], "info", "8080/tcp marked as expected")
+        self.assertEqual(sorted(set(os.listdir(d)) - {"scan.lock"}), ["state.json", "status.json"],
+                         "no temporary file left (the lock exists only as root)")
+
+
+class Fixtures(unittest.TestCase):
+    def test_state_and_status_files_current(self):
+        for s in make_states.SCENARIOS:
+            doc, system = make_states.state(s)
+            want = json.loads(json.dumps(doc))
+            self.assertEqual(json.loads(fixture(f"state-{s}.json")), want,
+                             f"state-{s}.json is old: python3 test/fixtures/make_states.py")
+            self.assertEqual(json.loads(fixture(f"status-{s}.json")),
+                             json.loads(json.dumps(make_states.status(doc, system))), s)
+
+    def test_no_real_hosts(self):
+        """Only documentation and private addresses in the fixtures."""
+        import re
+        pat = re.compile(r"\b(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}\b")
+        allowed = ("10.", "127.", "172.1", "172.2", "172.3", "192.168.", "192.0.2.", "198.51.100.", "203.0.113.",
+                   "0.0.0.0", "224.", "239.", "255.", "100.64.", "169.254.", "1.8.", "1.1.", "6.8.", "4.0.")
+        for root, _, files in os.walk(FIX):
+            for name in files:
+                text = open(os.path.join(root, name), encoding="utf-8", errors="replace").read()
+                for m in pat.finditer(text):
+                    self.assertTrue(m.group(0).startswith(allowed), f"{name}: {m.group(0)}")
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=1)

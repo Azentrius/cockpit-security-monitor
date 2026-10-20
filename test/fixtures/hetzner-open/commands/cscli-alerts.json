@@ -1,0 +1,26 @@
+[
+ {
+  "id": 11,
+  "scenario": "crowdsecurity/ssh-bf",
+  "source": {
+   "ip": "192.0.2.50"
+  },
+  "events_count": 6
+ },
+ {
+  "id": 12,
+  "scenario": "crowdsecurity/ssh-slow-bf",
+  "source": {
+   "ip": "192.0.2.77"
+  },
+  "events_count": 11
+ },
+ {
+  "id": 9,
+  "scenario": "crowdsecurity/ssh-bf",
+  "source": {
+   "ip": "192.0.2.51"
+  },
+  "events_count": 6
+ }
+]

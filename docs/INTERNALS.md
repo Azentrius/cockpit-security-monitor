@@ -1,0 +1,315 @@
+# Internals: interfaces, formats, flows
+
+Reference for everyone working on the code. The helpers are the **only** bridge between the browser
+and root. Whoever changes a format changes helper, page, fixtures (`test/fixtures/`), tests and this
+document together; the page tolerates fields it does not know.
+
+## Paths
+
+| Path | Content | Owner / mode |
+|---|---|---|
+| `/usr/share/cockpit/security/` | the page (package `cockpit-security-monitor`) | root, 644 |
+| `/usr/lib/cockpit-security-monitor/` | helpers: `security-scan.py`, `security.py`, `security-hetzner.py` (755); `seclib.py`, `secfw.py`, `seccheck.py`, `secstatus.py`, `secproc.py` (644) | root |
+| `/usr/lib/systemd/system/cockpit-security-scan.{service,timer}` | the scan and its timer (every 15 minutes, `*:04/15`); the timer is off until `security.py install timer` | root, 644 |
+| `/usr/lib/systemd/system/cockpit-security-hetzner.service` | the request to Hetzner's API; skipped without a token | root, 644 |
+| `/var/lib/cockpit-security-monitor/state.json` | the state with every detail (addresses, rules, user names) | root, **600** (folder 755) |
+| `/var/lib/cockpit-security-monitor/status.json` | the status for the Status Board: numbers, states, ports, service and container names | root, 644 |
+| `/var/lib/cockpit-security-hetzner/hetzner.json` | the answer of the Hetzner service (systemd's `DynamicUser`, kept below `/var/lib/private`) | the service's user, 600 |
+| `/etc/cockpit-security-monitor/exposure.conf` | findings marked as expected (below) | root, 644; `.bak` the previous version |
+| `/etc/cockpit-security-monitor/hetzner.token` | the read-only Hetzner Cloud API token (optional, set up by hand) | root, **600** |
+| `/run/cockpit-security-monitor-scan.lock`, `…-marks.lock` | `flock` locks of a scan and of a change to the marks | root |
+
+Files of the add-on in folders of others carry the prefix `cockpit-security-` (the units, the
+Hetzner state folder).
+
+## Calls from the page
+
+| What | Call | Kind | Output |
+|---|---|---|---|
+| the state | `security.py show`, `superuser: "try"` | read (root: state.json is 0600) | one JSON object, below; exit 77 without administrative access |
+| the summary without administrative access | `security.py status --lang en\|de`, `superuser: "try"` | read, no root | the status document |
+| changes | `cockpit.file(status.json).watch()` | read | reloads when the tag changes (every scan and every mark writes the file) |
+| "Refresh" | `security.py scan`, `superuser: "require"` | runs the service, waits | text, two languages |
+| the regular check | `security.py install timer` / `remove timer`, `superuser: "require"`, through the dialog | changes the add-on's timer | text, live |
+| "Mark as expected" | `security.py expect port 8080/tcp [--note TEXT]`, `… expect container NAME FINDING [--note TEXT]`, `superuser: "require"`, through the dialog | writes exposure.conf, then status.json again | text |
+| "Remove mark" | `security.py unexpect port 8080/tcp`, `… unexpect container NAME FINDING` | the same | text |
+
+`SECURITY_LANG=de|en` (environment) selects the language of `security.py`'s messages. Every
+argument is checked in the helper: a port `^[0-9]{1,5}/(tcp|udp)$` (1 to 65535), a container name
+`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`, a finding from the fixed list, a note of at most 200
+characters without control characters. Anything else exits 64.
+
+### `security.py show`
+
+```json
+{"root": true, "state": {…state.json with the marks applied…}, "marks_problem": null,
+ "marks_file": "/etc/cockpit-security-monitor/exposure.conf", "timer": "active|inactive|missing",
+ "next": "2026-10-20T12:19:00Z", "running": false, "hetzner_token": false}
+```
+
+`state` is `null` before the first scan (the page then checks once by itself). `marks_problem`:
+`null`, `"untrusted"` (the file is not root's or others can write it: its marks do not count), or
+`"lines 3,7"` (lines that could not be read). With the marks applied a marked port has
+`expected` (the note) and `state` `info`, its old state in `base_state`; a marked container finding
+has `expected` and `state` `ok`.
+
+### Exit codes of `security.py`
+
+| Code | Meaning |
+|---|---|
+| 0 | ok (findings are no error) |
+| 1 | failed (the scan service, systemctl, the state not readable) |
+| 2 | a unit is missing |
+| 5 | the marks file is not trusted; nothing changed |
+| 64 | wrong call |
+| 75 | busy (a scan, or a change of the marks) |
+| 77 | needs root (`show`, `scan`, the timer, the marks); `status`: status.json exists but cannot be read |
+
+## The scan
+
+`cockpit-security-scan.service` runs `security-scan.py --output state.json --status status.json` as
+root in the host's network namespace (it lists that namespace), with `IPAddressDeny=any`,
+`IPAddressAllow=localhost` (cscli asks CrowdSec's local API), `RestrictAddressFamilies=AF_UNIX
+AF_NETLINK AF_INET AF_INET6` and `CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_PTRACE
+CAP_DAC_READ_SEARCH`, `ProtectSystem=strict`, `ProtectHome=read-only` and the usual rest
+(`tools/check-units.sh` checks the exposure). It writes only its own folder.
+
+Commands run through `secproc.run`: a list (never a shell), `PATH=/usr/sbin:/usr/bin:/sbin:/bin`,
+`LC_ALL=C`, `TZ=UTC`, a process group of its own and a deadline. The sources, in this order:
+
+| Source (`sources.<name>`) | Read from | For |
+|---|---|---|
+| `ip` | `ip -j addr` | the interfaces and the class of each address |
+| `ss` | `ss -H -tulpn`, `/proc/<pid>/cgroup` | listening sockets, their processes, the container of a process |
+| `docker` | Docker's API over `/var/run/docker.sock`, GET only: `/info`, `/version`, `/containers/json`, `/containers/<id>/json`, `/networks` | published ports, container addresses and bridges, the firewall backend, the settings of each container |
+| `rules` | `iptables-save`, `ip6tables-save` (and `iptables-legacy-save` when legacy tables are loaded), `nft -j list ruleset` | the packet filter |
+| `ufw` | `/etc/ufw/ufw.conf`, `/etc/default/ufw`, `/etc/ufw/user.rules`, `user6.rules` | UFW's state and rules in readable form |
+| `hetzner` | `/var/lib/cockpit-security-hetzner/hetzner.json` (from the Hetzner service) | the Cloud Firewalls applied to this server |
+| `sshd` | `/usr/sbin/sshd -T`, `/etc/ssh/sshd_config`, `sshd_config.d/*.conf` (Match blocks) | the effective configuration |
+| `keys` | `/etc/passwd`, the authorized_keys files of accounts with a login shell (no link followed at the last step, regular files only, 1 MiB) | keys, options, who can change the file |
+| `journal` | `journalctl -o json --since=-14d` for `SYSLOG_IDENTIFIER` `sshd`, `sshd-session`, `sudo`, `cockpit-session` | logins of the last 14 days |
+| `crowdsec` | `systemctl is-active crowdsec.service`, `cscli version`, `cscli decisions list -o json`, `cscli alerts list -o json --since 14d`, `cscli bouncers list -o json`, the firewall bouncer's YAML, `online_api_credentials.yaml` | what CrowdSec does |
+
+Each source has a `state`: `ok`, `missing` (not installed), `skipped` (`reason`), `needs-root`,
+`partial` (`missing`: what), `error` (`error`: a short reason) or `timeout`.
+
+### Why iptables-save and nft's JSON
+
+iptables-nft keeps the matches of iptables extensions (`conntrack`, `multiport`, `addrtype`,
+`recent`) as `xt` expressions, and `nft -j` names such an expression without its options
+(`{"xt": {"type": "match", "name": "conntrack"}}`). The tables iptables manages (`filter`, `nat`,
+`mangle`, `raw`, `security` in the families `ip` and `ip6`) are therefore read from iptables-save,
+which prints them in full; nft's JSON supplies every other table (nftables.conf, Docker's nftables
+mode, fail2ban, CrowdSec). When iptables is the legacy variant, nft's JSON is read whole.
+
+### Address classes
+
+From `ip -j addr`: `lo` is **local**; `wg*`, `tun*`, `tailscale*`, `zt*`, `nebula*` are the **VPN**;
+`docker*`, `br-*`, `veth*` and other container bridges are left out; on every other interface a
+public address (not private, CGNAT, link-local, multicast or reserved) is the **internet**, a
+private one (RFC 1918, ULA) the **private network**. A host address (`/32`, `/128`, as in Hetzner's
+private networks) stands for its private block. IPv4 and IPv6 are separate: a host without a
+public IPv6 address has no "internet" for IPv6.
+
+### The evaluator (`secfw.py`)
+
+For each port, family and class, a new connection is followed through every base chain of type
+`filter` at the hooks ingress (its device), prerouting and then input (a socket of the host) or
+forward (a port Docker forwards to a container), in the order of their priorities:
+
+- Each base chain ends in accept (a rule or the policy), drop (final, also `reject`) or unknown.
+  The connection is let in when no chain drops it and none is unknown.
+- Understood: addresses and sets of them (also named sets and ranges), ports and port lists,
+  protocols, interfaces with wildcards, `ct state` (a new connection), the original destination
+  and port (`--ctorigdst`, `--ctorigdstport`, `ct original`), `ct status dnat`, address types and
+  `fib daddr type`, `limit` (a first packet passes), `recent --update/--rcheck` (a first
+  connection is not in the list yet, so `ufw limit` lets it in), IPv6 routing headers (`-m rt`, a
+  plain connection has none), jumps, goto, return, verdict maps.
+- A match it cannot read (an ipset, `-m mark`, an `xt` expression, a source port) is followed both
+  ways to the end of the base chain; when both end the same, that is the answer, else the result
+  is **unknown** with that rule. At most 64 such forks per connection.
+- Sources are symbolic: "the internet" is every public address of the family, the VPN and the
+  private network are their networks. A rule that names only part of a class (`-s
+  198.51.100.0/24 -j ACCEPT`, `! -s 10.8.0.0/24 -j DROP`) gives a narrower sample that is
+  followed on its own: when only such parts get in, the result is **restricted** with them as
+  `sources`. Parts of ban lists (a plain match that drops) are not followed.
+
+**Docker:** a published port (`NetworkSettings.Ports`) whose DNAT is in a nat chain (iptables-save or
+nft) is followed on the forward path, after the DNAT: destination the container's address and port,
+out through its bridge, the original destination kept. Without a DNAT for the family (IPv6 to a
+container without an IPv6 address, or Docker started with `iptables=false`) the port is the
+`docker-proxy` socket on the host and takes the input path. A connection from the host itself to a
+published port counts as reachable.
+
+**Hetzner Cloud Firewall:** applies to the internet class only (it filters the public interface).
+A server with no firewall applied lets everything through. With firewalls applied, an incoming
+connection needs a rule of its protocol and port; `source_ips` with `0.0.0.0/0` or `::/0` let the
+whole internet in, narrower public networks make it restricted; otherwise it blocks. When it
+blocks, the port's result is closed and `host_result` keeps what the host alone would allow.
+
+### Assessment of a port (spec 4.2)
+
+| Case | `state` | `why` |
+|---|---|---|
+| reachable from the internet, no filter on the host for that family (`input_filter` off, a probe on tcp/64999) and no Hetzner answer | warning | `outside-only` |
+| reachable from the internet: databases, Docker's API, Cockpit, SSH and the other ports in `seclib.KNOWN_PORTS` with weight danger | danger | `public-danger` |
+| reachable from the internet: 80, 443 (also UDP), 51820/udp, a UDP port of the kernel on a host with a VPN interface | info | `public-expected` |
+| reachable from the internet: anything else | warning | `public-other` |
+| reachable only from part of the internet | info (danger ports: warning) | `restricted` |
+| unknown from the internet | none | `unknown` |
+| blocked by the Hetzner Cloud Firewall | ok | `hetzner` |
+| reachable from the VPN and/or the private network only | ok | `only-vpn`, `only-private`, `only-vpn-private` |
+| only from the host | ok | `local` |
+
+A port marked as expected becomes `info` (`expected`, `base_state`).
+
+## `state.json`
+
+```json
+{"format": 1, "generated": "2026-10-20T12:00:00Z", "took_ms": 1840, "root": true,
+ "network": {"interfaces": [{"name": "eth0", "kind": "net", "up": true, "addrs": [{"addr": "203.0.113.10", "prefix": 32, "family": 4, "class": "internet"}]}],
+             "public": {"4": true, "6": true}},
+ "firewall": {"iptables": {"version": "1.8.10", "variant": "nf_tables"}, "tables": [{"src": "iptables", "family": "ip", "table": "filter", "chains": 42, "rules": 89, "owners": ["docker", "ufw"]}],
+              "legacy_rules": false, "docker_user": {"4": 0, "6": 0}, "input_filter": {"4": "on", "6": "on"},
+              "ufw": {"installed": true, "enabled": true, "loaded": {"4": true, "6": true}, "ipv6": true, "default_input": "drop", "default_forward": "drop", "rules": […], "rules_total": 8},
+              "docker": {"version": "28.5.1", "backend": "iptables", "backend_known": true, "containers": 4},
+              "hetzner": {"configured": false}},
+ "ports": [{"id": "tcp-8080", "proto": "tcp", "port": 8080, "name": null, "weight": "warning",
+            "service": {"kind": "docker", "containers": ["web"], "images": ["nginx:1.27-alpine"], "processes": ["docker-proxy"], "container_ports": [80]},
+            "binds": ["0.0.0.0:8080", "[::]:8080"],
+            "reach": {"4": {"internet": {"result": "open", "path": "forward", "iface": "eth0", "sources": [],
+                                         "to": {"addr": "172.17.0.2", "port": 80, "rule": {…}},
+                                         "steps": [{"chain": {"src": "iptables", "family": "ip", "table": "filter", "chain": "FORWARD", "policy": "drop", "owner": null},
+                                                    "result": "accept", "policy": false,
+                                                    "rule": {"src": "iptables", "family": "ip", "table": "filter", "chain": "DOCKER", "index": 1, "text": "-d 172.17.0.2/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 80 -j ACCEPT", "comment": "", "owner": "docker"}}]},
+                              "vpn": {…}, "private": {…}, "local": {…}},
+                      "6": {…}},
+            "state": "warning", "why": "public-other"}],
+ "ssh": {"sshd": {"state": "ok", "match": []}, "findings": [{"key": "passwordauthentication", "value": "no", "state": "ok", "code": "password-off"}, …],
+         "keys": [{"user": "root", "file": "/root/.ssh/authorized_keys", "mode": "600", "problems": [], "state": "ok",
+                   "keys": [{"line": 1, "type": "ssh-ed25519", "bits": 256, "fingerprint": "SHA256:…", "comment": "bastion", "options": ["from=\"10.8.0.0/24\""], "findings": [], "state": "ok"}]}],
+         "counts": {"keys": 4, "files": 2}, "ports": ["22"], "listen": [], "state": "warning"},
+ "logins": {"state": "ok", "entries": 9, "success": [{"time": "…", "service": "ssh", "method": "publickey", "user": "root", "source": "10.8.0.2", "class": "vpn"}],
+            "success_total": 3, "failed": [{"source": "10.8.0.9", "class": "vpn", "count": 1, "last": "…", "services": ["ssh"], "users": 1}],
+            "failed_sources": 1, "failed_total": 1, "sudo": [{"user": "alex", "uses": 1, "failures": 1, "last": "…"}],
+            "outside": 0, "truncated": false, "assessment": "ok"},
+ "containers": {"state": "ok", "items": [{"name": "runner", "image": "…", "findings": [{"kind": "docker-socket", "state": "danger", "detail": "/var/run/docker.sock"}]}]},
+ "crowdsec": {"installed": false},
+ "sources": {"ip": {"state": "ok", "took_ms": 3}, …}}
+```
+
+- `format`: 1. A page that knows a lower format says so.
+- `reach.<family>.<class>.result`: `open`, `restricted` (+ `sources`), `closed`, `unknown` (+
+  `unknown`: the step with the rule), `absent` (no address of that family and class receives the
+  socket). `path`: `input` or `forward` (+ `to`); `proxy`: true for docker-proxy;
+  `reason`: `local-published` (the host to a published port), `no-rules` (the packet filter could
+  not be read). `steps` keep the base chains that decided (a rule, or the policy).
+- Container findings: `docker-socket` (danger, also read-only: `:ro` protects the file, not the
+  API), `privileged`, `pid-host`, `cap-add` (`SYS_ADMIN`, `NET_ADMIN`, `ALL`), `host-mount` (`/`,
+  `/etc`, `/root`, `/var/run`, `/run` writable) (warning), `network-host`, `root-user`,
+  `no-new-privileges`, `apparmor-unconfined` (info).
+- SSH codes: `password-on|off`, `kbd-pam|off|no-pam`, `empty-passwords`, `root-yes|key|forced|no`,
+  `pubkey-on|off`, `tries-many|ok`, `allow-list`, `no-allow-list`, `x11-on|off`, `agent-on|off`.
+  Keys: `dsa`, `rsa-short` (under 3072 bits) (warning), `no-from` (info), `unreadable`. Files:
+  `file-writable`, `dir-writable`, `file-owner`, `dir-owner` (warning), `link` (not read).
+  `sshd.reason` `privsep-dir-missing`: `/run/sshd` is missing (socket-activated sshd), so `sshd
+  -T` cannot run; the page shows the line for `tmpfiles.d` (decision 9.6: set up by hand).
+- `logins.success[].class` and `failed[].class`: `internet`, `vpn`, `private`, `local`, `cgnat`,
+  `link`, `other`; `null` for Cockpit sessions (Cockpit does not log their source on the target).
+  Failed attempts count once per connection (process). At most 200 successes and 100 sources.
+- CrowdSec findings: `old-engine` (before 1.5), `not-running`, `bouncer-input-only` (nftables mode
+  without the hook forward), `bouncer-no-docker-user` (iptables mode without DOCKER-USER), both only
+  when Docker publishes ports, and `no-bouncer`.
+
+## The marks (`/etc/cockpit-security-monitor/exposure.conf`)
+
+```
+# comments
+port 8080/tcp Rustdesk relay, reachable on purpose
+container forgejo-runner docker-socket The CI runner needs the socket
+```
+
+One line each: `port <port>/<tcp|udp> <note>` or `container <name> <finding> <note>`. The file
+counts only when it is a regular file of root that nobody else can write. "Mark as expected" writes
+it atomically (a copy of the previous version as `exposure.conf.bak`) under a lock, keeps lines
+written by hand, and writes status.json again from the last state, so the Status Board shows the
+change at once. Nothing else is written; no firewall rule is ever touched.
+
+## The Hetzner service
+
+`cockpit-security-hetzner.service` runs `security-hetzner.py --output
+/var/lib/cockpit-security-hetzner/hetzner.json` with `DynamicUser=yes` (no root), network, and the
+token from `LoadCredential=hetzner.token:/etc/cockpit-security-monitor/hetzner.token`; it is skipped
+without the file. It asks `GET https://api.hetzner.cloud/v1/servers` and `/v1/firewalls` (50 per
+page, at most 20 pages), finds the server whose public IPv4 address, or IPv6 network, is an address
+of this host (`ip -j addr`), and keeps the incoming rules of the firewalls in its
+`public_net.firewalls`:
+
+```json
+{"format": 1, "tried_at": "2026-10-20T11:59:00Z", "ok_at": "2026-10-20T11:59:00Z", "error": null,
+ "server": {"id": 4711, "name": "web-1"}, "matched_by": "ipv4",
+ "firewalls": [{"id": 38, "name": "web", "status": "applied",
+                "rules": [{"direction": "in", "protocol": "tcp", "port": "80", "source_ips": ["0.0.0.0/0", "::/0"], "description": "HTTP"}]}]}
+```
+
+When a request fails, the last good answer stays and `error` and `tried_at` are added; the scan
+then calls the state `stale` and the page says how old it is. The token is never written anywhere
+and never printed. The format of the API is taken from Hetzner's documentation and the hcloud-python
+client (`test/fixtures/hetzner-open/hetzner-api/`); no answer of a real project is recorded yet.
+
+## `status.json` and `security.py status` (status contract)
+
+The status format all Azentrius add-ons share (schema 1, `cockpit-status-board/docs/STATUS-CONTRACT.md`).
+`manifest.json` names the command: `"azentrius": {"status": ["/usr/lib/cockpit-security-monitor/security.py", "status"]}`.
+The verb reads status.json only: no root, no command, no lock, no network. `--lang` takes a
+language tag (German for `de…`, English for every other); anything else exits 64; a file that
+exists but cannot be read exits 77. Without the file the state is `none` ("Not checked yet").
+
+| `id` | State | `value` | `detail` |
+|---|---|---|---|
+| `exposure` | the most severe port; at least `info` when a port could not be assessed; `none` when the packet filter could not be read | ports reachable from the internet | those ports with their service, at most 5 |
+| `ssh` | the most severe of the configuration and the keys | findings at warning or above | password login, root, short or DSA keys, files others can change, keys without `from=` |
+| `logins` | `warning` with a successful login from outside VPN and private networks, else `ok` | logins from outside, else failed attempts | counts, no addresses or names |
+| `containers` | the most severe finding not marked | containers with a warning or danger | the finding and container names, at most 3 per finding |
+| `crowdsec` | only when installed: its findings, else `ok` | active decisions | |
+| `scan` | `ok`; `warning` when the state is older than an hour (decided when the verb runs) | | |
+
+`stale_after` is 3600 for every item, `link` is `#/<id>` (no link for `scan`). The file holds the
+English document plus the German texts under `i18n.de`; the verb returns one language without
+`i18n`, with the version of the installed page (`const VERSION` in `security.js`).
+
+## Page internals
+
+- No build step, no framework, only `cockpit.js` from `../base1/`.
+- Values from the system reach the page through `h()` and `textContent` only; translated texts may
+  mark code with backticks (`rich()`), and a backtick in a value cannot open one (`tr()`).
+  `test/files.test.js` refuses `innerHTML` and its relatives.
+- Tabs: `exposure`, `ssh`, `logins`, `containers`, `crowdsec` (only when installed). The location
+  `#/<tab>` opens a tab, also while the page is open (`locationchanged`), as a link of the Status
+  Board does.
+- Loading: `safeLoad()` never runs twice at once; the watch of status.json reloads only on a new tag.
+- Version: `const VERSION` in `security.js`; `index.html` loads every file with `?v=<version>`;
+  `tools/check-version.sh` keeps them and `CHANGELOG.md` in step.
+
+## Tests
+
+| File | Checks |
+|---|---|
+| `test/lib_test.py` | address classes, `ip -j addr`, every form of `ss` addresses, UFW's tuples, `sshd -T` and its assessment, authorized_keys (sizes and fingerprints equal to ssh-keygen's, options with quotes, DSA, garbage), accounts and key files, the journal (one failure per connection), cscli and the bouncer's YAML, the marks, Docker's allowed paths, every code with its page text |
+| `test/fw_test.py` | iptables-save and nft's JSON read into chains; UFW's default deny and allow rules, `ufw limit`, the IPv6 routing header rule, DOCKER-USER (new connections, the original port, one allowed network, ban lists), unknown matches both ways (also across chains), too many forks, queues, goto, two base chains, verdict maps, netdev ingress, samples |
+| `test/scan_test.py` | every port of the three scenarios with state and reason; Docker past UFW and docker-proxy for IPv6; addresses a socket is bound to; the Hetzner Cloud Firewall (blocks, restricted, no token, stale, not matched, unreadable); SSH, logins, containers, CrowdSec; a DOCKER-USER rule (VPN only), no root, Docker failing or missing, legacy rules, an unreadable rule; the marks; the state fixtures current; only documentation and private addresses in the fixtures |
+| `test/status_test.py` | the status of every scenario in both languages: fields, ids, links, lengths, nothing private, no German in English; marks; unknown ports; an unreadable packet filter; an old state; `security.py status` (languages, wrong calls, missing, broken, unreadable, as a process within 2 seconds) |
+| `test/verbs_test.py` | the arguments of `expect`/`unexpect`; writing the marks file, its copy, lines by hand kept, a file others can change refused, root required, German messages |
+| `test/hetzner_test.py` | the server by IPv4 or IPv6 network, pages, no match, failures keeping the last good answer, the token never in the output; how the scan reads rules |
+| `test/page.test.js` | the page in jsdom with the state fixtures: overview, ports and their reasons, every tab, links and keyboard, the summary without administrative access, the first check by itself, Refresh and its failures, the dialogs (timer, marks), page messages, escaping |
+| `test/i18n.test.js`, `test/files.test.js` | every text in both languages, no German in English, no long dash; no HTML from strings, nothing the CSP blocks, only the fixed verbs, the manifest |
+| `test/contrast_test.py`, `test/fonts_test.py` | WCAG contrast in light and dark; every font the page uses ships with it |
+| `tools/check-units.sh` | `systemd-analyze verify`, and `systemd-analyze security` exposure at most 5.0 |
+| `test/e2e/setup.sh`, `test/e2e_session.py` | CI (job `e2e`): spec 4.7 on a throw-away runner, see the workflow |
+
+Fixtures: `test/fixtures/<scenario>/` hold the outputs of the commands and files of a host; the text
+outputs are written by hand after the formats of iptables 1.8.10, iproute2 6.x, OpenSSH 9.6 and ufw
+0.36, the JSON parts by `test/fixtures/make_fixtures.py`, the SSH keys are real throw-away keys.
+`test/fixtures/capture.sh` records a real host (to be made anonymous by hand);
+`test/fixtures/make_states.py` writes the `state-*.json` and `status-*.json` the page tests and the
+preview read. The job `e2e` keeps the raw outputs of its runner in the artifact `e2e-session`.

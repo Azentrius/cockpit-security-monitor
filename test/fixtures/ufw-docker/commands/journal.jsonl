@@ -1,0 +1,9 @@
+{"__REALTIME_TIMESTAMP": "1792497300000000", "_PID": "5101", "SYSLOG_IDENTIFIER": "sshd-session", "MESSAGE": "Accepted publickey for root from 10.8.0.2 port 51022 ssh2: ED25519 SHA256:qDKmFG/9kyw+c70mRjy835t7UXT1U0DlyvkwDDsFSKc"}
+{"__REALTIME_TIMESTAMP": "1792497300000000", "_PID": "5101", "SYSLOG_IDENTIFIER": "sshd-session", "MESSAGE": "pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)"}
+{"__REALTIME_TIMESTAMP": "1792479600000000", "_PID": "5090", "SYSLOG_IDENTIFIER": "sshd-session", "MESSAGE": "Accepted publickey for alex from 10.8.0.3 port 40112 ssh2: ED25519 SHA256:2K79bJsAg+NO83qU9qr34b0KCHjClsFCTLWZr+geexE"}
+{"__REALTIME_TIMESTAMP": "1792479540000000", "_PID": "5089", "SYSLOG_IDENTIFIER": "sshd-session", "MESSAGE": "Failed password for alex from 10.8.0.9 port 40100 ssh2"}
+{"__REALTIME_TIMESTAMP": "1792479540000000", "_PID": "5089", "SYSLOG_IDENTIFIER": "sshd-session", "MESSAGE": "Connection closed by authenticating user alex 10.8.0.9 port 40100 [preauth]"}
+{"__REALTIME_TIMESTAMP": "1792411200000000", "_PID": "1001", "SYSLOG_IDENTIFIER": "sshd", "MESSAGE": "Server listening on 0.0.0.0 port 22."}
+{"__REALTIME_TIMESTAMP": "1792494000000000", "_PID": "6001", "SYSLOG_IDENTIFIER": "sudo", "MESSAGE": "  alex : TTY=pts/0 ; PWD=/home/alex ; USER=root ; COMMAND=/usr/bin/apt update"}
+{"__REALTIME_TIMESTAMP": "1792493940000000", "_PID": "6000", "SYSLOG_IDENTIFIER": "sudo", "MESSAGE": "  alex : 1 incorrect password attempt ; TTY=pts/0 ; PWD=/home/alex ; USER=root ; COMMAND=/usr/bin/ls"}
+{"__REALTIME_TIMESTAMP": "1792490400000000", "_PID": "7001", "SYSLOG_IDENTIFIER": "cockpit-session", "MESSAGE": "pam_unix(cockpit:session): session opened for user alex(uid=1000) by alex(uid=0)"}

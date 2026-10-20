@@ -1,0 +1,69 @@
+{
+ "format": 1,
+ "tried_at": "2026-10-20T11:59:00Z",
+ "ok_at": "2026-10-20T11:59:00Z",
+ "error": null,
+ "server": {
+  "id": 4711,
+  "name": "web-1"
+ },
+ "matched_by": "ipv4",
+ "firewalls": [
+  {
+   "id": 38,
+   "name": "web",
+   "status": "applied",
+   "rules": [
+    {
+     "direction": "in",
+     "protocol": "tcp",
+     "port": "80",
+     "source_ips": [
+      "0.0.0.0/0",
+      "::/0"
+     ],
+     "description": "HTTP"
+    },
+    {
+     "direction": "in",
+     "protocol": "tcp",
+     "port": "443",
+     "source_ips": [
+      "0.0.0.0/0",
+      "::/0"
+     ],
+     "description": "HTTPS"
+    },
+    {
+     "direction": "in",
+     "protocol": "udp",
+     "port": "443",
+     "source_ips": [
+      "0.0.0.0/0",
+      "::/0"
+     ],
+     "description": "HTTP/3"
+    },
+    {
+     "direction": "in",
+     "protocol": "tcp",
+     "port": "8443",
+     "source_ips": [
+      "198.51.100.0/24"
+     ],
+     "description": "Office"
+    },
+    {
+     "direction": "in",
+     "protocol": "icmp",
+     "port": null,
+     "source_ips": [
+      "0.0.0.0/0",
+      "::/0"
+     ],
+     "description": null
+    }
+   ]
+  }
+ ]
+}

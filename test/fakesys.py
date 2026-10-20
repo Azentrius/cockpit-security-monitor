@@ -1,0 +1,154 @@
+# SPDX-License-Identifier: Apache-2.0
+"""A stand-in for seccheck.System that answers from a scenario in
+test/fixtures/<scenario>/:
+
+  commands/<key>.txt|.json|.jsonl   the output of a command (keys below)
+  files/<absolute path>             files, also what exists and what a directory lists
+  docker/*.json                     Docker's API (info, version, containers, networks, inspect-<id>)
+  meta.json                         now, uid, exit codes and stderr of commands, stat data,
+                                    paths that exist without a file (sockets)
+
+Nothing touches the machine the tests run on. Unknown commands fail the test."""
+
+import json
+import os
+import stat
+import sys
+from datetime import datetime, timezone
+from types import SimpleNamespace
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "lib"))
+import secproc  # noqa: E402
+
+FIXTURES = os.path.join(HERE, "fixtures")
+
+
+def key(argv):
+    a = list(argv)
+    if a == ["ip", "-j", "addr"]:
+        return "ip-addr"
+    if a == ["ss", "-H", "-tulpn"]:
+        return "ss"
+    if a in (["iptables-save"], ["ip6tables-save"], ["iptables-legacy-save"], ["ip6tables-legacy-save"]):
+        return a[0]
+    if a == ["nft", "-j", "list", "ruleset"]:
+        return "nft"
+    if a == ["/usr/sbin/sshd", "-T"]:
+        return "sshd-T"
+    if a[:1] == ["journalctl"]:
+        return "journal"
+    if a == ["systemctl", "is-active", "crowdsec.service"]:
+        return "systemctl-is-active-crowdsec"
+    if a[:2] == ["cscli", "version"]:
+        return "cscli-version"
+    if a[:3] == ["cscli", "decisions", "list"]:
+        return "cscli-decisions"
+    if a[:3] == ["cscli", "alerts", "list"]:
+        return "cscli-alerts"
+    if a[:3] == ["cscli", "bouncers", "list"]:
+        return "cscli-bouncers"
+    raise AssertionError(f"unexpected command {argv}")
+
+
+class FakeSystem:
+    def __init__(self, scenario, uid=None, results=None, files=None, gone=(), meta=None, docker_error=None):
+        self.dir = os.path.join(FIXTURES, scenario)
+        with open(os.path.join(self.dir, "meta.json"), encoding="utf-8") as f:
+            self.meta = json.load(f)
+        self.meta.update(meta or {})
+        self._uid = self.meta.get("uid", 0) if uid is None else uid
+        self.results = dict(results or {})     # key -> secproc.Result or text
+        self.files = dict(files or {})         # path -> text (None: gone)
+        self.gone = set(gone)
+        self.docker_error = docker_error
+        self.calls = []
+
+    def run(self, argv, limit=60):
+        k = key(argv)
+        self.calls.append(k)
+        if k in self.results:
+            r = self.results[k]
+            return r if isinstance(r, secproc.Result) else secproc.Result(0, r, "")
+        if k in self.gone:
+            return secproc.Result(None, missing=True)
+        for ext in (".txt", ".json", ".jsonl"):
+            p = os.path.join(self.dir, "commands", k + ext)
+            if os.path.exists(p):
+                with open(p, encoding="utf-8") as f:
+                    text = f.read()
+                rc = (self.meta.get("rc") or {}).get(k, 0)
+                return secproc.Result(rc, text, (self.meta.get("stderr") or {}).get(k, ""))
+        return secproc.Result(None, missing=True)
+
+    def _path(self, path):
+        return os.path.join(self.dir, "files", path.lstrip("/"))
+
+    def read(self, path, limit=4 << 20):
+        if path in self.files:
+            v = self.files[path]
+            return None if v is None else v[:limit]
+        p = self._path(path)
+        if not os.path.isfile(p):
+            return None
+        with open(p, encoding="utf-8") as f:
+            return f.read(limit)
+
+    def read_user_file(self, path, limit=1 << 20):
+        st = self.lstat(path)
+        if st is None or not stat.S_ISREG(st.st_mode):
+            return None, st
+        return self.read(path, limit), st
+
+    def lstat(self, path):
+        if path in self.files:
+            if self.files[path] is None:
+                return None
+            info = (self.meta.get("stat") or {}).get(path) or {}
+            return self._st(info.get("type", "file"), info)
+        info = (self.meta.get("stat") or {}).get(path)
+        p = self._path(path)
+        if info is None:
+            if os.path.isfile(p):
+                return self._st("file", {})
+            if os.path.isdir(p):
+                return self._st("dir", {"mode": "755"})
+            if path in self.meta.get("exists", []):
+                return self._st("socket", {"mode": "660"})
+            return None
+        if not os.path.exists(p) and info.get("type", "file") == "file" and path not in self.files:
+            return None
+        return self._st(info.get("type", "file"), info)
+
+    def stat(self, path):
+        return self.lstat(path)
+
+    @staticmethod
+    def _st(kind, info):
+        mode = {"file": stat.S_IFREG, "dir": stat.S_IFDIR, "link": stat.S_IFLNK, "socket": stat.S_IFSOCK}[kind]
+        return SimpleNamespace(st_mode=mode | int(info.get("mode", "644"), 8), st_uid=info.get("uid", 0),
+                               st_mtime=1792400000.0)
+
+    def exists(self, path):
+        return self.lstat(path) is not None
+
+    def listdir(self, path):
+        p = self._path(path)
+        return sorted(os.listdir(p)) if os.path.isdir(p) else None
+
+    def docker(self, path):
+        if self.docker_error:
+            raise self.docker_error
+        if path.startswith("/containers/") and path.endswith("/json") and path != "/containers/json":
+            name = "inspect-" + path.split("/")[2][:12]
+        else:
+            name = {"/info": "info", "/version": "version", "/containers/json": "containers",
+                    "/networks": "networks"}[path]
+        with open(os.path.join(self.dir, "docker", name + ".json"), encoding="utf-8") as f:
+            return json.load(f)
+
+    def now(self):
+        return datetime.strptime(self.meta["now"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+    def uid(self):
+        return self._uid

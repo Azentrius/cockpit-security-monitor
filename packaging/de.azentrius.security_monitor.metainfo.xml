@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<!-- AppStream data: Cockpit lists the page under Applications and opens it from there. -->
+<component type="addon">
+  <id>de.azentrius.security_monitor</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>Security Monitor</name>
+  <summary>What is reachable from where on a server, who logs in, what weakens its containers</summary>
+  <summary xml:lang="de">Was auf einem Server von wo erreichbar ist, wer sich anmeldet, was seine Container schwächt</summary>
+  <description>
+    <p>
+      The page shows per port whether it is reachable from the internet, the VPN, the private
+      network or only the server itself, for IPv4 and IPv6, with the rule that decides. It reads
+      UFW, Docker (which forwards published ports past UFW), nftables and iptables, and
+      optionally the Hetzner Cloud Firewall with a read-only token. It also shows the SSH
+      configuration and keys, the logins of the last 14 days, container settings that weaken
+      the boundary to the host, and CrowdSec if it is installed. It only reads; the one change
+      it makes is marking a finding as expected in its own file.
+    </p>
+    <p xml:lang="de">
+      Die Seite zeigt je Port, ob er aus dem Internet, dem VPN, dem Privatnetz oder nur vom
+      Server selbst erreichbar ist, für IPv4 und IPv6, mit der Regel, die entscheidet. Sie liest
+      UFW, Docker (das veröffentlichte Ports an UFW vorbei weiterleitet), nftables und iptables
+      und auf Wunsch die Hetzner Cloud Firewall mit einem nur lesenden Token. Dazu zeigt sie die
+      SSH-Konfiguration und Schlüssel, die Anmeldungen der letzten 14 Tage, Einstellungen von
+      Containern, die die Grenze zum Host schwächen, und CrowdSec, wenn es installiert ist. Sie
+      liest nur; die einzige Änderung ist, einen Befund in ihrer eigenen Datei als erwartet zu
+      markieren.
+    </p>
+  </description>
+  <extends>org.cockpit_project.cockpit</extends>
+  <launchable type="cockpit-manifest">security</launchable>
+  <url type="homepage">https://github.com/Azentrius/cockpit-security-monitor</url>
+  <url type="bugtracker">https://github.com/Azentrius/cockpit-security-monitor/issues</url>
+  <developer id="de.azentrius">
+    <name>Azentrius</name>
+  </developer>
+</component>

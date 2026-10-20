@@ -1,0 +1,145 @@
+/* Security Monitor: only what this page needs on top of azentrius.css (tokens
+ * for light and dark, page frame, buttons, cards, tables, labels, dialogs).
+ * Colours always come from the tokens there.
+ * SPDX-License-Identifier: Apache-2.0 */
+
+/* The name suffix "Monitor": DM Serif Display italic, subset to its letters
+   (the same file as in Image Update Monitor). */
+@font-face { font-family: "DM Serif Display"; src: url("DMSerifDisplay-Italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+
+*, *::before, *::after { box-sizing: border-box; }
+/* The az classes set display; [hidden] must win. */
+[hidden] { display: none !important; }
+html { background: var(--bg-page); }
+.az-alert__body { overflow-wrap: anywhere; }
+.az-card code, .az-alert code, .sm-dialog code {
+    padding: 0 4px;
+    border-radius: var(--radius-tiny);
+    background: var(--tint-neutral);
+    color: var(--on-tint-neutral);
+    font-family: var(--az-font-code);
+    font-size: 0.92em;
+    overflow-wrap: anywhere;
+}
+
+/* ---------- busy states ---------- */
+
+@keyframes sm-spin { to { transform: rotate(360deg); } }
+.sm-btn-spinner {
+    display: none;
+    flex: none;
+    inline-size: 1em;
+    block-size: 1em;
+    border: 2px solid currentColor;
+    border-inline-end-color: transparent;
+    border-radius: 50%;
+    animation: sm-spin 0.8s linear infinite;
+}
+.az-btn.is-busy .sm-btn-spinner { display: inline-block; }
+.az-btn.is-busy .az-icon { display: none; }
+.az-btn.is-busy { cursor: progress; }
+.sm-loading { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-xl) var(--space-lg); }
+.sm-spinner {
+    flex: none;
+    inline-size: 22px;
+    block-size: 22px;
+    border: 2px solid var(--line-control);
+    border-block-start-color: var(--text-subtle);
+    border-radius: 50%;
+    animation: sm-spin 0.8s linear infinite;
+}
+.sm-loading-title { display: block; font-weight: 600; }
+.sm-loading-sub { display: block; margin-block-start: 2px; color: var(--text-subtle); font-size: 13px; }
+.sm-panel.is-busy { opacity: 0.6; transition: opacity 120ms ease; }
+
+/* ---------- page and cards ---------- */
+
+.sm-status-list { display: flex; flex-direction: column; gap: var(--space-sm); }
+.sm-status-list:empty { display: none; }
+.sm-panel { display: flex; flex-direction: column; gap: var(--space-lg); }
+.sm-panel:empty { display: none; }
+.sm-card { scroll-margin-block-start: var(--space-lg); }
+.sm-card .az-card__body { display: flex; flex-direction: column; gap: var(--space-md); }
+.sm-card .az-card__body > p, .sm-card .az-card__body > ul { margin: 0; }
+.sm-intro { margin: 0; color: var(--text-subtle); }
+.sm-intro-block { display: flex; flex-direction: column; gap: var(--space-xs); }
+.sm-intro-block p { margin: 0; }
+.sm-note { margin: 0; color: var(--text-subtle); font-size: 13px; }
+.sm-sub { display: block; color: var(--text-subtle); font-size: 13px; }
+.sm-sub-title { margin: 0; font-size: 14px; font-weight: 600; }
+.sm-line { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm) var(--space-md); }
+.sm-chips { display: inline-flex; flex-wrap: wrap; gap: var(--space-xs); margin-inline-start: var(--space-xs); vertical-align: middle; }
+.sm-plain-list { margin: 0; padding-inline-start: 1.2em; display: flex; flex-direction: column; gap: var(--space-xs); }
+.sm-plain-list li::marker { color: var(--text-subtle); }
+.sm-summary-list { list-style: none; padding-inline-start: 0; gap: var(--space-sm); }
+.sm-kv { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-xs) var(--space-lg); margin: 0; }
+.sm-kv dt { font-weight: 600; font-size: 13px; }
+.sm-kv dd { margin: 0; overflow-wrap: anywhere; }
+
+/* ---------- tables ---------- */
+
+.az-table td { vertical-align: top; }
+/* One element per cell: on a phone the cell is a row of label and value. */
+.az-table td > .sm-v { display: block; min-width: 0; overflow-wrap: anywhere; }
+.sm-v > .az-cell-sub, .sm-v > .sm-sub { display: block; }
+.az-table td .az-label + .az-cell-sub { margin-block-start: 2px; }
+.sm-reach { white-space: nowrap; }
+.sm-reach--open { font-weight: 600; }
+.sm-reach--absent { color: var(--text-subtle); }
+.sm-assess { min-inline-size: 14rem; }
+.sm-findings-list { gap: var(--space-sm); }
+.sm-findings-list li { overflow-wrap: anywhere; }
+.sm-findings-list .az-btn { margin-inline-start: var(--space-xs); }
+.sm-keyfile { display: flex; flex-direction: column; gap: var(--space-sm); padding-block-start: var(--space-sm); border-block-start: 1px solid var(--line); }
+.sm-keyfile:first-of-type { border-block-start: 0; padding-block-start: 0; }
+.sm-card .az-btn--link { white-space: normal; text-align: start; }
+
+/* The reasons of a port: folded under its assessment. */
+.sm-details { margin-block-start: var(--space-xs); }
+.sm-details > summary { display: inline-flex; align-items: center; gap: var(--space-xs); cursor: pointer; list-style: none;
+    color: var(--primary-text); font-size: 13px; }
+.sm-details > summary::-webkit-details-marker { display: none; }
+.sm-details > summary .az-icon { transition: transform 120ms ease; }
+.sm-details[open] > summary .az-icon { transform: rotate(90deg); }
+.sm-details > *:not(summary) { margin-block-start: var(--space-sm); }
+.sm-detail-fam { display: flex; flex-direction: column; gap: var(--space-xs); font-size: 13px; text-align: start; }
+.sm-detail-fam p { margin: 0; }
+.sm-detail-fam .sm-plain-list { gap: 2px; }
+
+/* ---------- dialog ---------- */
+
+dialog.sm-dialog { padding: 0; border: 0; }
+dialog.sm-dialog:not([open]) { display: none; }
+dialog.sm-dialog::backdrop { background: var(--backdrop); }
+.sm-dialog .az-modal__body { padding-block-end: var(--space-xs); }
+.sm-dialog-desc, .sm-dialog-note, .sm-dialog-result { margin: 0; }
+.sm-dialog-note { color: var(--text-subtle); font-size: 13px; }
+.sm-dialog-log {
+    margin: 0;
+    max-block-size: 16rem;
+    overflow: auto;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-small);
+    background: var(--bg-page);
+    font-family: var(--az-font-code);
+    font-size: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.sm-dialog-result:empty { display: none; }
+.sm-dialog-result.is-ok { color: var(--status-success); }
+.sm-dialog-result.is-error { color: var(--danger-text); }
+.sm-dialog-result .az-icon { margin-inline-end: var(--space-xs); }
+
+@media (max-width: 640px) {
+    .sm-kv { grid-template-columns: 1fr; }
+    .sm-kv dd { margin-block-end: var(--space-xs); }
+    .sm-assess { min-inline-size: 0; }
+    .az-table--stack td > .sm-v { text-align: end; }
+    .az-table--stack .sm-findings-list { padding-inline-start: 0; list-style: none; }
+    .sm-reach { white-space: normal; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .sm-spinner, .sm-btn-spinner { animation: none; }
+    .sm-details > summary .az-icon { transition: none; }
+}

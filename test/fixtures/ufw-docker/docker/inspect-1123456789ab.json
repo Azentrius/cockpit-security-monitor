@@ -1,0 +1,68 @@
+{
+ "Id": "1123456789ab1111111111111111111111111111111111111111111111111111",
+ "Created": "2026-10-18T08:00:00Z",
+ "Name": "/db",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Hostname": "1123456789ab",
+  "User": "",
+  "Image": "postgres:17",
+  "ExposedPorts": {
+   "5432/tcp": {}
+  },
+  "Labels": {
+   "com.docker.compose.project": "app",
+   "com.docker.compose.service": "db"
+  }
+ },
+ "HostConfig": {
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "CapDrop": null,
+  "NetworkMode": "app",
+  "SecurityOpt": null,
+  "PortBindings": {
+   "5432/tcp": [
+    {
+     "HostIp": "127.0.0.1",
+     "HostPort": "5432"
+    }
+   ]
+  }
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/db/_data",
+   "Destination": "/var/lib/postgresql/data",
+   "Mode": "",
+   "RW": true,
+   "Propagation": "rprivate"
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "5432/tcp": [
+    {
+     "HostIp": "127.0.0.1",
+     "HostPort": "5432"
+    }
+   ]
+  },
+  "Networks": {
+   "app": {
+    "NetworkID": "1a2b3c4d5e6f7777777777777777777777777777777777777777777777777777",
+    "IPAddress": "172.18.0.2",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": "",
+    "Gateway": "172.18.0.1"
+   }
+  }
+ },
+ "State": {
+  "Status": "running",
+  "Running": true,
+  "Pid": 4000
+ }
+}
