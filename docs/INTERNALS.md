@@ -29,6 +29,7 @@ Hetzner state folder).
 | the state | `security.py show`, `superuser: "try"` | read (root: state.json is 0600) | one JSON object, below; exit 77 without administrative access |
 | the summary without administrative access | `security.py status --lang en\|de`, `superuser: "try"` | read, no root | the status document |
 | changes | `cockpit.file(status.json).watch()` | read | reloads when the tag changes (every scan and every mark writes the file) |
+| the menu icon | `cockpit.file(status.json).watch()` in `menu-status.js`, no superuser | read (the file is 0644) | `cockpit.transport.control("notify", {page_status})`, below |
 | "Refresh" | `security.py scan`, `superuser: "require"` | runs the service, waits | text, two languages |
 | the regular check | `security.py install timer` / `remove timer`, `superuser: "require"`, through the dialog | changes the add-on's timer | text, live |
 | "Mark as expected" | `security.py expect port 8080/tcp [--note TEXT]`, `… expect container NAME FINDING [--note TEXT]`, `superuser: "require"`, through the dialog | writes exposure.conf, then status.json again | text |
@@ -296,6 +297,29 @@ English document plus the German texts under `i18n.de`; the verb returns one lan
   `#/<tab>` opens a tab, also while the page is open (`locationchanged`), as a link of the Status
   Board does.
 - Loading: `safeLoad()` never runs twice at once; the watch of status.json reloads only on a new tag.
+- **Status in Cockpit's menu:** the entry "Security Monitor" carries Cockpit's own status icon for
+  the host whose menu is shown: `danger` as `error`, `warning` as `warning`, `info` as `info`; `ok`
+  and `none` show none. The tooltip is the summary of `status.json` in the session language (German
+  from `i18n.de.summary`), cut to 200 characters (status contract, "Optional: a state in Cockpit's
+  menu").
+  - The page sends it with `cockpit.transport.control("notify", {page_status: {type, title}})`; the
+    shell files it under the page of the frame that sends it and keeps it in
+    `sessionStorage["cockpit:page_status"]`, so only the page behind the entry can set it.
+    `"preload": ["index"]` in `manifest.json` makes the shell load the page right after the login,
+    hidden.
+  - `menu-status.js` watches `/var/lib/cockpit-security-monitor/status.json` (`cockpit.file`, no
+    administrative access needed) and reads nothing else. It judges the status as the Status Board
+    does: the worst of the document's state and the items' (`danger` > `warning` > `info`), and an
+    item whose `checked_at` (with a zone) lies more than `stale_after` seconds (an hour) back makes
+    it at least a warning, with "(as of <time>, out of date)" after the summary; it is checked again
+    the moment the first item turns old. A missing or unreadable file shows no icon. A status is
+    sent only when it changed, the first one always.
+  - `security.js` waits for `SecurityMonitorMenuStatus.shown`, the first time `cockpit.hidden` is
+    false, before it calls `security.py show`, checks by itself, watches status.json for reloads or
+    reads the host name for the signature. The flag holds once the first answer about
+    `status.json` is back (the shell's hint comes right after `init`, and its messages arrive in
+    order); without any answer the page decides after 3 seconds. A link that arrives while the page
+    is hidden selects its tab at once; the page has nothing to scroll to.
 - Version: `const VERSION` in `security.js`; `index.html` loads every file with `?v=<version>`;
   `tools/check-version.sh` keeps them and `CHANGELOG.md` in step.
 
@@ -309,8 +333,8 @@ English document plus the German texts under `i18n.de`; the verb returns one lan
 | `test/status_test.py` | the status of every scenario in both languages: fields, ids, links, lengths, nothing private, no German in English; marks; unknown ports; an unreadable packet filter; an old state; `security.py status` (languages, wrong calls, missing, broken, unreadable, as a process within 2 seconds) |
 | `test/verbs_test.py` | the arguments of `expect`/`unexpect`; writing the marks file, its copy, lines by hand kept, a file others can change refused, root required, German messages |
 | `test/hetzner_test.py` | the server by IPv4 or IPv6 network, pages, no match, failures keeping the last good answer, the token never in the output; how the scan reads rules |
-| `test/page.test.js` | the page in jsdom with the state fixtures: overview, ports and their reasons, every tab, links and keyboard, the summary without administrative access, the first check by itself, Refresh and its failures, the dialogs (timer, marks), page messages, escaping |
-| `test/i18n.test.js`, `test/files.test.js` | every text in both languages, no German in English, no long dash; no HTML from strings, nothing the CSP blocks, only the fixed verbs, the manifest |
+| `test/page.test.js` | the page in jsdom with the state fixtures: overview, ports and their reasons, every tab, links and keyboard, the summary without administrative access, the first check by itself, Refresh and its failures, the dialogs (timer, marks), page messages, escaping; the menu icon (every scenario's status in both languages, no file, a broken one, an item worse than the whole, out of date, the check again after an hour, what the board ignores), the page loaded hidden (nothing run, the first check only once shown), a link while the page is hidden |
+| `test/i18n.test.js`, `test/files.test.js` | every text in both languages, no German in English, no long dash; no HTML from strings, nothing the CSP blocks, only the fixed verbs, the menu icon reading status.json only and sending only its page status, the manifest |
 | `test/contrast_test.py`, `test/fonts_test.py` | WCAG contrast in light and dark; every font the page uses ships with it |
 | `tools/check-units.sh` | `systemd-analyze verify`, and `systemd-analyze security` exposure at most 5.0 |
 | `test/e2e/setup.sh`, `test/e2e_session.py` | CI (job `e2e`): spec 4.7 on a throw-away runner, see the workflow |

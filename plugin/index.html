@@ -27,7 +27,7 @@
             <h1 class="az-page-title">Security <span class="az-page-title__suffix">Monitor</span></h1>
             <div class="az-page-actions">
                 <span id="sm-meta" class="az-meta"></span>
-                <!-- Starts busy: the first load begins as soon as security.js runs. -->
+                <!-- Starts busy: the first load begins as soon as the page is shown. -->
                 <button id="sm-refresh" class="az-btn az-btn--primary is-busy" type="button" disabled aria-busy="true">
                     <span class="sm-btn-spinner" aria-hidden="true"></span><span data-icon="sync-alt"></span><span class="sm-btn-label" data-i18n="btn.loading">Loading …</span>
                 </button>
@@ -99,6 +99,9 @@
     </dialog>
 
     <script src="i18n.js?v=0.1.0"></script>
+    <!-- menu-status.js: the status icon in Cockpit's menu (Cockpit loads the page hidden after
+         the login for it); security.js starts once the page is shown. -->
+    <script src="menu-status.js?v=0.1.0"></script>
     <script src="security.js?v=0.1.0"></script>
 </body>
 </html>

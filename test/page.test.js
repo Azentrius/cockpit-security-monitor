@@ -2,10 +2,13 @@
 // The page against the state the helper writes for the scenarios (test/fixtures/state-*.json):
 // tabs and links, the ports and their reasons, SSH, logins, containers, CrowdSec, the summary
 // without administrative access, the first check by itself, Refresh, the timer and the marks,
-// escaping, both languages. Run: node test/page.test.js (jsdom: cd test && npm ci, or NODE_PATH).
+// escaping, both languages; the status icon in Cockpit's menu and the start once the page is
+// shown. Run: node test/page.test.js (jsdom: cd test && npm ci, or NODE_PATH).
 "use strict";
 const assert = require("assert");
-const { boot, settle, state, show, proc, text, HELPER } = require("./page");
+const fs = require("fs");
+const path = require("path");
+const { boot, settle, state, show, proc, text, HELPER, FIX, STATUS_FILE } = require("./page");
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -321,6 +324,118 @@ test("unknown sources are named under Not checked", async () => {
     assert.match(text(d.getElementById("sm-unchecked-logins")), /Journal: failed: journal corrupt\./);
 });
 
+// --- The status icon in Cockpit's menu (menu-status.js) and the hidden start ---
+const statusFixture = (name) => JSON.parse(fs.readFileSync(path.join(FIX, "status-" + name + ".json"), "utf8"));
+const SCENARIOS = fs.readdirSync(FIX).filter((f) => /^status-.+\.json$/.test(f)).map((f) => f.slice("status-".length, -".json".length));
+const lastNote = (calls) => (calls.notes.length ? calls.notes[calls.notes.length - 1][1].page_status : "unset");
+const TYPES = { danger: "error", warning: "warning", info: "info" };
+const plain = (o) => JSON.parse(JSON.stringify(o));
+const atMinutes = (st, m) => new Date(Date.parse(st.checked_at) + m * 60e3).toISOString();
+
+test("menu icon: the state of status.json, the summary in the page's language", async () => {
+    assert.ok(SCENARIOS.length >= 7, "every scenario: " + SCENARIOS.join(", "));
+    for (const name of SCENARIOS) {
+        const st = statusFixture(name);
+        for (const language of ["en", "de"]) {
+            // The scenario's time, half an hour on: not out of date.
+            const { calls } = boot({ language, now: atMinutes(st, 30), statusFile: JSON.stringify(st) });
+            await settle();
+            const summary = language === "de" ? st.i18n.de.summary : st.summary;
+            same(lastNote(calls), TYPES[st.state] ? { type: TYPES[st.state], title: summary } : null, `${name} ${language}`);
+            assert.strictEqual(calls.notes.length, 1, "sent once");
+            assert.strictEqual(calls.notes[0][0], "notify");
+        }
+    }
+    const { calls } = boot();
+    await settle();
+    same(calls.notes, [["notify", { page_status: null }]], "no status.json: no icon, but sent");
+    const broken = boot({ statusFile: "{broken" });
+    await settle();
+    assert.strictEqual(lastNote(broken.calls), null, "unreadable: no icon");
+});
+
+test("menu icon: judged as the Status Board does", async () => {
+    const st = statusFixture("ufw-docker");
+    const at = Date.parse(st.checked_at);
+    const en = boot({ now: atMinutes(st, 10) });
+    const de = boot({ language: "de", now: atMinutes(st, 10) });
+    await settle();
+    const icon = (doc, minutes, page = en) => page.w.SecurityMonitorMenuStatus.statusOf(doc, at + minutes * 60e3);
+    // Never better than an item.
+    const ok = plain(st);
+    ok.state = "ok";
+    ok.items.forEach((i) => { i.state = "ok"; });
+    assert.strictEqual(icon(ok, 10), null, "all OK: no icon");
+    const worse = plain(ok);
+    worse.items[2].state = "danger";
+    same(icon(worse, 10), { type: "error", title: st.summary });
+    const info = plain(ok);
+    info.items[0].state = "info";
+    same(icon(info, 10), { type: "info", title: st.summary });
+    assert.strictEqual(icon({ ...ok, state: "none", items: ok.items.map((i) => ({ ...i, state: "none" })) }, 10), null,
+                       "not checked yet: no icon");
+    // An item older than its stale_after (an hour) is at least a warning; the tooltip says since when.
+    assert.strictEqual(icon(ok, 59), null, "59 minutes: nothing to show");
+    const when = (loc) => new Date(at).toLocaleString(loc, { dateStyle: "medium", timeStyle: "short" });
+    same(icon(ok, 61), { type: "warning", title: `${st.summary} (as of ${when("en-GB")}, out of date)` });
+    same(icon(ok, 61, de), { type: "warning", title: `${st.i18n.de.summary} (Stand ${when("de-DE")}, veraltet)` });
+    assert.strictEqual(icon(st, 120).type, "error", "a danger stays a danger when out of date");
+    // What the board ignores.
+    const odd = plain(ok);
+    odd.items.forEach((i) => { i.checked_at = i.checked_at.replace("Z", ""); });
+    assert.strictEqual(icon(odd, 120), null, "a time without a zone is not judged");
+    [null, 3, "x", { ...st, schema: 2 }, { ...st, items: "x" }].forEach((d) => assert.strictEqual(icon(d, 10), null));
+    assert.strictEqual(icon({ ...st, summary: "x".repeat(300), i18n: undefined }, 10).title.length, 200, "cut as the board cuts it");
+});
+
+test("menu icon: checked again the moment an item turns out of date", async () => {
+    const st = statusFixture("ufw-docker");
+    st.state = "ok";
+    st.items.forEach((i) => { i.state = "ok"; });
+    const at = Date.parse(st.checked_at);
+    const r = boot({ now: atMinutes(st, 20) });
+    await settle();
+    const timers = [];
+    r.w.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+    r.watchers.find((x) => x.p === STATUS_FILE && !x.json).cb(JSON.stringify(st), "tag-2");
+    assert.strictEqual(lastNote(r.calls), null);
+    same(timers.map((x) => x.ms), [40 * 60e3 + 1000], "again when it is an hour old");
+    r.w.Date.now = () => at + 3600e3 + 1000;
+    timers[0].fn();
+    assert.strictEqual(lastNote(r.calls).type, "warning", "out of date: a warning");
+});
+
+test("preloaded hidden: only the icon; the page starts once it is shown", async () => {
+    const st = statusFixture("ufw-docker");
+    const r = boot({ hidden: true, view: show(null), now: atMinutes(st, 10), statusFile: JSON.stringify(st) });
+    await settle();
+    same(lastNote(r.calls), { type: "error", title: st.summary });
+    same([r.calls.spawn.length, r.calls.reads], [0, []], "hidden: no helper, no other file");
+    same(r.watchers.map((x) => x.p), [STATUS_FILE], "hidden: only the icon's watch");
+    assert.strictEqual(text(r.d.getElementById("sm-sig-version")), "Security Monitor", "hidden: not started");
+    r.hint(false);
+    await settle();
+    same(verbs(r.calls), ["show", "scan", "show"], "shown: the state, and only now the first check by itself");
+    assert.strictEqual(text(r.d.getElementById("sm-sig-version")), "Security Monitor 0.1.0");
+    same(r.calls.reads, ["/etc/hostname"]);
+    r.hint(true);
+    r.hint(false);
+    await settle();
+    same(verbs(r.calls), ["show", "scan", "show"], "shown again: no second start");
+});
+
+test("a link that comes while the page is hidden: its tab once shown", async () => {
+    const r = boot({ hidden: true });
+    await settle();
+    r.w.cockpit.location.path = ["ssh"];
+    r.listeners.locationchanged.forEach((f) => f());
+    r.hint(false);
+    await settle();
+    assert.strictEqual(r.d.getElementById("sm-tab-ssh").hidden, false);
+    assert.strictEqual(r.d.getElementById("sm-tab-exposure").hidden, true);
+    assert.match(text(r.d.getElementById("sm-sshd")), /PasswordAuthentication/i);
+});
+
 (async () => {
     let failed = 0;
     for (const { name, fn } of tests) {
@@ -333,5 +448,6 @@ test("unknown sources are named under Not checked", async () => {
         }
     }
     console.log(failed ? `${failed} of ${tests.length} failed` : `all ${tests.length} passed`);
-    process.exitCode = failed ? 1 : 0;
+    // Now, not when the pages' timers (the menu icon's re-check) have run out.
+    process.exit(failed ? 1 : 0);
 })();
