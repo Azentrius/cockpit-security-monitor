@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 /* The texts of the page (plugin/i18n.js), without a browser:
  *   - every key in English and German, with the same placeholders and plural shape,
- *   - every key security.js asks for exists (t("…"), and the families it builds: why., ck., …),
+ *   - every key security.js and menu-status.js ask for exists (t("…"), and the families
+ *     security.js builds: why., ck., …),
  *   - no German in English, German with "Sie", no long dash (U+2014) anywhere.
  * Run with: node test/i18n.test.js */
 "use strict";
@@ -14,7 +15,7 @@ const PLUGIN = path.join(__dirname, "..", "plugin");
 const box = { window: {} };
 vm.runInNewContext(fs.readFileSync(path.join(PLUGIN, "i18n.js"), "utf8"), box);
 const { en, de } = box.window.SecurityMonitorI18n;
-const js = fs.readFileSync(path.join(PLUGIN, "security.js"), "utf8");
+const js = ["security.js", "menu-status.js"].map((f) => fs.readFileSync(path.join(PLUGIN, f), "utf8")).join("\n");
 const html = fs.readFileSync(path.join(PLUGIN, "index.html"), "utf8");
 
 let passed = 0;

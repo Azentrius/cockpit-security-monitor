@@ -32,6 +32,10 @@ weakens the boundary of its containers. Read only.
   with the items `exposure`, `ssh`, `logins`, `containers`, `crowdsec` and `scan`.
 - **The page:** Azentrius page frame, tabs with links (`#/exposure`, `#/ssh`, …), English and
   German, light and dark, phones; without administrative access the summary only.
+- **In Cockpit's menu:** the entry carries the add-on's state as Cockpit's own status icon, judged
+  as the Status Board judges `status.json` (an item older than an hour at least a warning), with
+  the summary as its tooltip. Cockpit loads the page hidden after the login for it
+  (`"preload": ["index"]`); the page calls its helper and checks by itself only once it is shown.
 - Tests against hand-made scenarios of real formats and four real servers recorded read only and
   made anonymous (`test/fixtures/capture.sh`), the page under jsdom, and an end-to-end test in CI
   with a real Cockpit, UFW and Docker.

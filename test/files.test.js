@@ -4,7 +4,8 @@
  *   - nothing Cockpit's CSP blocks: no inline scripts, no event handler or style attributes,
  *   - every stylesheet url() names a file of the page,
  *   - the page calls only the fixed verbs of security.py, with administrative access only
- *     where it acts (scan, the timer, the marks),
+ *     where it acts (scan, the timer, the marks); the menu icon reads status.json only,
+ *     sends only its page status,
  *   - the manifest names the status verb as the status contract wants it.
  * Run with: node test/files.test.js */
 "use strict";
@@ -23,7 +24,7 @@ function t(name, fn) {
     try { fn(); passed++; } catch (e) { console.error("FAIL", name, "\n ", e.stack || e.message); process.exitCode = 1; }
 }
 
-t("no HTML from strings", () => ["security.js", "i18n.js"].forEach((f) => {
+t("no HTML from strings", () => ["security.js", "menu-status.js", "i18n.js"].forEach((f) => {
     const code = strip(read(f));
     ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "DOMParser", "createContextualFragment", "eval(",
      "new Function", "setTimeout(\"", "javascript:"].forEach((bad) => assert.ok(!code.includes(bad), f + " uses " + bad));
@@ -71,9 +72,21 @@ t("only the fixed verbs, and require only where the page acts", () => {
     assert.ok(!/\.watch\(/.test(js.replace("file.watch((content, tag)", "")), "no other watch");
 });
 
+t("menu-status.js: only status.json, as the user, and only the page's status", () => {
+    const m = strip(read("menu-status.js"));
+    assert.ok(m.includes('const STATUS_PATH = "/var/lib/cockpit-security-monitor/status.json";'));
+    assert.deepStrictEqual(m.match(/cockpit\.file\([^)]*\)/g), ["cockpit.file(STATUS_PATH)"], "one file, no superuser");
+    assert.ok(m.includes("cockpit.file(STATUS_PATH).watch("), "and only watched");
+    assert.deepStrictEqual(m.match(/transport\.control\([^,]*/g), ['transport.control("notify"'], "only notify");
+    ["spawn", "superuser", "cockpit.channel", "cockpit.dbus", "cockpit.http", "cockpit.jump", "cockpit.location"]
+        .forEach((bad) => assert.ok(!m.includes(bad), "menu-status.js uses " + bad));
+    assert.ok(html.indexOf('"menu-status.js?') < html.indexOf('"security.js?'), "menu-status.js before security.js");
+});
+
 t("the manifest names the status verb as the contract wants it", () => {
     const m = JSON.parse(read("manifest.json"));
     assert.strictEqual(m.menu.index.label, "Security Monitor");
+    assert.deepStrictEqual(m.preload, ["index"], "loaded hidden after the login, for the menu icon");
     const cmd = m.azentrius.status;
     assert.deepStrictEqual(cmd, ["/usr/lib/cockpit-security-monitor/security.py", "status"]);
     assert.ok(/^\/usr\/lib\/cockpit-[a-z0-9][a-z0-9-]{0,40}(\/[A-Za-z0-9_][A-Za-z0-9._-]{0,80}){1,3}$/.test(cmd[0]));

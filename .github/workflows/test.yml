@@ -109,7 +109,9 @@ jobs:
   # interfaces (test/e2e/setup.sh). Playwright drives Chromium through Cockpit
   # (test/e2e_session.py): 8080 "reachable from the internet, UFW does not apply here", marked
   # and unmarked from the page, then "VPN only" with a DOCKER-USER rule; the timer; a user
-  # without administrative access; a link #/ssh; no JavaScript or resource errors. The steps,
+  # without administrative access; the page loaded hidden for the menu icon and the icon as the
+  # status verb says; a link #/ssh and jumps into the loaded page; no JavaScript or resource
+  # errors. The steps,
   # screenshots and the raw outputs of the sources (for fixtures) are in the artifact e2e-session.
   e2e:
     runs-on: ubuntu-24.04

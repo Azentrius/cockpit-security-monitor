@@ -88,6 +88,12 @@ in a later version.
 - **SSH, Logins, Containers, CrowdSec:** one tab each. Links like `#/ssh` open a tab, as the
   Status Board does.
 - **Without administrative access** the page shows only the summary the Status Board sees.
+- **In Cockpit's menu:** the entry "Security Monitor" shows the same state with Cockpit's own icon
+  (blue: something to know, yellow: something to look at or a state older than an hour, red: a
+  danger, such as a database port open to the internet or the Docker socket in a container) and the
+  summary as its tooltip; nothing found, no icon. For this Cockpit loads the page hidden after the
+  login; until you open it, it only reads `/var/lib/cockpit-security-monitor/status.json` and
+  checks nothing.
 
 ## Architecture
 

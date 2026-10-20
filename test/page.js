@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// The real page (icons.js, i18n.js, security.js) in jsdom with a scripted Cockpit stub, for
-// the page tests. boot() returns the window, the calls the page made and the stub's state;
-// settle() waits until every stubbed answer has arrived and the page has handled it.
+// The real page (icons.js, i18n.js, menu-status.js, security.js) in jsdom with a scripted
+// Cockpit stub, for the page tests. boot() returns the window, the calls the page made and the
+// stub's state; settle() waits until every stubbed answer has arrived and the page has handled it.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -10,9 +10,10 @@ const { JSDOM } = require("jsdom");
 const PLUGIN = path.join(__dirname, "..", "plugin");
 const FIX = path.join(__dirname, "fixtures");
 const html = fs.readFileSync(path.join(PLUGIN, "index.html"), "utf8");
-const js = ["icons.js", "i18n.js", "security.js"].map((f) => fs.readFileSync(path.join(PLUGIN, f), "utf8")).join("\n");
+const js = ["icons.js", "i18n.js", "menu-status.js", "security.js"].map((f) => fs.readFileSync(path.join(PLUGIN, f), "utf8")).join("\n");
 const NOW = "2026-10-20T12:05:00Z";
 const HELPER = "/usr/lib/cockpit-security-monitor/security.py";
+const STATUS_FILE = "/var/lib/cockpit-security-monitor/status.json";
 
 function state(name) {
     return JSON.parse(fs.readFileSync(path.join(FIX, "state-" + name + ".json"), "utf8"));
@@ -64,7 +65,7 @@ function proc(out, { chunks = [], fail = null, gate = null } = {}) {
 }
 
 function boot({ language = "en", scenario = "ufw-docker", view = undefined, admin = true, now = NOW, onSpawn = null,
-                location = [] } = {}) {
+                location = [], hidden = false, statusFile = null } = {}) {
     const dom = new JSDOM(html, { runScripts: "outside-only", url: "https://localhost:9090/security/" });
     const w = dom.window;
     w.document.querySelectorAll("script").forEach((s) => s.remove());
@@ -72,18 +73,24 @@ function boot({ language = "en", scenario = "ufw-docker", view = undefined, admi
     w.HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
     w.Element.prototype.scrollIntoView = function () { w.__scrolled = this.id; };
     w.Date.now = () => Date.parse(now);
-    const calls = { spawn: [], reads: [], go: [] };
+    const calls = { spawn: [], reads: [], go: [], notes: [] };
     const box = { view: view === undefined ? show(state(scenario)) : view };
     const watchers = [];
     const listeners = {};
     w.cockpit = {
         language,
         location: { path: location, go(p) { calls.go.push(p); this.path = p; } },
+        hidden,
         addEventListener(ev, cb) { (listeners[ev] = listeners[ev] || []).push(cb); },
-        file(p) {
+        removeEventListener(ev, cb) { listeners[ev] = (listeners[ev] || []).filter((x) => x !== cb); },
+        file(p, opts) {
             return {
                 read() { calls.reads.push(p); return track(Promise.resolve(p === "/etc/hostname" ? "server\n" : null)); },
-                watch(cb) { watchers.push({ p, cb }); cb(null, "tag-1"); },
+                // Raw text for menu-status.js; security.js asks with syntax JSON and only looks at the tag.
+                watch(cb) {
+                    watchers.push({ p, cb, json: !!(opts && opts.syntax) });
+                    cb(p === STATUS_FILE && !(opts && opts.syntax) ? statusFile : null, "tag-1");
+                },
             };
         },
         spawn(argv, opts) {
@@ -101,10 +108,12 @@ function boot({ language = "en", scenario = "ufw-docker", view = undefined, admi
             return proc("", { chunks: ["ok\n"] });
         },
         jump() {},
-        transport: { wait() {} },
+        transport: { wait() {}, control(c, o) { calls.notes.push([c, JSON.parse(JSON.stringify(o))]); } },
     };
     w.eval(js);
-    return { w, d: w.document, calls, box, watchers, listeners };
+    // The shell's hint: cockpit.js changes cockpit.hidden and tells its listeners.
+    const hint = (h) => { w.cockpit.hidden = h; (listeners.visibilitychange || []).slice().forEach((cb) => cb()); };
+    return { w, d: w.document, calls, box, watchers, listeners, hint };
 }
 
 // The visible text, with spaces between cells and items as a reader sees them.
@@ -115,4 +124,4 @@ function text(el) {
     return c.textContent.replace(/\s+/g, " ").trim();
 }
 
-module.exports = { boot, settle, state, statusDoc, show, proc, text, NOW, HELPER, PLUGIN };
+module.exports = { boot, settle, state, statusDoc, show, proc, text, NOW, HELPER, PLUGIN, FIX, STATUS_FILE };

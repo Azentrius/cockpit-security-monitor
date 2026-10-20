@@ -27,6 +27,7 @@ window.SecurityMonitorI18n = {
         "meta.checked": "Checked {ago}",
         "meta.never": "Not checked yet",
         "meta.tip": "Checked on {when} in {secs} s.",
+        "menu.stale": "{summary} (as of {when}, out of date)",
 
         "ago.now": "just now",
         "ago.min": { one: "{n} minute ago", other: "{n} minutes ago" },
@@ -403,6 +404,7 @@ window.SecurityMonitorI18n = {
         "meta.checked": "Stand {ago}",
         "meta.never": "Noch nicht geprüft",
         "meta.tip": "Geprüft am {when} in {secs} s.",
+        "menu.stale": "{summary} (Stand {when}, veraltet)",
 
         "ago.now": "gerade eben",
         "ago.min": { one: "vor {n} Minute", other: "vor {n} Minuten" },

@@ -9,6 +9,10 @@
  *   marks   -> security.py expect|unexpect …                        through the dialog
  *   watch   -> cockpit.file(/var/lib/cockpit-security-monitor/status.json)  written by every scan and mark
  *
+ * menu-status.js runs first: it sets the status icon in Cockpit's menu, also while
+ * Cockpit keeps the page loaded hidden, and says when the page is shown; only then
+ * does this file call the helper.
+ *
  * The page only reads. It can set up or switch off the add-on's own timer and
  * mark a finding as expected (the add-on's own file); both are shown first and
  * confirmed. Texts: plugin/i18n.js. Everything from the system reaches the page
@@ -884,7 +888,6 @@
     }
 
     applyStaticTexts();
-    renderSignature();
     $("sm-refresh").addEventListener("click", scan);
     $("sm-tabs").addEventListener("click", (e) => {
         const b = e.target instanceof Element ? e.target.closest("[role=tab]") : null;
@@ -930,8 +933,17 @@
     if (typeof cockpit.addEventListener === "function") cockpit.addEventListener("locationchanged", followLocation);
     followLocation();
     renderTabs();
-    reloadOnChange(cockpit.file(STATUS_PATH, { syntax: JSON }));
-    safeLoad();
+    // Cockpit loads this page hidden right after the login, for the status icon in
+    // its menu (menu-status.js). What reads or runs on the server, the root helper
+    // and the first check above all, starts only once the page is shown.
+    function start() {
+        renderSignature();
+        reloadOnChange(cockpit.file(STATUS_PATH, { syntax: JSON }));
+        safeLoad();
+    }
+    const menu = window.SecurityMonitorMenuStatus;
+    if (menu) menu.shown.then(start);
+    else start();
 
     cockpit.transport.wait(function () {});
 })();

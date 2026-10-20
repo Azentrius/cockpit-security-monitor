@@ -33,6 +33,7 @@
             go(path) { this.path = path; (listeners.locationchanged || []).forEach((f) => f()); },
         },
         addEventListener(ev, f) { (listeners[ev] = listeners[ev] || []).push(f); },
+        removeEventListener(ev, f) { listeners[ev] = (listeners[ev] || []).filter((x) => x !== f); },
         file(path) {
             return {
                 read() { return Promise.resolve(path === "/etc/hostname" ? "preview-host\n" : null); },
@@ -57,6 +58,7 @@
             return proc((stream) => { stream("+ " + argv.join(" ") + "\n"); return ""; });
         },
         jump() {},
-        transport: { wait() {} },
+        // control: the menu icon (menu-status.js), which a plain browser has no menu for.
+        transport: { wait() {}, control() {} },
     };
 })();

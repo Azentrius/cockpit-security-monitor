@@ -7,19 +7,24 @@ Playwright drives Chromium through Cockpit's own login and shell. Spec 4.7:
   0. Cockpit before the add-on is installed: the errors the browser shows for
      Cockpit itself, as the baseline;
   1. this build installed with apt;
-  2. as an administrator: the page in Cockpit's menu; with no state yet it
-     checks by itself, through cockpit-security-scan.service; Docker's
-     0.0.0.0:8080 is "reachable from the internet, UFW does not apply here";
-     the state 0600, the status 0644, every source read; a socket-activated
-     sshd without /run/sshd is "not checkable" with the fix the page names
-     (decision 9.6), and that fix is then applied;
+  2. as an administrator: right after the login Cockpit loads the page hidden
+     for its menu icon, and it checks nothing until shown; the page in
+     Cockpit's menu; with no state yet it checks by itself, through
+     cockpit-security-scan.service; Docker's 0.0.0.0:8080 is "reachable from
+     the internet, UFW does not apply here"; the state 0600, the status 0644,
+     every source read; the menu icon as the status verb says; a
+     socket-activated sshd without /run/sshd is "not checkable" with the fix
+     the page names (decision 9.6), and that fix is then applied;
   3. the status for the Status Board, as a user without sudo;
   4. 8080/tcp marked as expected from the page, then the mark removed: only
      /etc/cockpit-security-monitor/exposure.conf changes;
   5. a DOCKER-USER rule, "Refresh": 8080/tcp is "VPN only", and sshd -T is read;
   6. the regular check set up from the page, then switched off;
-  7. a user without administrative access (German browser): the summary only;
-  8. a link #/ssh opens the SSH tab with the configuration;
+  7. a user without administrative access (German browser): the menu icon in
+     German before the page is opened, then the summary only;
+  8. a link #/ssh opens the SSH tab with the configuration; cockpit.jump to
+     another tab while the page is shown and into it while it is hidden,
+     without loading it again;
   9. no JavaScript error and no failed request of the add-on's files, and no
      error of another kind than the baseline's.
 
@@ -137,6 +142,34 @@ def open_page(page):
     return frame, label
 
 
+MENU_TYPES = {"danger": "error", "warning": "warning", "info": "info"}   # Cockpit's page status types
+
+
+def shown_status(page):
+    """The status the page sent the shell for its menu entry (the shell keeps every page's in the
+    session storage); "unset" before the first."""
+    stored = json.loads(page.evaluate("() => sessionStorage.getItem('cockpit:page_status')") or "{}")
+    return stored.get("localhost", {}).get("security", "unset")
+
+
+def check_menu(page, lang, what):
+    """The icon and its tooltip as the status verb says, as a user without sudo (the file is
+    fresh, so nothing is out of date): its state (ok and none: no icon) and its summary."""
+    doc = status_doc(E["PLAIN_USER"], lang)
+    want = {"type": MENU_TYPES[doc.get("state")], "title": doc.get("summary")} if doc.get("state") in MENU_TYPES else None
+    icon = page.locator('a[href$="/security"] .nav-item-status')
+    poll(page, lambda: shown_status(page) == want and icon.count() == (1 if want else 0), 60)
+    got = shown_status(page)
+    return note(f"{what}: the status icon in the menu as `status --lang {lang}` says",
+                got == want and icon.count() == (1 if want else 0),
+                f"state {doc.get('state')}, sent {json.dumps(got, ensure_ascii=False)}, icons {icon.count()}")
+
+
+def own_frame(page):
+    """The add-on's frame, to run code in it."""
+    return next(f for f in page.frames if f.name.endswith("/security"))
+
+
 def state():
     try:
         return json.loads(root("cat", STATE))
@@ -232,6 +265,15 @@ def main():
         # 2. As an administrator: the first check by itself; Docker's port past UFW.
         ctx, page = login(browser, E["ADMIN_USER"], E["ADMIN_PW"])
         note("administrator: administrative access", admin_access(page, E["ADMIN_PW"]))
+        # Loaded hidden for the menu right after the login: it checks nothing by itself until shown.
+        page.wait_for_selector(FRAME, state="attached")
+        poll(page, lambda: shown_status(page) != "unset", 60)
+        page.wait_for_timeout(3000)
+        sig = (page.frame_locator(FRAME).locator("#sm-sig-version").text_content() or "").strip()
+        note("after the login: the page loaded hidden for the menu, not started, no check yet",
+             not page.locator(FRAME).is_visible() and sig == "Security Monitor" and state() is None
+             and shown_status(page) is None,
+             f"signature '{sig}', state {'none' if state() is None else 'written'}, sent {shown_status(page)!r}")
         frame, label = open_page(page)
         note("the page in the menu, this build's version",
              label == "Security Monitor" and E["NEW_VERSION"] in (frame.locator("#sm-sig-version").text_content() or ""),
@@ -265,6 +307,7 @@ def main():
         privsep = (sources.get("sshd") or {}).get("reason") == "privsep-dir-missing"
         bad = {k: v for k, v in src.items() if v not in ("ok", "missing", "skipped") and not (k == "sshd" and privsep)}
         note("every source read in the real service", not bad, json.dumps(src))
+        check_menu(page, "en", "after the first check")
         shot(page, "first-check")
         if privsep:
             frame.locator("#sm-tab-btn-ssh").click()
@@ -339,6 +382,8 @@ def main():
 
         # 7. Without administrative access (a user without sudo, German browser).
         ctx, page = login(browser, E["PLAIN_USER"], E["PLAIN_PW"], locale="de-DE")
+        page.wait_for_selector(FRAME, state="attached")
+        check_menu(page, "de", "without administrative access, German, before the page is opened")
         frame, label = open_page(page)
         poll(page, lambda: "Anzeige ohne administrativen Zugriff" in text(frame, "#sm-status"), 60)
         note("without administrative access: the summary only, no action",
@@ -359,6 +404,25 @@ def main():
              frame.locator("#sm-tab-ssh").is_visible() and "passwordauthentication" in text(frame, "#sm-sshd"),
              text(frame, "#sm-sshd")[:160])
         shot(page, "ssh")
+
+        # The Status Board jumps with cockpit.jump; Cockpit keeps the loaded page and only changes
+        # its location: to another tab while it is shown, and into it while it is hidden.
+        own = own_frame(page)
+        own.evaluate("() => { window.smNotReloaded = true; }")
+
+        def at_tab(tab, how):
+            ok = poll(page, lambda: page.url.endswith("/security#/" + tab) and frame.locator("#sm-tab-" + tab).is_visible(), 30)
+            kept = own.evaluate("() => window.smNotReloaded === true")
+            note(f"a link {how}: the tab {tab}, the page not loaded again", bool(ok) and kept,
+                 f"{page.url.split('9090', 1)[-1]}, {'not loaded again' if kept else 'loaded again'}")
+
+        own.evaluate("p => cockpit.jump(p)", "/security#/logins")
+        at_tab("logins", "while the page is shown (cockpit.jump)")
+        own.evaluate("p => cockpit.jump(p)", "/system")
+        poll(page, lambda: not page.locator(FRAME).is_visible(), 30)
+        system = next((f for f in page.frames if f.name.endswith("/system")), own)
+        system.evaluate("p => cockpit.jump(p)", "/security#/containers")
+        at_tab("containers", "into the page while it is hidden")
         ctx.close()
         browser.close()
 
