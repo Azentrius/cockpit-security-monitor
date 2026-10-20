@@ -10,8 +10,9 @@ weakens the boundary of its containers. Read only.
   decides. The packet filter comes from `iptables-save` and `ip6tables-save` (UFW's and Docker's
   tables) and `nft -j list ruleset` (every other table); Docker's port mappings and their DNAT
   show where UFW does not apply. Rules the page cannot read make a port "Not assessable", never
-  "OK". An ipset of sources (a country list) makes a port "reachable only from" that set; a source
-  port is the sender's choice. Databases, Docker's API, Cockpit and SSH open to the internet are a
+  "OK". An ipset of sources (a country list) makes a port "reachable only from" that set; a port
+  reachable only from some sources names the rule that keeps everyone else out; a source port is
+  the sender's choice. Databases, Docker's API, Cockpit and SSH open to the internet are a
   danger, web, WireGuard and the DHCP client a note, everything else a warning until marked as
   expected.
 - **Hetzner Cloud Firewall:** read with a read-only token by a service of its own without root

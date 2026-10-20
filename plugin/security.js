@@ -337,11 +337,17 @@
         if (step.rule) return tr("det.rule", { rule: step.rule.text, where: where(step.rule) });
         return tr("det.policy", { policy: step.chain.policy || "accept", where: where(step.chain) });
     }
+    // The rule (or policy) that keeps out everyone but the allowed sources of a restricted port.
+    function limitText(step) {
+        if (step.rule) return tr("det.limitRule", { rule: step.rule.text, where: where(step.rule) });
+        return tr("det.limitPolicy", { policy: step.chain.policy || "drop", where: where(step.chain) });
+    }
     function classLine(cls, r) {
         let res = t("det.res." + r.result, { list: (r.sources || []).join(", ") });
         const why = [];
         if (r.reason === "local-published") why.push(rich(t("det.localPublished")));
         else if (r.reason === "no-rules") why.push(rich(t("det.noRules")));
+        if (r.limited_by) why.push(limitText(r.limited_by));
         const steps = r.steps || [];
         const decisive = r.result === "unknown" ? steps.filter((s) => s.result === "unknown") :
             r.result === "closed" ? steps.filter((s) => s.result === "drop") : steps.filter((s) => s.rule || s.policy);

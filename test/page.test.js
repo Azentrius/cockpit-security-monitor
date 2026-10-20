@@ -129,11 +129,32 @@ test("nft-native: sshd -T without /run/sshd, a DSA key, containers, a restricted
     assert.match(keys, /DSA: no longer accepted by current OpenSSH/);
     assert.match(text(d.getElementById("sm-unchecked-ssh")), /Match blocks change these values .*20-vpn\.conf/);
     assert.match(text(row(d, "tcp", 60001)), /Only from some addresses Allowed only from 192\.0\.2\.0\/24\./);
+    assert.match(text(row(d, "tcp", 60001).querySelector("details")),
+                 /From the internet: reachable only from 192\.0\.2\.0\/24: everyone else stopped by policy drop of chain input, table inet filter; .*rule tcp dport 60000-60010 ip saddr 192\.0\.2\.0\/24 accept in chain input, table inet filter/);
     assert.match(text(row(d, "tcp", 9100)), /container monitor/);
     const runner = d.getElementById("sm-container-runner");
     assert.match(text(runner), /Docker socket mounted: full access to Docker/);
     assert.ok(runner.querySelector("[data-expect-container='runner'][data-kind='docker-socket']"));
     assert.ok(!runner.querySelector("[data-kind='root-user'] button"), "notes are not offered for marking");
+});
+
+test("recorded-services: a port only an ipset reaches names the rule that keeps everyone else out", async () => {
+    const { d } = boot({ scenario: "recorded-services" });
+    await settle();
+    const det = row(d, "udp", 21116).querySelector("details");
+    assert.match(text(det), /From the internet: reachable only from ipset germany: everyone else stopped by rule -p udp -m udp --dport 21116 -m set ! --match-set germany src -j DROP in chain DOCKER-USER, table ip filter \(Docker\); /);
+    assert.match(text(det), /rule -d 172\.20\.0\.3\/32 .*-j ACCEPT in chain DOCKER, table ip filter/, "and the rule that lets the members in");
+    const code = [...det.querySelectorAll("li code")].map((c) => c.textContent);
+    assert.strictEqual(code[0], "-p udp -m udp --dport 21116 -m set ! --match-set germany src -j DROP", "the limiting rule first, as code");
+    assert.ok(!/everyone else/.test(text(row(d, "tcp", 443).querySelector("details"))), "only where the result is restricted");
+    const { d: de } = boot({ scenario: "recorded-services", language: "de" });
+    await settle();
+    assert.match(text(row(de, "udp", 21116).querySelector("details")),
+                 /Aus dem Internet: erreichbar nur von ipset germany: alle anderen abgewiesen durch Regel -p udp -m udp --dport 21116 -m set ! --match-set germany src -j DROP in Kette DOCKER-USER, Tabelle ip filter/);
+    const { d: nft } = boot({ scenario: "nft-native", language: "de" });
+    await settle();
+    assert.match(text(row(nft, "tcp", 60001).querySelector("details")),
+                 /erreichbar nur von 192\.0\.2\.0\/24: alle anderen abgewiesen durch Policy drop von Kette input, Tabelle inet filter/);
 });
 
 test("links follow the location while the page is open", async () => {

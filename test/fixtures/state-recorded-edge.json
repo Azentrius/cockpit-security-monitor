@@ -414,6 +414,19 @@
        "10.0.0.0/24"
       ],
       "iface": "enp7s0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "INPUT",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": null,
+       "policy": true
+      },
       "path": "input"
      },
      "local": {

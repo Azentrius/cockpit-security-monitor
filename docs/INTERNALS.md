@@ -136,7 +136,9 @@ forward (a port Docker forwards to a container), in the order of their prioritie
   private network are their networks. A rule that names only part of a class (`-s
   198.51.100.0/24 -j ACCEPT`, `! -s 10.8.0.0/24 -j DROP`) gives a narrower sample that is
   followed on its own: when only such parts get in, the result is **restricted** with them as
-  `sources`; when a part could get in but a rule for it cannot be read, the result is **unknown**.
+  `sources` and the rule or policy that stops the class as a whole as `limited_by` (the page
+  names it as what keeps everyone else out); when a part could get in but a rule for it cannot be
+  read, the result is **unknown**.
   Parts of ban lists (a plain match that drops) are not followed.
 - An ipset as the source (`-m set --match-set NAME src`, a country list in DOCKER-USER) is such a
   part, `ipset NAME` in `sources`: its members are not in iptables-save, so the page says
@@ -208,11 +210,14 @@ A port marked as expected becomes `info` (`expected`, `base_state`).
 ```
 
 - `format`: 1. A page that knows a lower format says so.
-- `reach.<family>.<class>.result`: `open`, `restricted` (+ `sources`: networks, or `ipset NAME`), `closed`, `unknown` (+
-  `unknown`: the step with the rule), `absent` (no address of that family and class receives the
-  socket). `path`: `input` or `forward` (+ `to`); `proxy`: true for docker-proxy;
+- `reach.<family>.<class>.result`: `open`, `restricted` (+ `sources`: networks, or `ipset NAME`;
+  `limited_by`: the step, in the form of `steps`, that drops the rest of the class), `closed`,
+  `unknown` (+ `unknown`: the step with the rule), `absent` (no address of that family and class
+  receives the socket). `path`: `input` or `forward` (+ `to`); `proxy`: true for docker-proxy;
   `reason`: `local-published` (the host to a published port), `no-rules` (the packet filter could
-  not be read). `steps` keep the base chains that decided (a rule, or the policy).
+  not be read). `steps` keep the base chains that decided (a rule, or the policy); for
+  `restricted` they are the way of an allowed source. A port only the Hetzner Cloud Firewall
+  restricts has no `limited_by` (see `hetzner`).
 - Container findings: `docker-socket` (danger, also read-only: `:ro` protects the file, not the
   API), `privileged`, `pid-host`, `cap-add` (`SYS_ADMIN`, `NET_ADMIN`, `ALL`), `host-mount` (`/`,
   `/etc`, `/root`, `/var/run`, `/run` writable) (warning), `network-host`, `root-user`,

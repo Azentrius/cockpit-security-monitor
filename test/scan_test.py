@@ -151,6 +151,7 @@ class HetznerOpen(unittest.TestCase):
         self.assertEqual(pg["hetzner"]["refs"], [{"firewall": "web", "id": 38}])
         office = self.p["8443/tcp"]["reach"]["4"]["internet"]
         self.assertEqual((office["result"], office["sources"]), ("restricted", ["198.51.100.0/24"]))
+        self.assertNotIn("limited_by", office, "the host lets everyone in; the Hetzner firewall limits it")
         self.assertEqual(self.p["8443/tcp"]["reach"]["6"]["internet"]["result"], "closed",
                          "the rule names no IPv6 source")
         self.assertEqual(reach(self.p["5432/tcp"])["private"], "open", "Hetzner's private network is not filtered")
@@ -226,7 +227,12 @@ class NftNative(unittest.TestCase):
             "2222/tcp": ("ok", "only-vpn"), "3000/tcp": ("warning", "public-other"),
             "9090/tcp": ("ok", "only-vpn"), "9100/tcp": ("ok", "only-vpn"), "51820/udp": ("info", "public-expected"),
             "60001/tcp": ("info", "restricted")})
-        self.assertEqual(self.p["60001/tcp"]["reach"]["4"]["internet"]["sources"], ["192.0.2.0/24"])
+        inet = self.p["60001/tcp"]["reach"]["4"]["internet"]
+        self.assertEqual(inet["sources"], ["192.0.2.0/24"])
+        self.assertEqual(inet["steps"][-1]["rule"]["text"], "tcp dport 60000-60010 ip saddr 192.0.2.0/24 accept")
+        lim = inet["limited_by"]
+        self.assertEqual((lim["result"], lim["rule"], lim["policy"], lim["chain"]["chain"], lim["chain"]["family"]),
+                         ("drop", None, True, "input", "inet"), "everyone else: the policy of nft's input chain")
         self.assertEqual(self.p["9100/tcp"]["service"]["containers"], ["monitor"], "from the process's cgroup")
         self.assertEqual(self.doc["network"]["public"], {"4": True, "6": False})
 
@@ -337,7 +343,13 @@ class Recorded(unittest.TestCase):
         relay = ports(doc)["21116/udp"]
         v4, v6 = relay["reach"]["4"]["internet"], relay["reach"]["6"]["internet"]
         self.assertEqual((v4["result"], v4["path"], v4["sources"]), ("restricted", "forward", ["ipset germany"]))
+        self.assertEqual(v4["steps"][-1]["rule"]["chain"], "DOCKER", "Docker's rule lets the members in")
+        lim = v4["limited_by"]
+        self.assertEqual((lim["result"], lim["chain"]["chain"], lim["rule"]["chain"]), ("drop", "FORWARD", "DOCKER-USER"))
+        self.assertEqual(lim["rule"]["text"], "-p udp -m udp --dport 21116 -m set ! --match-set germany src -j DROP",
+                         "the geo rule keeps everyone else out")
         self.assertEqual((v6["result"], v6["path"], v6.get("proxy")), ("open", "input", True))
+        self.assertNotIn("limited_by", v6)
         self.assertEqual(reach(ports(doc)["8080/tcp"]), {"internet": "absent", "vpn": "absent", "private": "absent",
                                                          "local": "open"}, "the office suite on 127.0.0.1")
         f2b = [t for t in doc["firewall"]["tables"] if "fail2ban" in t["owners"]]

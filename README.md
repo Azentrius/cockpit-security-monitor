@@ -49,8 +49,9 @@ How the packet filter is followed: [docs/INTERNALS.md](docs/INTERNALS.md#the-eva
 In short: every base chain of the hooks a new connection passes, in order; addresses, ports,
 protocols, interfaces, connection state, the original destination after Docker's DNAT, address
 types, sets, verdict maps; sources symbolic (all of the internet, the VPN network), so a rule for
-one office network makes the port "reachable only from" that network. A rule it cannot read is
-followed both ways; if they end differently, the port is "Not assessable" with that rule.
+one office network makes the port "reachable only from" that network, with the rule that keeps
+everyone else out. A rule it cannot read is followed both ways; if they end differently, the port
+is "Not assessable" with that rule.
 
 ## What it does not check
 

@@ -181,6 +181,10 @@ class DockerUser(unittest.TestCase):
             return pre, post, ("ingress", "prerouting", "forward")
         r = secfw.reach(rs, make, [("eth0", secfw.Sample(4, internet=True))])
         self.assertEqual((r["result"], r["sources"]), ("restricted", ["198.51.100.0/24"]))
+        lim = r["limited_by"]
+        self.assertEqual((lim["result"], lim["chain"]["chain"], lim["rule"]["chain"], lim["rule"]["text"]),
+                         ("drop", "FORWARD", "DOCKER-USER", "-i eth0 -j DROP"), "the rule that keeps the rest out")
+        self.assertEqual(r["steps"][-1]["rule"]["chain"], "DOCKER", "the steps are those of the allowed network")
 
     def test_ban_lists_are_not_followed(self):
         rules = ["-A DOCKER-USER -s 192.0.2.50/32 -j DROP", "-A DOCKER-USER -s 192.0.2.51/32 -j DROP"]
@@ -262,11 +266,18 @@ class IpSets(unittest.TestCase):
         r = self.reach(rules)
         self.assertEqual((r["result"], r["sources"]), ("restricted", ["ipset germany"]))
         self.assertEqual(r["steps"][0]["rule"]["text"], "-p tcp --dport 21115 -j ACCEPT")
+        self.assertEqual(r["limited_by"]["rule"]["text"],
+                         "-p tcp -m multiport --dports 21115,21116 -m set ! --match-set germany src -j DROP",
+                         "the geo rule keeps the rest out")
         self.assertEqual(self.reach(rules, port=21117)["result"], "closed", "other ports: the policy")
+        self.assertNotIn("limited_by", self.reach(rules, port=21117))
 
     def test_allow_list(self):
         r = self.reach(["-A INPUT -m set --match-set office src -j ACCEPT"])
         self.assertEqual((r["result"], r["sources"]), ("restricted", ["ipset office"]))
+        lim = r["limited_by"]
+        self.assertEqual((lim["result"], lim["rule"], lim["policy"], lim["chain"]["policy"]),
+                         ("drop", None, True, "drop"), "everyone else: the policy")
 
     def test_ban_list_is_not_followed(self):
         rules = ["-A INPUT -m set --match-set banned src -j DROP", "-A INPUT -p tcp --dport 21115 -j ACCEPT"]

@@ -581,7 +581,8 @@ def _bind_classes(addr, iface, fam, net):
 
 
 def port_reach(rs, net, fam, proto, port, socks, maps, hetzner):
-    """Per class: result, path (input or forward) and the decisive steps."""
+    """Per class: result, path (input or forward) and the decisive steps;
+    for restricted also the step that stops the rest of the class."""
     entries = []
     fam_maps = [m for m in maps if seclib.family(m["host_ip"]) == fam] if maps else []
     if maps:
@@ -638,7 +639,6 @@ def port_reach(rs, net, fam, proto, port, socks, maps, hetzner):
                 inet["result"] = "restricted"
                 inet["sources"] = sorted(set(inet.get("sources") or []) | set(srcs))
     for c in CLASSES:
-        out[c].pop("denied_steps", None)
         _trim(out[c])
     return out
 

@@ -1917,6 +1917,19 @@
        "192.0.2.0/24"
       ],
       "iface": "eth0",
+      "limited_by": {
+       "chain": {
+        "src": "nft",
+        "family": "inet",
+        "table": "filter",
+        "chain": "input",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": null,
+       "policy": true
+      },
       "path": "input"
      },
      "vpn": {
