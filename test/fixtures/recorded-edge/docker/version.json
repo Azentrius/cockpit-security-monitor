@@ -1,0 +1,7 @@
+{
+ "Version": "29.9.1",
+ "ApiVersion": "1.56",
+ "MinAPIVersion": "1.40",
+ "Os": "linux",
+ "Arch": "amd64"
+}

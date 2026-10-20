@@ -1,0 +1,2080 @@
+{
+ "format": 1,
+ "generated": "2026-10-20T12:00:00Z",
+ "root": true,
+ "network": {
+  "interfaces": [
+   {
+    "name": "lo",
+    "kind": "local",
+    "up": true,
+    "addrs": [
+     {
+      "addr": "127.0.0.1",
+      "prefix": 8,
+      "family": 4,
+      "class": "local"
+     },
+     {
+      "addr": "::1",
+      "prefix": 128,
+      "family": 6,
+      "class": "local"
+     }
+    ]
+   },
+   {
+    "name": "eth0",
+    "kind": "net",
+    "up": true,
+    "addrs": [
+     {
+      "addr": "192.0.2.10",
+      "prefix": 32,
+      "family": 4,
+      "class": "internet"
+     },
+     {
+      "addr": "2001:db8:10::1",
+      "prefix": 64,
+      "family": 6,
+      "class": "internet"
+     },
+     {
+      "addr": "fe80::ff:fe00:1",
+      "prefix": 64,
+      "family": 6,
+      "class": "link"
+     }
+    ]
+   },
+   {
+    "name": "enp7s0",
+    "kind": "net",
+    "up": true,
+    "addrs": [
+     {
+      "addr": "10.0.0.2",
+      "prefix": 32,
+      "family": 4,
+      "class": "private"
+     },
+     {
+      "addr": "fe80::ff:fe00:2",
+      "prefix": 64,
+      "family": 6,
+      "class": "link"
+     }
+    ]
+   },
+   {
+    "name": "wg0",
+    "kind": "vpn",
+    "up": true,
+    "addrs": [
+     {
+      "addr": "10.10.0.1",
+      "prefix": 24,
+      "family": 4,
+      "class": "vpn"
+     }
+    ]
+   }
+  ],
+  "public": {
+   "4": true,
+   "6": true
+  }
+ },
+ "firewall": {
+  "iptables": {
+   "version": "1.8.11",
+   "variant": "nf_tables"
+  },
+  "tables": [
+   {
+    "src": "iptables",
+    "family": "ip",
+    "table": "filter",
+    "chains": 41,
+    "rules": 93,
+    "owners": [
+     "docker",
+     "ufw"
+    ]
+   },
+   {
+    "src": "iptables",
+    "family": "ip",
+    "table": "nat",
+    "chains": 5,
+    "rules": 8,
+    "owners": [
+     "docker"
+    ]
+   },
+   {
+    "src": "iptables",
+    "family": "ip",
+    "table": "raw",
+    "chains": 2,
+    "rules": 4,
+    "owners": []
+   },
+   {
+    "src": "iptables",
+    "family": "ip6",
+    "table": "filter",
+    "chains": 40,
+    "rules": 113,
+    "owners": [
+     "docker",
+     "ufw"
+    ]
+   },
+   {
+    "src": "iptables",
+    "family": "ip6",
+    "table": "nat",
+    "chains": 5,
+    "rules": 2,
+    "owners": [
+     "docker"
+    ]
+   }
+  ],
+  "legacy_rules": false,
+  "docker_user": {
+   "4": 2,
+   "6": 0
+  },
+  "input_filter": {
+   "4": "on",
+   "6": "on"
+  },
+  "ufw": {
+   "installed": true,
+   "enabled": true,
+   "loaded": {
+    "4": true,
+    "6": true
+   },
+   "ipv6": true,
+   "default_input": "drop",
+   "default_forward": "accept",
+   "rules": [
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "udp",
+     "port": "51820",
+     "to": "0.0.0.0/0",
+     "sport": "any",
+     "from": "0.0.0.0/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "",
+     "iface_out": "",
+     "comment": "",
+     "family": 4
+    },
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "any",
+     "port": "any",
+     "to": "0.0.0.0/0",
+     "sport": "any",
+     "from": "0.0.0.0/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "wg0",
+     "iface_out": "",
+     "comment": "",
+     "family": 4
+    },
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "tcp",
+     "port": "22",
+     "to": "0.0.0.0/0",
+     "sport": "any",
+     "from": "10.0.0.0/24",
+     "app": "",
+     "direction": "in",
+     "iface_in": "",
+     "iface_out": "",
+     "comment": "",
+     "family": 4
+    },
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "tcp",
+     "port": "9090",
+     "to": "0.0.0.0/0",
+     "sport": "any",
+     "from": "10.10.0.0/24",
+     "app": "",
+     "direction": "in",
+     "iface_in": "",
+     "iface_out": "",
+     "comment": "",
+     "family": 4
+    },
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "udp",
+     "port": "51820",
+     "to": "::/0",
+     "sport": "any",
+     "from": "::/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "",
+     "iface_out": "",
+     "comment": "",
+     "family": 6
+    },
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "any",
+     "port": "any",
+     "to": "::/0",
+     "sport": "any",
+     "from": "::/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "wg0",
+     "iface_out": "",
+     "comment": "",
+     "family": 6
+    }
+   ],
+   "rules_total": 6
+  },
+  "docker": {
+   "version": "29.9.1",
+   "backend": "iptables",
+   "backend_known": true,
+   "containers": 4
+  },
+  "hetzner": {
+   "configured": false
+  }
+ },
+ "ports": [
+  {
+   "id": "tcp-22",
+   "proto": "tcp",
+   "port": 22,
+   "name": "ssh",
+   "weight": "danger",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "sshd"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "0.0.0.0:22",
+    "[::]:22"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "drop",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 2,
+         "text": "-i wg0 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "restricted",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 3,
+         "text": "-s 10.0.0.0/24 -p tcp -m tcp --dport 22 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [
+       "10.0.0.0/24"
+      ],
+      "iface": "enp7s0",
+      "path": "input"
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "drop",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "only-vpn-private"
+  },
+  {
+   "id": "tcp-53",
+   "proto": "tcp",
+   "port": 53,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "dnsmasq",
+     "systemd-resolve"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "10.10.0.1:53",
+    "127.0.0.53%lo:53",
+    "127.0.0.54:53"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 2,
+         "text": "-i wg0 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "only-vpn"
+  },
+  {
+   "id": "udp-53",
+   "proto": "udp",
+   "port": 53,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "dnsmasq",
+     "systemd-resolve"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "10.10.0.1:53",
+    "127.0.0.53%lo:53",
+    "127.0.0.54:53"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 2,
+         "text": "-i wg0 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "only-vpn"
+  },
+  {
+   "id": "udp-68",
+   "proto": "udp",
+   "port": 68,
+   "name": "dhcp-client",
+   "weight": "info",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "systemd-network"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "10.0.0.2%enp7s0:68",
+    "192.0.2.10%eth0:68"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 9,
+         "text": "-p udp -m udp --sport 67 --dport 68 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 9,
+         "text": "-p udp -m udp --sport 67 --dport 68 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "input"
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "info",
+   "why": "public-expected"
+  },
+  {
+   "id": "udp-323",
+   "proto": "udp",
+   "port": 323,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "chronyd"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "127.0.0.1:323",
+    "[::1]:323"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "local"
+  },
+  {
+   "id": "tcp-443",
+   "proto": "tcp",
+   "port": 443,
+   "name": "https",
+   "weight": "info",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "cockpit-tls"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "10.10.0.1:443"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 2,
+         "text": "-i wg0 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "only-vpn"
+  },
+  {
+   "id": "tcp-3000",
+   "proto": "tcp",
+   "port": 3000,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "app-sync"
+    ],
+    "images": [
+     "registry.example/app-sync:1"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     3000
+    ]
+   },
+   "binds": [
+    "10.10.0.1:3000"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 1,
+         "text": "-d 172.18.0.3/32 ! -i br-6ebc21a9eddf -o br-6ebc21a9eddf -p tcp -m tcp --dport 3000 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "forward",
+      "to": {
+       "addr": "172.18.0.3",
+       "port": 3000,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 7,
+        "text": "-d 10.10.0.1/32 ! -i br-6ebc21a9eddf -p tcp -m tcp --dport 3000 -j DNAT --to-destination 172.18.0.3:3000",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.18.0.3",
+       "port": 3000,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 7,
+        "text": "-d 10.10.0.1/32 ! -i br-6ebc21a9eddf -p tcp -m tcp --dport 3000 -j DNAT --to-destination 172.18.0.3:3000",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "only-vpn"
+  },
+  {
+   "id": "tcp-8080",
+   "proto": "tcp",
+   "port": 8080,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "app-server"
+    ],
+    "images": [
+     "registry.example/app-server:1"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     8080
+    ]
+   },
+   "binds": [
+    "10.10.0.1:8080"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 2,
+         "text": "-d 172.18.0.2/32 ! -i br-6ebc21a9eddf -o br-6ebc21a9eddf -p tcp -m tcp --dport 8080 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "forward",
+      "to": {
+       "addr": "172.18.0.2",
+       "port": 8080,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 6,
+        "text": "-d 10.10.0.1/32 ! -i br-6ebc21a9eddf -p tcp -m tcp --dport 8080 -j DNAT --to-destination 172.18.0.2:8080",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.18.0.2",
+       "port": 8080,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 6,
+        "text": "-d 10.10.0.1/32 ! -i br-6ebc21a9eddf -p tcp -m tcp --dport 8080 -j DNAT --to-destination 172.18.0.2:8080",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "only-vpn"
+  },
+  {
+   "id": "tcp-9090",
+   "proto": "tcp",
+   "port": 9090,
+   "name": "cockpit",
+   "weight": "danger",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "cockpit-tls"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "10.10.0.1:9090"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 2,
+         "text": "-i wg0 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "only-vpn"
+  },
+  {
+   "id": "udp-51820",
+   "proto": "udp",
+   "port": 51820,
+   "name": "wireguard",
+   "weight": "info",
+   "service": {
+    "kind": "kernel",
+    "containers": [],
+    "images": [],
+    "processes": [],
+    "container_ports": []
+   },
+   "binds": [
+    "0.0.0.0:51820",
+    "[::]:51820"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 1,
+         "text": "-p udp -m udp --dport 51820 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 1,
+         "text": "-p udp -m udp --dport 51820 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 1,
+         "text": "-p udp -m udp --dport 51820 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "input"
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "raw",
+         "chain": "PREROUTING",
+         "policy": "accept",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-user-input",
+         "index": 1,
+         "text": "-p udp -m udp --dport 51820 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    }
+   },
+   "state": "info",
+   "why": "public-expected"
+  }
+ ],
+ "ssh": {
+  "sshd": {
+   "state": "ok",
+   "match": []
+  },
+  "findings": [
+   {
+    "key": "passwordauthentication",
+    "value": "no",
+    "state": "ok",
+    "code": "password-off"
+   },
+   {
+    "key": "kbdinteractiveauthentication",
+    "value": "no",
+    "state": "ok",
+    "code": "kbd-off"
+   },
+   {
+    "key": "permitrootlogin",
+    "value": "no",
+    "state": "ok",
+    "code": "root-no"
+   },
+   {
+    "key": "pubkeyauthentication",
+    "value": "yes",
+    "state": "ok",
+    "code": "pubkey-on"
+   },
+   {
+    "key": "maxauthtries",
+    "value": "4",
+    "state": "ok",
+    "code": "tries-ok"
+   },
+   {
+    "key": "allowusers",
+    "value": "",
+    "state": "info",
+    "code": "no-allow-list"
+   },
+   {
+    "key": "x11forwarding",
+    "value": "no",
+    "state": "ok",
+    "code": "x11-off"
+   },
+   {
+    "key": "allowagentforwarding",
+    "value": "yes",
+    "state": "info",
+    "code": "agent-on"
+   }
+  ],
+  "keys": [],
+  "counts": {
+   "keys": 0,
+   "files": 0
+  },
+  "ports": [
+   "22"
+  ],
+  "listen": [
+   "[::]:22",
+   "0.0.0.0:22"
+  ],
+  "state": "info"
+ },
+ "logins": {
+  "entries": 0,
+  "success": [],
+  "success_total": 0,
+  "failed": [],
+  "failed_sources": 0,
+  "failed_total": 0,
+  "sudo": [],
+  "outside": 0,
+  "state": "ok",
+  "truncated": false,
+  "assessment": "ok"
+ },
+ "containers": {
+  "state": "ok",
+  "items": [
+   {
+    "name": "app-server",
+    "image": "registry.example/app-server:1",
+    "findings": [
+     {
+      "kind": "root-user",
+      "state": "info"
+     },
+     {
+      "kind": "no-new-privileges",
+      "state": "info"
+     }
+    ]
+   },
+   {
+    "name": "app-sync",
+    "image": "registry.example/app-sync:1",
+    "findings": [
+     {
+      "kind": "root-user",
+      "state": "info"
+     },
+     {
+      "kind": "no-new-privileges",
+      "state": "info"
+     }
+    ]
+   },
+   {
+    "name": "socket-proxy",
+    "image": "registry.example/socket-proxy:1",
+    "findings": [
+     {
+      "kind": "docker-socket",
+      "state": "danger",
+      "detail": "/var/run/docker.sock:ro"
+     },
+     {
+      "kind": "root-user",
+      "state": "info"
+     }
+    ]
+   },
+   {
+    "name": "watcher",
+    "image": "registry.example/watcher:1",
+    "findings": [
+     {
+      "kind": "root-user",
+      "state": "info"
+     }
+    ]
+   }
+  ]
+ },
+ "crowdsec": {
+  "installed": false
+ },
+ "sources": {
+  "ip": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "ss": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "docker": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "rules": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "ufw": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "hetzner": {
+   "state": "skipped",
+   "took_ms": 0,
+   "reason": "no-token"
+  },
+  "sshd": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "keys": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "journal": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "crowdsec": {
+   "state": "missing",
+   "took_ms": 0
+  }
+ },
+ "took_ms": 0
+}

@@ -1,0 +1,167 @@
+[
+ {
+  "Name": "findings-app-net",
+  "Id": "7ec2cf74e62f526de75e756027415bfe6f561d1e0b6988673be92fee0766ce11",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.21.0.0/16",
+     "IPRange": "",
+     "Gateway": "172.21.0.1"
+    }
+   ]
+  }
+ },
+ {
+  "Name": "spare-net",
+  "Id": "a84d46ddca82b4f857a9f23579d349dfbddfb366f95cf736abb13152f8709e08",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.22.0.0/16",
+     "IPRange": "",
+     "Gateway": "172.22.0.1"
+    }
+   ]
+  }
+ },
+ {
+  "Name": "socket-proxy-net",
+  "Id": "ab2dba2dbe662d8a686af93d76bb327e229db40e48402aec52b1ae903b14b38e",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.24.0.0/16",
+     "IPRange": "",
+     "Gateway": "172.24.0.1"
+    }
+   ]
+  }
+ },
+ {
+  "Name": "none",
+  "Id": "c96d20de9c0ffc83c4d03550206f190b6d5efe264e29190c4ae1500ae0f0aa41",
+  "Driver": "null",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": []
+  }
+ },
+ {
+  "Name": "git-net",
+  "Id": "07270d42454cce4e47112c54dfe5fbcb41037bb294fc7fb73f81c621719ad983",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.18.0.0/16",
+     "IPRange": "",
+     "Gateway": "172.18.0.1"
+    }
+   ]
+  }
+ },
+ {
+  "Name": "analysis-net-2",
+  "Id": "12e559e8168601f9ade0f4b4b5f1c9a09045208ba59c6e2e8a7b9a28a7cf5fa5",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.20.0.0/16",
+     "IPRange": "",
+     "Gateway": "172.20.0.1"
+    }
+   ]
+  }
+ },
+ {
+  "Name": "host",
+  "Id": "975273756ea02ec666cfe3e10642d912a0bd84b7e3e016486e8c8bdd031cc60a",
+  "Driver": "host",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": []
+  }
+ },
+ {
+  "Name": "scanner-net",
+  "Id": "c66b61a1e42d03c0a0daf27a872b71e904ee0069708fcc882ed3ab18d3fc50ae",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.23.0.0/16",
+     "IPRange": "",
+     "Gateway": "172.23.0.1"
+    }
+   ]
+  }
+ },
+ {
+  "Name": "bridge",
+  "Id": "ac00392eb650399354bb7d4dc4bc78262da3f92c285e48bb465d4ca99d79fcbd",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {
+   "com.docker.network.bridge.default_bridge": "true",
+   "com.docker.network.bridge.enable_icc": "true",
+   "com.docker.network.bridge.enable_ip_masquerade": "true",
+   "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+   "com.docker.network.bridge.name": "docker0",
+   "com.docker.network.driver.mtu": "1500"
+  },
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.17.0.0/16",
+     "IPRange": "",
+     "Gateway": "172.17.0.1"
+    }
+   ]
+  }
+ },
+ {
+  "Name": "analysis-net",
+  "Id": "4791ea4b7f449b8f91c9502f0b8852ca3e272ee4084a354ca2110e14066684ea",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.19.0.0/16",
+     "IPRange": "",
+     "Gateway": "172.19.0.1"
+    }
+   ]
+  }
+ }
+]

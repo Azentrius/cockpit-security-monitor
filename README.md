@@ -37,7 +37,7 @@ check.
 | Area | Source on the server | What the page says |
 |---|---|---|
 | **Exposure** of every listening socket and every port Docker publishes | `ip -j addr`, `ss -tulpn`, Docker's API (GET only), `iptables-save`, `ip6tables-save`, `nft -j list ruleset`, UFW's files | reachable from the internet, the VPN, the private network, this host; per IPv4 and IPv6; the rule or policy that decides; Docker's DNAT to the container and that UFW does not apply to it |
-| **Assessment** of each port | the above | databases, Docker's API, Cockpit and SSH open to the internet: danger; web (80, 443) and WireGuard: a note; everything else: a warning until you mark it as expected; reachable only from some addresses: a note |
+| **Assessment** of each port | the above | databases, Docker's API, Cockpit and SSH open to the internet: danger; web (80, 443), WireGuard and the DHCP client: a note; everything else: a warning until you mark it as expected; reachable only from some addresses: a note |
 | **Hetzner Cloud Firewall** (optional) | Hetzner's API with a read-only token | a port it blocks is OK, "protected by the Hetzner Cloud Firewall" |
 | **SSH configuration** | `sshd -T`, Match blocks in `sshd_config` | passwords, keyboard-interactive with PAM, root login, keys, attempts, allow lists, X11 and agent forwarding |
 | **Authorized keys** of every account with a login shell | the authorized_keys files | type, size, fingerprint, comment, options (`from=`, `restrict`, `command=`); DSA and RSA under 3072 bits; files others can change |
@@ -56,8 +56,9 @@ followed both ways; if they end differently, the port is "Not assessable" with t
 
 Always listed on the page, under "Not checked":
 
-- rules it cannot read (ipsets, marks, `xt` expressions of other tools): a port they decide is "Not
-  assessable",
+- rules it cannot read (marks, `xt` expressions of other tools, an ipset other than as the source): a
+  port they decide is "Not assessable",
+- who is in an ipset: a port an ipset of sources limits is "reachable only from" that set,
 - firewalls and port forwarding outside the server (routers, cloud firewalls other than Hetzner's),
 - outgoing connections, ICMP, and what a service does once it is reached (its passwords, its own
   access rules),
@@ -236,8 +237,10 @@ only with a DOCKER-USER rule. More in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Known limits
 
-- The packet filter is followed for new TCP and UDP connections; marks, ipsets and other tools' `xt`
-  matches are not read (the port is then "Not assessable" if they decide).
+- The packet filter is followed for new TCP and UDP connections; marks, other tools' `xt` matches
+  and ipsets other than as the source are not read (the port is then "Not assessable" if they
+  decide). An ipset of sources limits a port to "ipset NAME" without knowing its members; a source
+  port counts as the sender's choice.
 - A socket bound to a VPN or private address counts as reachable only from that class (packets for
   it from elsewhere would need a route through this server).
 - Docker's nftables mode (Docker 29, experimental) is followed through its DNAT and forward chains,

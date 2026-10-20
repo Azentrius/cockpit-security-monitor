@@ -245,6 +245,105 @@ class NftNative(unittest.TestCase):
         self.assertEqual(items["runner"][:2], ["docker-socket", "privileged"])
 
 
+class Recorded(unittest.TestCase):
+    """Four real servers, recorded read only (test/fixtures/capture.sh) and made anonymous: every
+    port with its state and reason, and what made each of them worth recording."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.docs = {s: scan(s) for s in ("recorded-ci", "recorded-edge", "recorded-ipv6", "recorded-services")}
+
+    def states(self, s):
+        return {k: (p["state"], p["why"]) for k, p in ports(self.docs[s]).items()}
+
+    def test_every_source_read(self):
+        for s, doc in self.docs.items():
+            self.assertEqual({k: v["state"] for k, v in doc["sources"].items()},
+                             {"ip": "ok", "ss": "ok", "docker": "ok", "rules": "ok", "ufw": "ok", "hetzner": "skipped",
+                              "sshd": "ok", "keys": "ok", "journal": "ok", "crowdsec": "missing"}, s)
+            self.assertEqual(doc["firewall"]["iptables"]["variant"], "nf_tables", s)
+            self.assertFalse(doc["firewall"]["legacy_rules"], s)
+            self.assertEqual([p["port"] for p in doc["ports"] if p["why"] == "unknown"], [], s)
+
+    def test_ci(self):
+        """UFW lets in only the VPN, but Docker publishes the gateway on the public address: past UFW."""
+        self.assertEqual(self.states("recorded-ci"), {
+            "22/tcp": ("ok", "only-vpn"), "53/tcp": ("ok", "local"), "53/udp": ("ok", "local"),
+            "80/tcp": ("info", "public-expected"), "323/udp": ("ok", "local"), "443/tcp": ("info", "public-expected"),
+            "2222/tcp": ("ok", "only-vpn"), "8088/tcp": ("ok", "only-vpn"), "42469/tcp": ("ok", "local"),
+            "58507/udp": ("ok", "only-vpn")})
+        p = ports(self.docs["recorded-ci"])
+        inet = p["443/tcp"]["reach"]["4"]["internet"]
+        self.assertEqual((inet["path"], inet["to"]["addr"]), ("forward", "172.19.0.15"))
+        self.assertEqual(inet["steps"][-1]["rule"]["chain"], "DOCKER")
+        vpn = p["443/tcp"]["reach"]["4"]["vpn"]
+        self.assertEqual(vpn["to"]["addr"], "172.19.0.10", "the VPN address has a mapping of its own")
+        self.assertEqual(p["443/tcp"]["service"]["containers"], ["gateway", "web"])
+        self.assertEqual(p["58507/udp"]["name"], "wireguard", "the kernel's socket of a WireGuard peer")
+        self.assertEqual(self.docs["recorded-ci"]["firewall"]["input_filter"], {4: "on", 6: "on"})
+        self.assertEqual(self.docs["recorded-ci"]["ssh"]["sshd"], {"state": "ok", "match": []},
+                         "sshd -T works since /run/sshd exists")
+        socket = [c["name"] for c in self.docs["recorded-ci"]["containers"]["items"]
+                  if any(f["kind"] == "docker-socket" for f in c["findings"])]
+        self.assertEqual(socket, ["runner-1", "runner-2", "runner-3", "runner-4", "socket-proxy"])
+
+    def test_edge(self):
+        """The WireGuard edge: UFW, Cockpit and the apps on the VPN address, SSH from the VPN and
+        the private network, the DHCP client let in by UFW's rule for source port 67."""
+        self.assertEqual(self.states("recorded-edge"), {
+            "22/tcp": ("ok", "only-vpn-private"), "53/tcp": ("ok", "only-vpn"), "53/udp": ("ok", "only-vpn"),
+            "68/udp": ("info", "public-expected"), "323/udp": ("ok", "local"), "443/tcp": ("ok", "only-vpn"),
+            "3000/tcp": ("ok", "only-vpn"), "8080/tcp": ("ok", "only-vpn"), "9090/tcp": ("ok", "only-vpn"),
+            "51820/udp": ("info", "public-expected")})
+        p = ports(self.docs["recorded-edge"])
+        self.assertEqual(reach(p["22/tcp"]), {"internet": "closed", "vpn": "open", "private": "restricted",
+                                              "local": "open"})
+        self.assertEqual(p["22/tcp"]["reach"]["4"]["private"]["sources"], ["10.0.0.0/24"])
+        dhcp = p["68/udp"]["reach"]["4"]["internet"]
+        self.assertEqual(dhcp["steps"][-1]["rule"]["text"], "-p udp -m udp --sport 67 --dport 68 -j ACCEPT")
+        self.assertEqual(p["68/udp"]["name"], "dhcp-client")
+
+    def test_ipv6_only(self):
+        """No public IPv4 (a shared address of 100.64.0.0/10), IPv6 closed but for the VPN; wg-quick's
+        own nftables table is read next to UFW's."""
+        doc = self.docs["recorded-ipv6"]
+        self.assertEqual(doc["network"]["public"], {"4": False, "6": True})
+        self.assertEqual(self.states("recorded-ipv6"), {
+            "22/tcp": ("ok", "only-vpn"), "53/tcp": ("ok", "local"), "53/udp": ("ok", "local"),
+            "68/udp": ("ok", "only-private"), "323/udp": ("ok", "local"), "18789/tcp": ("ok", "local"),
+            "36797/tcp": ("ok", "local"), "38554/udp": ("ok", "local")})
+        self.assertIn({"src": "nft", "family": "ip", "table": "wg-quick-wg0", "chains": 3, "rules": 3, "owners": []},
+                      doc["firewall"]["tables"])
+        self.assertEqual(reach(ports(doc)["22/tcp"], "6")["internet"], "closed")
+
+    def test_services(self):
+        """UFW off and no Hetzner token: every public port is "outside-only". The relay is limited to
+        an ipset (a country list) in DOCKER-USER for IPv4, but its IPv6 goes to docker-proxy on
+        the host, where nothing filters: that rule does not cover IPv6."""
+        self.assertEqual(self.states("recorded-services"), {
+            "22/tcp": ("warning", "outside-only"), "53/tcp": ("ok", "local"), "53/udp": ("ok", "local"),
+            "68/udp": ("warning", "outside-only"), "80/tcp": ("warning", "outside-only"),
+            "443/tcp": ("warning", "outside-only"), "1411/tcp": ("ok", "local"), "3000/tcp": ("ok", "local"),
+            "3001/tcp": ("ok", "local"), "3002/tcp": ("ok", "local"), "3003/tcp": ("ok", "local"),
+            "3010/tcp": ("ok", "local"), "3011/tcp": ("ok", "local"), "5006/tcp": ("ok", "local"),
+            "8000/tcp": ("ok", "local"), "8080/tcp": ("ok", "local"), "8089/tcp": ("ok", "local"),
+            "8091/tcp": ("ok", "local"), "21115/tcp": ("warning", "outside-only"),
+            "21116/tcp": ("warning", "outside-only"), "21116/udp": ("warning", "outside-only"),
+            "21117/tcp": ("warning", "outside-only"), "21118/tcp": ("warning", "outside-only"),
+            "21119/tcp": ("warning", "outside-only")})
+        doc = self.docs["recorded-services"]
+        self.assertEqual(doc["firewall"]["input_filter"], {4: "off", 6: "off"})
+        self.assertEqual((doc["firewall"]["ufw"]["installed"], doc["firewall"]["ufw"]["enabled"]), (True, False))
+        relay = ports(doc)["21116/udp"]
+        v4, v6 = relay["reach"]["4"]["internet"], relay["reach"]["6"]["internet"]
+        self.assertEqual((v4["result"], v4["path"], v4["sources"]), ("restricted", "forward", ["ipset germany"]))
+        self.assertEqual((v6["result"], v6["path"], v6.get("proxy")), ("open", "input", True))
+        self.assertEqual(reach(ports(doc)["8080/tcp"]), {"internet": "absent", "vpn": "absent", "private": "absent",
+                                                         "local": "open"}, "the office suite on 127.0.0.1")
+        f2b = [t for t in doc["firewall"]["tables"] if "fail2ban" in t["owners"]]
+        self.assertEqual([(t["family"], t["table"]) for t in f2b], [("ip", "filter")])
+
+
 class Variants(unittest.TestCase):
     def test_docker_user_rule_makes_it_vpn_only(self):
         """Spec 4.7: with a DOCKER-USER rule the published port is reachable from the VPN only."""
@@ -295,12 +394,25 @@ class Variants(unittest.TestCase):
     def test_unreadable_rule_makes_unknown(self):
         text = fixture("ufw-docker", "commands", "iptables-save.txt").replace(
             "-A ufw-user-input -i wg0 -j ACCEPT",
-            "-A ufw-user-input -m set --match-set office src -j ACCEPT\n-A ufw-user-input -i wg0 -j ACCEPT")
+            "-A ufw-user-input -m mark --mark 0x1 -j ACCEPT\n-A ufw-user-input -i wg0 -j ACCEPT")
         doc = scan("ufw-docker", results={"iptables-save": text})
         p = ports(doc)["9090/tcp"]
         self.assertEqual((p["state"], p["why"]), ("none", "unknown"))
         unk = p["reach"]["4"]["internet"]["unknown"]
-        self.assertEqual(unk["rule"]["text"], "-m set --match-set office src -j ACCEPT")
+        self.assertEqual(unk["rule"]["text"], "-m mark --mark 0x1 -j ACCEPT")
+
+    def test_ipset_as_source_restricts(self):
+        """An ipset is no unreadable rule when it names the source: the port is reachable from its
+        members only (whatever they are)."""
+        text = fixture("ufw-docker", "commands", "iptables-save.txt").replace(
+            "-A ufw-user-input -i wg0 -j ACCEPT",
+            "-A ufw-user-input -m set --match-set office src -j ACCEPT\n-A ufw-user-input -i wg0 -j ACCEPT")
+        doc = scan("ufw-docker", results={"iptables-save": text})
+        p = ports(doc)["9090/tcp"]
+        self.assertEqual((p["state"], p["why"]), ("warning", "restricted"), "Cockpit, so a warning")
+        inet = p["reach"]["4"]["internet"]
+        self.assertEqual((inet["result"], inet["sources"]), ("restricted", ["ipset office"]))
+        self.assertEqual(p["reach"]["6"]["internet"]["result"], "closed", "ip6tables names no set")
 
 
 class Marks(unittest.TestCase):

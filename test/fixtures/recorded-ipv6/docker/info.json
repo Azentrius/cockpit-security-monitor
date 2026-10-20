@@ -1,0 +1,13 @@
+{
+ "ServerVersion": "29.1.3",
+ "FirewallBackend": {
+  "Driver": "iptables"
+ },
+ "Driver": "overlayfs",
+ "CgroupVersion": "2",
+ "SecurityOptions": [
+  "name=apparmor",
+  "name=seccomp,profile=builtin",
+  "name=cgroupns"
+ ]
+}

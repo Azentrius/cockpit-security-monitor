@@ -1,0 +1,65 @@
+[
+ {
+  "Name": "none",
+  "Id": "5002eeffbaff1fe93b6a2a1ba66de5fff00188b38254ed8421df13ebd5a3b96e",
+  "Driver": "null",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": []
+  }
+ },
+ {
+  "Name": "bridge",
+  "Id": "509568adeeabd8ca303679e6fcd205bf40b415013f29ca66fbf3f7befbcd8b99",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {
+   "com.docker.network.bridge.default_bridge": "true",
+   "com.docker.network.bridge.enable_icc": "true",
+   "com.docker.network.bridge.enable_ip_masquerade": "true",
+   "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+   "com.docker.network.bridge.name": "docker0",
+   "com.docker.network.driver.mtu": "1500"
+  },
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.17.0.0/16",
+     "IPRange": "",
+     "Gateway": "172.17.0.1"
+    }
+   ]
+  }
+ },
+ {
+  "Name": "host",
+  "Id": "8276e7a0c905d45a275e6492457bb00981cb650c6cf58f83c91a7b692b8603e6",
+  "Driver": "host",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": []
+  }
+ },
+ {
+  "Name": "socket-proxy-net",
+  "Id": "f87bceefc9b46a90c74f766b5920aed2bd3ab4e7d1c18e3cf11db042b316bab0",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.18.0.0/16",
+     "IPRange": "",
+     "Gateway": "172.18.0.1"
+    }
+   ]
+  }
+ }
+]

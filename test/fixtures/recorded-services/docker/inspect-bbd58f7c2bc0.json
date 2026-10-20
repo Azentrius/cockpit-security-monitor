@@ -1,0 +1,42 @@
+{
+ "Id": "bbd58f7c2bc0cb1f166a23d0a9b7bd166f4d40e83978097262657e1c0afba5cc",
+ "Name": "/analytics",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/analytics:1",
+  "User": "999"
+ },
+ "HostConfig": {
+  "NetworkMode": "analytics-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/analytics-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "8000/tcp": [
+    {
+     "HostIp": "127.0.0.1",
+     "HostPort": "8000"
+    }
+   ]
+  },
+  "Networks": {
+   "analytics-net": {
+    "NetworkID": "1a4fbaa7138150ecbe1031b088dd1921fad0608fd1f397252e7a08ebfab9dcac",
+    "IPAddress": "172.21.0.4",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

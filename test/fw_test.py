@@ -190,24 +190,24 @@ class DockerUser(unittest.TestCase):
 
 class Unknown(unittest.TestCase):
     def test_both_ways_end_the_same(self):
-        rs = ruleset(table("", ["-A INPUT -m set --match-set blocked src -j DROP"]))
+        rs = ruleset(table("", ["-A INPUT -m mark --mark 0x1 -j DROP"]))
         kind, _, ev = verdict(rs, 22)
         self.assertEqual((kind, ev.forks), ("drop", 1), "dropped either way")
 
     def test_both_ways_differ(self):
-        rs = ruleset(table("", ["-A INPUT -m set --match-set allowed src -j ACCEPT"]))
+        rs = ruleset(table("", ["-A INPUT -m mark --mark 0x1 -j ACCEPT"]))
         kind, steps, _ = verdict(rs, 22)
         self.assertEqual(kind, "unknown")
-        self.assertEqual(steps[0]["rule"]["text"], "-m set --match-set allowed src -j ACCEPT")
+        self.assertEqual(steps[0]["rule"]["text"], "-m mark --mark 0x1 -j ACCEPT")
 
     def test_fork_across_chains(self):
-        rs = ruleset(table(":sub - [0:0]\n", ["-A INPUT -j sub", "-A sub -m set --match-set x src -j DROP",
+        rs = ruleset(table(":sub - [0:0]\n", ["-A INPUT -j sub", "-A sub -m mark --mark 0x1 -j DROP",
                                               "-A INPUT -p tcp --dport 22 -j ACCEPT"]))
         self.assertEqual(verdict(rs, 22)[0], "unknown", "drop in sub vs accept after its return")
         self.assertEqual(verdict(rs, 23)[0], "drop", "drop in sub vs the policy")
 
     def test_too_many_forks(self):
-        rs = ruleset(table("", [f"-A INPUT -m set --match-set s{i} src -j DROP" for i in range(80)]))
+        rs = ruleset(table("", [f"-A INPUT -m mark --mark {i} -j DROP" for i in range(80)]))
         kind, _, ev = verdict(rs, 22)
         self.assertEqual(kind, "unknown")
         self.assertGreater(ev.forks, secfw.MAX_FORKS)
@@ -215,6 +215,96 @@ class Unknown(unittest.TestCase):
     def test_queue(self):
         rs = ruleset(table("", ["-A INPUT -p tcp --dport 22 -j NFQUEUE --queue-num 1"]))
         self.assertEqual(verdict(rs, 22)[0], "unknown")
+
+    def test_ipset_as_destination(self):
+        rs = ruleset(table("", ["-A INPUT -m set --match-set mine dst -j ACCEPT"]))
+        kind, steps, _ = verdict(rs, 22)
+        self.assertEqual(kind, "unknown", "whether the host's own address is in the set is not known")
+        self.assertEqual(steps[0]["rule"]["text"], "-m set --match-set mine dst -j ACCEPT")
+
+    def test_part_that_cannot_be_read(self):
+        """Only a part of the internet could get in, and for that part a rule cannot be read:
+        unknown, not closed."""
+        rs = ruleset(table("", ["-A INPUT -s 198.51.100.0/24 -m mark --mark 0x1 -j ACCEPT"]))
+
+        def make(iface, sample):
+            pkt = secfw.Packet(4, "tcp", iface, sample, IP("203.0.113.10"), 22, "input")
+            return pkt, pkt, ("ingress", "prerouting", "input")
+        r = secfw.reach(rs, make, [("eth0", secfw.Sample(4, internet=True))])
+        self.assertEqual(r["result"], "unknown")
+        self.assertEqual(r["unknown"]["rule"]["text"], "-s 198.51.100.0/24 -m mark --mark 0x1 -j ACCEPT")
+
+
+class IpSets(unittest.TestCase):
+    """An ipset as the source (its members are not in iptables-save): a sample of its own,
+    "reachable only from the addresses in set …" (a geo list of public-host's RustDesk)."""
+
+    def reach(self, rules, port=21115):
+        rs = ruleset(table("", rules))
+
+        def make(iface, sample):
+            pkt = secfw.Packet(4, "tcp", iface, sample, IP("203.0.113.10"), port, "input")
+            return pkt, pkt, ("ingress", "prerouting", "input")
+        return secfw.reach(rs, make, [("eth0", secfw.Sample(4, internet=True))])
+
+    def test_parsing(self):
+        rs = ruleset(table("", ["-A INPUT -p tcp -m multiport --dports 21115,21116 -m set ! --match-set germany src "
+                                "--return-nomatch -j DROP"]))
+        r = rs.chains[("iptables", "ip", "filter", "INPUT")].rules[0]
+        self.assertEqual(r.matches, [("proto", False, {"tcp"}), ("dport", False, [(21115, 21115), (21116, 21116)]),
+                                     ("saddr_set", True, "germany")])
+
+    def test_only_from_the_members(self):
+        rules = ["-A INPUT -p tcp -m multiport --dports 21115,21116 -m set ! --match-set germany src -j DROP",
+                 "-A INPUT -p tcp --dport 21115 -j ACCEPT"]
+        kind, _, ev = verdict(ruleset(table("", rules)), 21115)
+        self.assertEqual((kind, ev.cands, ev.forks), ("drop", [secfw.IpSet("germany")], 0))
+        r = self.reach(rules)
+        self.assertEqual((r["result"], r["sources"]), ("restricted", ["ipset germany"]))
+        self.assertEqual(r["steps"][0]["rule"]["text"], "-p tcp --dport 21115 -j ACCEPT")
+        self.assertEqual(self.reach(rules, port=21117)["result"], "closed", "other ports: the policy")
+
+    def test_allow_list(self):
+        r = self.reach(["-A INPUT -m set --match-set office src -j ACCEPT"])
+        self.assertEqual((r["result"], r["sources"]), ("restricted", ["ipset office"]))
+
+    def test_ban_list_is_not_followed(self):
+        rules = ["-A INPUT -m set --match-set banned src -j DROP", "-A INPUT -p tcp --dport 21115 -j ACCEPT"]
+        kind, _, ev = verdict(ruleset(table("", rules)), 21115)
+        self.assertEqual((kind, ev.cands, ev.forks), ("accept", [], 0), "open to all but the banned")
+
+    def test_members_against_networks(self):
+        r = self.reach(["-A INPUT -m set --match-set office src -j x", "-A x -s 0.0.0.0/0 -j ACCEPT"])
+        self.assertEqual((r["result"], r["sources"]), ("restricted", ["ipset office"]))
+        r = self.reach(["-A INPUT -m set --match-set office src -j x", "-A x -s 198.51.100.0/24 -j ACCEPT"])
+        self.assertEqual(r["result"], "unknown", "whether the members are in that network is not known")
+        self.assertEqual(r["unknown"]["rule"]["text"], "-s 198.51.100.0/24 -j ACCEPT")
+
+
+class SourcePort(unittest.TestCase):
+    """The sender picks its source port: a rule for some source port lets it in."""
+
+    def test_dhcp_reply_rule(self):
+        rs = ruleset(table("", ["-A INPUT -p udp -m udp --sport 67 --dport 68 -j ACCEPT"]))
+        kind, steps, ev = verdict(rs, 68, proto="udp")
+        self.assertEqual((kind, ev.forks), ("accept", 1))
+        self.assertEqual(steps[0]["rule"]["text"], "-p udp -m udp --sport 67 --dport 68 -j ACCEPT")
+        self.assertEqual(verdict(rs, 69, proto="udp")[0], "drop")
+
+    def test_drop_by_source_port_is_avoided(self):
+        rs = ruleset(table("", ["-A INPUT -p tcp -m tcp --sport 1:1023 -j DROP", "-A INPUT -p tcp --dport 22 -j ACCEPT"]))
+        self.assertEqual(verdict(rs, 22)[0], "accept")
+        rs = ruleset(table("", ["-A INPUT -p tcp -m tcp --sport 1:1023 -j DROP"]))
+        self.assertEqual(verdict(rs, 22)[0], "drop", "dropped either way")
+
+    def test_any_port(self):
+        rs = ruleset(table("", ["-A INPUT -p tcp -m multiport --ports 5000 -j ACCEPT"]))
+        self.assertEqual(verdict(rs, 22)[0], "accept", "from source port 5000")
+        self.assertEqual(verdict(rs, 5000)[0], "accept")
+
+    def test_with_a_rule_it_cannot_read(self):
+        rs = ruleset(table("", ["-A INPUT -p udp -m udp --sport 67 -m mark --mark 0x1 -j ACCEPT"]))
+        self.assertEqual(verdict(rs, 68, proto="udp")[0], "unknown")
 
 
 class Chains(unittest.TestCase):

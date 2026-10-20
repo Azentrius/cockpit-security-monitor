@@ -1,0 +1,45 @@
+{
+ "Id": "b117b04e3e85b4e130bd8ee1c2e57fba6e16e908cc5aadc55894591f06b3ddae",
+ "Name": "/notes",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/notes:1",
+  "User": "app"
+ },
+ "HostConfig": {
+  "NetworkMode": "notes-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": [
+   "no-new-privileges:true"
+  ]
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/srv/notes/1",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/notes/2",
+   "Destination": "/data/2",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "8000/tcp": null
+  },
+  "Networks": {
+   "notes-net": {
+    "NetworkID": "156751f8a24c5a8c24f0045a1f5730d9b3c27f61d31bd199de629af74fd3f5b5",
+    "IPAddress": "192.168.32.3",
+    "IPPrefixLen": 20,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

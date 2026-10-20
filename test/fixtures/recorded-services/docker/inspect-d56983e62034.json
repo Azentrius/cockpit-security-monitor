@@ -1,0 +1,43 @@
+{
+ "Id": "d56983e62034563bce110fba49cad99e83ba0a886a314f9cae98810bda546584",
+ "Name": "/files-cron",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/files:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "files-app-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/srv/files-cron/1",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/files-cron/2",
+   "Destination": "/data/2",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "80/tcp": null
+  },
+  "Networks": {
+   "files-app-net": {
+    "NetworkID": "d205d31873ef34fdecd835b7d21d96d4bb8ec097337c767ab08f6ab727b1b12b",
+    "IPAddress": "172.28.0.4",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

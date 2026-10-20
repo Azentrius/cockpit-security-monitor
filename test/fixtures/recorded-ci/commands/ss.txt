@@ -1,0 +1,17 @@
+udp UNCONN 0      0              0.0.0.0:58507 0.0.0.0:*                                                        
+udp UNCONN 0      0           127.0.0.54:53    0.0.0.0:* users:(("systemd-resolve",pid=973,fd=18))              
+udp UNCONN 0      0        127.0.0.53%lo:53    0.0.0.0:* users:(("systemd-resolve",pid=973,fd=16))              
+udp UNCONN 0      0            127.0.0.1:323   0.0.0.0:* users:(("chronyd",pid=1595,fd=4))                      
+udp UNCONN 0      0                 [::]:58507    [::]:*                                                        
+udp UNCONN 0      0                [::1]:323      [::]:* users:(("chronyd",pid=1595,fd=5))                      
+tcp LISTEN 0      4096           0.0.0.0:22    0.0.0.0:* users:(("sshd",pid=7031,fd=3),("systemd",pid=1,fd=256))
+tcp LISTEN 0      4096     127.0.0.53%lo:53    0.0.0.0:* users:(("systemd-resolve",pid=973,fd=17))              
+tcp LISTEN 0      4096         10.10.0.2:80    0.0.0.0:* users:(("docker-proxy",pid=4361,fd=7))                 
+tcp LISTEN 0      4096         10.10.0.2:443   0.0.0.0:* users:(("docker-proxy",pid=4398,fd=7))                 
+tcp LISTEN 0      4096         10.10.0.2:2222  0.0.0.0:* users:(("docker-proxy",pid=4091,fd=7))                 
+tcp LISTEN 0      4096         127.0.0.1:42469 0.0.0.0:* users:(("containerd",pid=1754,fd=15))                  
+tcp LISTEN 0      4096         10.10.0.2:8088  0.0.0.0:* users:(("docker-proxy",pid=7000,fd=7))                 
+tcp LISTEN 0      4096        127.0.0.54:53    0.0.0.0:* users:(("systemd-resolve",pid=973,fd=19))              
+tcp LISTEN 0      4096   198.51.100.40:443   0.0.0.0:* users:(("docker-proxy",pid=4774,fd=7))                 
+tcp LISTEN 0      4096   198.51.100.40:80    0.0.0.0:* users:(("docker-proxy",pid=4748,fd=7))                 
+tcp LISTEN 0      4096              [::]:22       [::]:* users:(("sshd",pid=7031,fd=4),("systemd",pid=1,fd=257))

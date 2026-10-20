@@ -1,0 +1,44 @@
+{
+ "Id": "3dfd5ac2012b7f64360a983daa0ade40b820e3a226725af0a68a7ccb4114c7e4",
+ "Name": "/scanner",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/scanner:1",
+  "User": "app"
+ },
+ "HostConfig": {
+  "NetworkMode": "analysis-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/scanner-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "1337/tcp": null,
+   "8000/tcp": null
+  },
+  "Networks": {
+   "analysis-net": {
+    "NetworkID": "4791ea4b7f449b8f91c9502f0b8852ca3e272ee4084a354ca2110e14066684ea",
+    "IPAddress": "172.19.0.8",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   },
+   "scanner-net": {
+    "NetworkID": "c66b61a1e42d03c0a0daf27a872b71e904ee0069708fcc882ed3ab18d3fc50ae",
+    "IPAddress": "172.23.0.2",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

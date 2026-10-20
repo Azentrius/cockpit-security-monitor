@@ -1,0 +1,76 @@
+{
+ "Id": "1870c88f67b0073860ed1e38e9e92d0f420812d0ace50876bab157f4c588fba4",
+ "Name": "/relay-id",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/relay:1",
+  "User": "1000:1000"
+ },
+ "HostConfig": {
+  "NetworkMode": "relay-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/srv/relay-id/1",
+   "Destination": "/data/1",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "21115/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "21115"
+    },
+    {
+     "HostIp": "::",
+     "HostPort": "21115"
+    }
+   ],
+   "21116/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "21116"
+    },
+    {
+     "HostIp": "::",
+     "HostPort": "21116"
+    }
+   ],
+   "21116/udp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "21116"
+    },
+    {
+     "HostIp": "::",
+     "HostPort": "21116"
+    }
+   ],
+   "21118/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "21118"
+    },
+    {
+     "HostIp": "::",
+     "HostPort": "21118"
+    }
+   ]
+  },
+  "Networks": {
+   "relay-net": {
+    "NetworkID": "f6c64b95a78b0f69696b38dd246e36759015471b34ac103b989a54687f517536",
+    "IPAddress": "172.20.0.3",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

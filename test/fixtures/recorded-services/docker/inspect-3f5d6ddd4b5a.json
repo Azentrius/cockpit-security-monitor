@@ -1,0 +1,43 @@
+{
+ "Id": "3f5d6ddd4b5a5dbb2717b63adcd4e4164e9b77c97607453367df08aa5e5113b1",
+ "Name": "/watcher",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/watcher:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "socket-proxy-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": [
+   "no-new-privileges:true"
+  ]
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/srv/watcher/1",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/watcher/2",
+   "Destination": "/data/2",
+   "RW": false
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {},
+  "Networks": {
+   "socket-proxy-net": {
+    "NetworkID": "4e5e8592560ce8457a8386166e7e7b9a337134dd5c67d6e6b6b647d6eefb97d1",
+    "IPAddress": "172.25.0.3",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

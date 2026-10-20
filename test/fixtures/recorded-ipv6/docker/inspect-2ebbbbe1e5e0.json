@@ -1,0 +1,39 @@
+{
+ "Id": "2ebbbbe1e5e065a265ec730fce03440ec8e5041f9f214cd16bd734c9bde04cae",
+ "Name": "/socket-proxy",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/socket-proxy:1",
+  "User": "root"
+ },
+ "HostConfig": {
+  "NetworkMode": "socket-proxy-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": [
+   "no-new-privileges:true"
+  ]
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/var/run/docker.sock",
+   "Destination": "/var/run/docker.sock",
+   "RW": false
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "2375/tcp": null
+  },
+  "Networks": {
+   "socket-proxy-net": {
+    "NetworkID": "f87bceefc9b46a90c74f766b5920aed2bd3ab4e7d1c18e3cf11db042b316bab0",
+    "IPAddress": "172.18.0.2",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

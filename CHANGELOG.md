@@ -10,8 +10,10 @@ weakens the boundary of its containers. Read only.
   decides. The packet filter comes from `iptables-save` and `ip6tables-save` (UFW's and Docker's
   tables) and `nft -j list ruleset` (every other table); Docker's port mappings and their DNAT
   show where UFW does not apply. Rules the page cannot read make a port "Not assessable", never
-  "OK". Databases, Docker's API, Cockpit and SSH open to the internet are a danger, web and
-  WireGuard a note, everything else a warning until marked as expected.
+  "OK". An ipset of sources (a country list) makes a port "reachable only from" that set; a source
+  port is the sender's choice. Databases, Docker's API, Cockpit and SSH open to the internet are a
+  danger, web, WireGuard and the DHCP client a note, everything else a warning until marked as
+  expected.
 - **Hetzner Cloud Firewall:** read with a read-only token by a service of its own without root
   (`cockpit-security-hetzner.service`, the token through `LoadCredential=`); a port it blocks is OK,
   a failing API keeps the last good answer and says how old it is.
@@ -30,5 +32,6 @@ weakens the boundary of its containers. Read only.
   with the items `exposure`, `ssh`, `logins`, `containers`, `crowdsec` and `scan`.
 - **The page:** Azentrius page frame, tabs with links (`#/exposure`, `#/ssh`, …), English and
   German, light and dark, phones; without administrative access the summary only.
-- Tests against hand-made scenarios of real formats, the page under jsdom, and an end-to-end test
-  in CI with a real Cockpit, UFW and Docker.
+- Tests against hand-made scenarios of real formats and four real servers recorded read only and
+  made anonymous (`test/fixtures/capture.sh`), the page under jsdom, and an end-to-end test in CI
+  with a real Cockpit, UFW and Docker.

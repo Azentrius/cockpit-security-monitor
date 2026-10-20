@@ -1,0 +1,28 @@
+{
+ "Id": "337318cf7a8e0d31c0f42a64619483f8bfe0c76d6e22ef1de21abd4917b87f17",
+ "Name": "/findings-beat",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/findings:1",
+  "User": "1001"
+ },
+ "HostConfig": {
+  "NetworkMode": "findings-app-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [],
+ "NetworkSettings": {
+  "Ports": {},
+  "Networks": {
+   "findings-app-net": {
+    "NetworkID": "7ec2cf74e62f526de75e756027415bfe6f561d1e0b6988673be92fee0766ce11",
+    "IPAddress": "172.21.0.4",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

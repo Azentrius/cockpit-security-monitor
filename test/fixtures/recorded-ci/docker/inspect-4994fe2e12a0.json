@@ -1,0 +1,30 @@
+{
+ "Id": "4994fe2e12a001ea46205fd5fda2059b9d70bbc57f774b81ab462478e6e6c570",
+ "Name": "/test-cache",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/test-cache:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "analysis-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [],
+ "NetworkSettings": {
+  "Ports": {
+   "6379/tcp": null
+  },
+  "Networks": {
+   "analysis-net": {
+    "NetworkID": "4791ea4b7f449b8f91c9502f0b8852ca3e272ee4084a354ca2110e14066684ea",
+    "IPAddress": "172.19.0.12",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

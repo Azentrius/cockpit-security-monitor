@@ -125,14 +125,22 @@ forward (a port Docker forwards to a container), in the order of their prioritie
   `fib daddr type`, `limit` (a first packet passes), `recent --update/--rcheck` (a first
   connection is not in the list yet, so `ufw limit` lets it in), IPv6 routing headers (`-m rt`, a
   plain connection has none), jumps, goto, return, verdict maps.
-- A match it cannot read (an ipset, `-m mark`, an `xt` expression, a source port) is followed both
-  ways to the end of the base chain; when both end the same, that is the answer, else the result
-  is **unknown** with that rule. At most 64 such forks per connection.
+- A match it cannot read (`-m mark`, an `xt` expression, an ipset other than as the source) is
+  followed both ways to the end of the base chain; when both end the same, that is the answer,
+  else the result is **unknown** with that rule. At most 64 such forks per connection.
+- A source port (`--sport`, `--ports`, `th sport`) is the sender's choice: when one of the two ways
+  lets the connection in, it is in. UFW's rule for DHCP replies (`--sport 67 --dport 68 -j
+  ACCEPT`) lets in whoever sends from port 67.
 - Sources are symbolic: "the internet" is every public address of the family, the VPN and the
   private network are their networks. A rule that names only part of a class (`-s
   198.51.100.0/24 -j ACCEPT`, `! -s 10.8.0.0/24 -j DROP`) gives a narrower sample that is
   followed on its own: when only such parts get in, the result is **restricted** with them as
-  `sources`. Parts of ban lists (a plain match that drops) are not followed.
+  `sources`; when a part could get in but a rule for it cannot be read, the result is **unknown**.
+  Parts of ban lists (a plain match that drops) are not followed.
+- An ipset as the source (`-m set --match-set NAME src`, a country list in DOCKER-USER) is such a
+  part, `ipset NAME` in `sources`: its members are not in iptables-save, so the page says
+  "reachable only from ipset NAME" and does not guess who they are. Whether the members are in a
+  network another rule names is not known either (unknown).
 
 **Docker:** a published port (`NetworkSettings.Ports`) whose DNAT is in a nat chain (iptables-save or
 nft) is followed on the forward path, after the DNAT: destination the container's address and port,
@@ -153,7 +161,7 @@ blocks, the port's result is closed and `host_result` keeps what the host alone 
 |---|---|---|
 | reachable from the internet, no filter on the host for that family (`input_filter` off, a probe on tcp/64999) and no Hetzner answer | warning | `outside-only` |
 | reachable from the internet: databases, Docker's API, Cockpit, SSH and the other ports in `seclib.KNOWN_PORTS` with weight danger | danger | `public-danger` |
-| reachable from the internet: 80, 443 (also UDP), 51820/udp, a UDP port of the kernel on a host with a VPN interface | info | `public-expected` |
+| reachable from the internet: 80, 443 (also UDP), 51820/udp, a UDP port of the kernel on a host with a VPN interface, the DHCP client (68/udp, 546/udp) | info | `public-expected` |
 | reachable from the internet: anything else | warning | `public-other` |
 | reachable only from part of the internet | info (danger ports: warning) | `restricted` |
 | unknown from the internet | none | `unknown` |
@@ -199,7 +207,7 @@ A port marked as expected becomes `info` (`expected`, `base_state`).
 ```
 
 - `format`: 1. A page that knows a lower format says so.
-- `reach.<family>.<class>.result`: `open`, `restricted` (+ `sources`), `closed`, `unknown` (+
+- `reach.<family>.<class>.result`: `open`, `restricted` (+ `sources`: networks, or `ipset NAME`), `closed`, `unknown` (+
   `unknown`: the step with the rule), `absent` (no address of that family and class receives the
   socket). `path`: `input` or `forward` (+ `to`); `proxy`: true for docker-proxy;
   `reason`: `local-published` (the host to a published port), `no-rules` (the packet filter could
@@ -296,8 +304,8 @@ English document plus the German texts under `i18n.de`; the verb returns one lan
 | File | Checks |
 |---|---|
 | `test/lib_test.py` | address classes, `ip -j addr`, every form of `ss` addresses, UFW's tuples, `sshd -T` and its assessment, authorized_keys (sizes and fingerprints equal to ssh-keygen's, options with quotes, DSA, garbage), accounts and key files, the journal (one failure per connection), cscli and the bouncer's YAML, the marks, Docker's allowed paths, every code with its page text |
-| `test/fw_test.py` | iptables-save and nft's JSON read into chains; UFW's default deny and allow rules, `ufw limit`, the IPv6 routing header rule, DOCKER-USER (new connections, the original port, one allowed network, ban lists), unknown matches both ways (also across chains), too many forks, queues, goto, two base chains, verdict maps, netdev ingress, samples |
-| `test/scan_test.py` | every port of the three scenarios with state and reason; Docker past UFW and docker-proxy for IPv6; addresses a socket is bound to; the Hetzner Cloud Firewall (blocks, restricted, no token, stale, not matched, unreadable); SSH, logins, containers, CrowdSec; a DOCKER-USER rule (VPN only), no root, Docker failing or missing, legacy rules, an unreadable rule; the marks; the state fixtures current; only documentation and private addresses in the fixtures |
+| `test/fw_test.py` | iptables-save and nft's JSON read into chains; UFW's default deny and allow rules, `ufw limit`, the IPv6 routing header rule, DOCKER-USER (new connections, the original port, one allowed network, ban lists), unknown matches both ways (also across chains), a part of the internet whose rule cannot be read, too many forks, queues, ipsets (as the source: a country list, an allow list, a ban list, against networks; as the destination), source ports (DHCP replies, a drop avoided, `--ports`), goto, two base chains, verdict maps, netdev ingress, samples |
+| `test/scan_test.py` | every port of the three hand-made scenarios and of the four recorded servers with state and reason; Docker past UFW and docker-proxy for IPv6; addresses a socket is bound to; the Hetzner Cloud Firewall (blocks, restricted, no token, stale, not matched, unreadable); SSH, logins, containers, CrowdSec; a DOCKER-USER rule (VPN only), no root, Docker failing or missing, legacy rules, an unreadable rule, an ipset as the source; the marks; the state fixtures current; only documentation and private addresses in the fixtures |
 | `test/status_test.py` | the status of every scenario in both languages: fields, ids, links, lengths, nothing private, no German in English; marks; unknown ports; an unreadable packet filter; an old state; `security.py status` (languages, wrong calls, missing, broken, unreadable, as a process within 2 seconds) |
 | `test/verbs_test.py` | the arguments of `expect`/`unexpect`; writing the marks file, its copy, lines by hand kept, a file others can change refused, root required, German messages |
 | `test/hetzner_test.py` | the server by IPv4 or IPv6 network, pages, no match, failures keeping the last good answer, the token never in the output; how the scan reads rules |
@@ -310,6 +318,11 @@ English document plus the German texts under `i18n.de`; the verb returns one lan
 Fixtures: `test/fixtures/<scenario>/` hold the outputs of the commands and files of a host; the text
 outputs are written by hand after the formats of iptables 1.8.10, iproute2 6.x, OpenSSH 9.6 and ufw
 0.36, the JSON parts by `test/fixtures/make_fixtures.py`, the SSH keys are real throw-away keys.
-`test/fixtures/capture.sh` records a real host (to be made anonymous by hand);
+`test/fixtures/capture.sh` records a real host (to be made anonymous by hand; with `-` it prints
+everything and keeps nothing, for a remote shell). The scenarios `recorded-*` are four real
+servers recorded that way on 2026-10-20 (CI host, WireGuard edge, IPv6-only host, service host):
+public addresses in the documentation ranges, MACs and link-local addresses replaced, container,
+image, network and path names neutral, personal comments and counters removed; the journal,
+`/etc/passwd` and authorized_keys are not recorded (`meta.json` says so);
 `test/fixtures/make_states.py` writes the `state-*.json` and `status-*.json` the page tests and the
 preview read. The job `e2e` keeps the raw outputs of its runner in the artifact `e2e-session`.

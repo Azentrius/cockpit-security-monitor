@@ -224,12 +224,14 @@ KNOWN_PORTS = {
     ("tcp", 2049): ("nfs", "danger"), ("tcp", 445): ("smb", "danger"),
     ("tcp", 80): ("http", "info"), ("tcp", 443): ("https", "info"), ("udp", 443): ("http3", "info"),
     ("udp", 51820): ("wireguard", "info"),
+    # the DHCP client of a server that gets its address by DHCP (cloud servers)
+    ("udp", 68): ("dhcp-client", "info"), ("udp", 546): ("dhcpv6-client", "info"),
 }
 
 
 def known_port(proto, port, kernel=False, vpn=False):
     """(name, weight) of a port: danger for databases, Docker's API, Cockpit
-    and SSH, info for web and WireGuard, else (None, "warning")."""
+    and SSH, info for web, WireGuard and the DHCP client, else (None, "warning")."""
     if (proto, port) in KNOWN_PORTS:
         return KNOWN_PORTS[(proto, port)]
     if proto == "udp" and kernel and vpn:
