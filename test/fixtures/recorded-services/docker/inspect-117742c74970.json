@@ -1,0 +1,37 @@
+{
+ "Id": "117742c74970a31dc07e3faf7cb787f6bf68afc706f7fbc1a61a65c266b454c4",
+ "Name": "/files-db",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/db:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "files-app-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/srv/files-db/1",
+   "Destination": "/data/1",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "5432/tcp": null
+  },
+  "Networks": {
+   "files-app-net": {
+    "NetworkID": "d205d31873ef34fdecd835b7d21d96d4bb8ec097337c767ab08f6ab727b1b12b",
+    "IPAddress": "172.28.0.3",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

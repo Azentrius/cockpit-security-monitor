@@ -1,0 +1,50 @@
+{
+ "Id": "a419d9aeff4c10c81eb1dfb70504223d67904793676c128f93ed015c985eb531",
+ "Name": "/share-gateway",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/gateway:1",
+  "User": "0"
+ },
+ "HostConfig": {
+  "NetworkMode": "share-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": [
+   "no-new-privileges:true"
+  ]
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/srv/share-gateway/1",
+   "Destination": "/data/1",
+   "RW": false
+  },
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/share-gateway-2/_data",
+   "Destination": "/data/2",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "8080/tcp": [
+    {
+     "HostIp": "127.0.0.1",
+     "HostPort": "3011"
+    }
+   ]
+  },
+  "Networks": {
+   "share-net": {
+    "NetworkID": "d7042a0dfb271bbc06b462fd3243bbaa4856bbc9801258568d9d0459d395cbbb",
+    "IPAddress": "192.168.48.3",
+    "IPPrefixLen": 20,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

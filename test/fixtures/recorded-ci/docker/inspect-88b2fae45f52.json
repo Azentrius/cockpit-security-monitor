@@ -1,0 +1,43 @@
+{
+ "Id": "88b2fae45f5256116805d43210e30482970bb318c7cbd1f6563502ccd8bb0d7c",
+ "Name": "/reports-web",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/reports-web:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "analysis-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/reports-web-1/_data",
+   "Destination": "/data/1",
+   "RW": false
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/reports-web/2",
+   "Destination": "/data/2",
+   "RW": false
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "80/tcp": null
+  },
+  "Networks": {
+   "analysis-net": {
+    "NetworkID": "4791ea4b7f449b8f91c9502f0b8852ca3e272ee4084a354ca2110e14066684ea",
+    "IPAddress": "172.19.0.13",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

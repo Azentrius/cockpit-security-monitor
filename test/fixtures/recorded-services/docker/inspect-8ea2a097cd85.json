@@ -1,0 +1,28 @@
+{
+ "Id": "8ea2a097cd852972e1be1cb16e08c0426f7c8f97dc6265754e52205747654075",
+ "Name": "/ledger-ai",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/ledger-ai:1",
+  "User": "app"
+ },
+ "HostConfig": {
+  "NetworkMode": "ledger-ai-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [],
+ "NetworkSettings": {
+  "Ports": {},
+  "Networks": {
+   "ledger-ai-net": {
+    "NetworkID": "a1e2e723d56e64605eb526b14473d0347a7afcb543eae7f5e8f9b8c7ca08b8e4",
+    "IPAddress": "172.26.0.3",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

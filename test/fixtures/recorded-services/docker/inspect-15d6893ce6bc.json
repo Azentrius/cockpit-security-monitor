@@ -1,0 +1,45 @@
+{
+ "Id": "15d6893ce6bcd06a26195dfa3ebeba00d761d4d0c57511951c75b20ef4aacdc0",
+ "Name": "/share",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/share:1",
+  "User": "app"
+ },
+ "HostConfig": {
+  "NetworkMode": "share-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": [
+   "no-new-privileges:true"
+  ]
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/share-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/share/2",
+   "Destination": "/data/2",
+   "RW": false
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "8080/tcp": null
+  },
+  "Networks": {
+   "share-net": {
+    "NetworkID": "d7042a0dfb271bbc06b462fd3243bbaa4856bbc9801258568d9d0459d395cbbb",
+    "IPAddress": "192.168.48.2",
+    "IPPrefixLen": 20,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

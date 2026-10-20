@@ -1,0 +1,18 @@
+[
+ {
+  "Id": "a146ae9230a700d869c35ff23bfd685f929b5c25ff75395654fb82483c31d82e",
+  "Names": [
+   "/watcher"
+  ],
+  "Image": "registry.example/watcher:1",
+  "State": "running"
+ },
+ {
+  "Id": "2ebbbbe1e5e065a265ec730fce03440ec8e5041f9f214cd16bd734c9bde04cae",
+  "Names": [
+   "/socket-proxy"
+  ],
+  "Image": "registry.example/socket-proxy:1",
+  "State": "running"
+ }
+]

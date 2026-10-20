@@ -1,0 +1,37 @@
+{
+ "Id": "83e7c875aeb707e2559490565e58a7a3fe63cf76161f0d918317cedbddd565ec",
+ "Name": "/test-app",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/test-app:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "analysis-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/test-app-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "80/tcp": null
+  },
+  "Networks": {
+   "analysis-net": {
+    "NetworkID": "4791ea4b7f449b8f91c9502f0b8852ca3e272ee4084a354ca2110e14066684ea",
+    "IPAddress": "172.19.0.17",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

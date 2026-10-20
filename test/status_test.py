@@ -86,6 +86,15 @@ class Contract(unittest.TestCase):
                                          ("crowdsec", "warning", "2"), ("scan", "ok", None)]),
             "nft-native": ("danger", [("exposure", "warning", "5"), ("ssh", "warning", "2"), ("logins", "ok", "0"),
                                       ("containers", "danger", "2"), ("scan", "ok", None)]),
+            "recorded-ci": ("danger", [("exposure", "info", "2"), ("ssh", "info", None), ("logins", "ok", "0"),
+                                       ("containers", "danger", "5"), ("scan", "ok", None)]),
+            "recorded-edge": ("danger", [("exposure", "info", "2"), ("ssh", "info", None), ("logins", "ok", "0"),
+                                         ("containers", "danger", "1"), ("scan", "ok", None)]),
+            "recorded-ipv6": ("danger", [("exposure", "ok", "0"), ("ssh", "info", None), ("logins", "ok", "0"),
+                                         ("containers", "danger", "1"), ("scan", "ok", None)]),
+            "recorded-services": ("danger", [("exposure", "warning", "10"), ("ssh", "info", None),
+                                             ("logins", "ok", "0"), ("containers", "danger", "1"),
+                                             ("scan", "ok", None)]),
         }
         for s, (state, items) in want.items():
             st = status(s)

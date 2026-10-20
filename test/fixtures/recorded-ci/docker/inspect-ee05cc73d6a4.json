@@ -1,0 +1,61 @@
+{
+ "Id": "ee05cc73d6a4b6d96d3099cb0e4427fe1c08e9eaf3c39cc929edf158e401741d",
+ "Name": "/analysis",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/analysis:1",
+  "User": "app"
+ },
+ "HostConfig": {
+  "NetworkMode": "analysis-net-2",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/analysis-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/analysis-2/_data",
+   "Destination": "/data/2",
+   "RW": true
+  },
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/analysis-3/_data",
+   "Destination": "/data/3",
+   "RW": true
+  },
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/analysis-4/_data",
+   "Destination": "/data/4",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "9000/tcp": null
+  },
+  "Networks": {
+   "analysis-net": {
+    "NetworkID": "4791ea4b7f449b8f91c9502f0b8852ca3e272ee4084a354ca2110e14066684ea",
+    "IPAddress": "172.19.0.14",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   },
+   "analysis-net-2": {
+    "NetworkID": "12e559e8168601f9ade0f4b4b5f1c9a09045208ba59c6e2e8a7b9a28a7cf5fa5",
+    "IPAddress": "172.20.0.3",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

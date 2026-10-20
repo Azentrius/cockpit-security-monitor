@@ -1,0 +1,56 @@
+{
+ "Id": "2d81d8bd90b09ee314aabd36d8c1a53ba228026c99e131542a858b5b300aee49",
+ "Name": "/notes-gateway",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/gateway:1",
+  "User": "0"
+ },
+ "HostConfig": {
+  "NetworkMode": "notes-gateway-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": [
+   "no-new-privileges:true"
+  ]
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/srv/notes-gateway/1",
+   "Destination": "/data/1",
+   "RW": false
+  },
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/notes-gateway-2/_data",
+   "Destination": "/data/2",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "8080/tcp": [
+    {
+     "HostIp": "127.0.0.1",
+     "HostPort": "3010"
+    }
+   ]
+  },
+  "Networks": {
+   "notes-gateway-net": {
+    "NetworkID": "65498a589b8772e3392ae4e9aa78ec46e904c587cae720cae04ab830b51c71e4",
+    "IPAddress": "192.168.16.2",
+    "IPPrefixLen": 20,
+    "GlobalIPv6Address": ""
+   },
+   "notes-net": {
+    "NetworkID": "156751f8a24c5a8c24f0045a1f5730d9b3c27f61d31bd199de629af74fd3f5b5",
+    "IPAddress": "192.168.32.4",
+    "IPPrefixLen": 20,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

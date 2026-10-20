@@ -1,0 +1,37 @@
+{
+ "Id": "133e2011341b6bdf1ca64bd36008bd8e753614358c8292233f787980896cc42e",
+ "Name": "/files-cache",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/files-cache:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "files-app-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/files-cache-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "6379/tcp": null
+  },
+  "Networks": {
+   "files-app-net": {
+    "NetworkID": "d205d31873ef34fdecd835b7d21d96d4bb8ec097337c767ab08f6ab727b1b12b",
+    "IPAddress": "172.28.0.2",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

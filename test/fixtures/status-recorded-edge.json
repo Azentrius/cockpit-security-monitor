@@ -1,0 +1,87 @@
+{
+ "schema": 1,
+ "addon": "security",
+ "label": "Security Monitor",
+ "version": "0.1.0",
+ "checked_at": "2026-10-20T12:00:00Z",
+ "state": "danger",
+ "summary": "Findings in 3 areas: Reachable from the internet, SSH, Container hardening.",
+ "items": [
+  {
+   "id": "exposure",
+   "state": "info",
+   "title": "Reachable from the internet",
+   "value": "2",
+   "detail": "68/udp dhcp-client, 51820/udp wireguard",
+   "link": "#/exposure",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "ssh",
+   "state": "info",
+   "title": "SSH",
+   "link": "#/ssh",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "logins",
+   "state": "ok",
+   "title": "Logins",
+   "value": "0",
+   "detail": "no failed attempts in 14 days",
+   "link": "#/logins",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "containers",
+   "state": "danger",
+   "title": "Container hardening",
+   "value": "1",
+   "detail": "Docker socket: socket-proxy",
+   "link": "#/containers",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "scan",
+   "state": "ok",
+   "title": "Check",
+   "detail": "checked every 15 minutes when set up",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  }
+ ],
+ "i18n": {
+  "de": {
+   "summary": "Befunde in 3 Bereichen: Aus dem Internet erreichbar, SSH, Container-Härtung.",
+   "items": {
+    "exposure": {
+     "title": "Aus dem Internet erreichbar",
+     "detail": "68/udp dhcp-client, 51820/udp wireguard"
+    },
+    "ssh": {
+     "title": "SSH"
+    },
+    "logins": {
+     "title": "Anmeldungen",
+     "detail": "keine Fehlversuche in 14 Tagen"
+    },
+    "containers": {
+     "title": "Container-Härtung",
+     "detail": "Docker-Socket: socket-proxy"
+    },
+    "scan": {
+     "title": "Prüfung",
+     "detail": "alle 15 Minuten, wenn eingerichtet"
+    }
+   },
+   "scan_old": "die letzte Prüfung ist älter als eine Stunde"
+  },
+  "en": {
+   "scan_old": "the last check is older than an hour"
+  }
+ }
+}

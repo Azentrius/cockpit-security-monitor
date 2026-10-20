@@ -1,0 +1,51 @@
+{
+ "Id": "000272d5dff7037162e22b40d621869245c5dcc2f89f9e94bd765b58bf1a00af",
+ "Name": "/analytics-events",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/analytics-events:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "analytics-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/analytics-events-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/analytics-events/2",
+   "Destination": "/data/2",
+   "RW": false
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/analytics-events/3",
+   "Destination": "/data/3",
+   "RW": false
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "8123/tcp": null,
+   "9000/tcp": null,
+   "9009/tcp": null
+  },
+  "Networks": {
+   "analytics-net": {
+    "NetworkID": "1a4fbaa7138150ecbe1031b088dd1921fad0608fd1f397252e7a08ebfab9dcac",
+    "IPAddress": "172.21.0.2",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

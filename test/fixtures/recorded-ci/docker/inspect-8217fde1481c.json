@@ -1,0 +1,35 @@
+{
+ "Id": "8217fde1481c544785ecb2395453eebd029b65d5bd2fe474bffca980a41051ff",
+ "Name": "/findings-app",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/findings:1",
+  "User": "1001"
+ },
+ "HostConfig": {
+  "NetworkMode": "findings-app-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/findings-app-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {},
+  "Networks": {
+   "findings-app-net": {
+    "NetworkID": "7ec2cf74e62f526de75e756027415bfe6f561d1e0b6988673be92fee0766ce11",
+    "IPAddress": "172.21.0.7",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

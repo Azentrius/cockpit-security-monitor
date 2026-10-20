@@ -1,0 +1,23 @@
+{
+ "ServerVersion": "29.9.1",
+ "FirewallBackend": {
+  "Driver": "iptables",
+  "Info": [
+   [
+    "EnableUserlandProxy",
+    "true"
+   ],
+   [
+    "UserlandProxyPath",
+    "/usr/bin/docker-proxy"
+   ]
+  ]
+ },
+ "Driver": "overlayfs",
+ "CgroupVersion": "2",
+ "SecurityOptions": [
+  "name=apparmor,profile=default",
+  "name=seccomp,profile=builtin",
+  "name=cgroupns"
+ ]
+}

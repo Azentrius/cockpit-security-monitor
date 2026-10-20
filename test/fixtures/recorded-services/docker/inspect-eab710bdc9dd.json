@@ -1,0 +1,56 @@
+{
+ "Id": "eab710bdc9ddf8faf1a7645621b8de9e38574d277f600d6f112d43a36fc863aa",
+ "Name": "/relay",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/relay:1",
+  "User": "1000:1000"
+ },
+ "HostConfig": {
+  "NetworkMode": "relay-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/srv/relay/1",
+   "Destination": "/data/1",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "21117/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "21117"
+    },
+    {
+     "HostIp": "::",
+     "HostPort": "21117"
+    }
+   ],
+   "21119/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "21119"
+    },
+    {
+     "HostIp": "::",
+     "HostPort": "21119"
+    }
+   ]
+  },
+  "Networks": {
+   "relay-net": {
+    "NetworkID": "f6c64b95a78b0f69696b38dd246e36759015471b34ac103b989a54687f517536",
+    "IPAddress": "172.20.0.2",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

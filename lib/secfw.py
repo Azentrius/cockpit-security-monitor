@@ -18,8 +18,10 @@ connection state, original destination (conntrack), address types, sets,
 verdict maps, jumps, policies. A match it cannot read makes it follow both
 ways; when they end differently, the answer is "unknown" with that rule.
 Sources are symbolic (all of the internet, a VPN network, a private
-network): a rule that names only part of a class yields a narrower sample
-that is followed on its own ("reachable only from ...").
+network, the members of an ipset whose contents are not known): a rule that
+names only part of a class yields a narrower sample that is followed on its
+own ("reachable only from ..."). A source port is the sender's choice: a rule
+that lets some source port in lets the sender in.
 """
 
 import ipaddress
@@ -31,6 +33,7 @@ from seclib import GLOBAL6, NOT_INTERNET
 NET = ipaddress.ip_network
 ACCEPT, DROP, RETURN, UNKNOWN, CONTINUE = "accept", "drop", "return", "unknown", "continue"
 YES, NO, MAYBE = "yes", "no", "maybe"
+CHOICE = "choice"           # matches or not as the sender likes (its source port)
 MAX_FORKS = 64
 MAX_DEPTH = 32
 MAX_CANDIDATES = 24
@@ -270,7 +273,7 @@ def parse_ipt_tokens(t, fam):
                 # an IPv6 routing header (ufw drops type 0): a plain connection carries none
                 matches.append(("never", False, "routing header") if not neg else ("always", False, "rt"))
             elif module not in ("tcp", "udp", "multiport", "conntrack", "state", "comment", "addrtype", "limit",
-                                "recent", "icmp", "icmp6", "pkttype", "hashlimit", "connlimit"):
+                                "recent", "icmp", "icmp6", "pkttype", "hashlimit", "connlimit", "set"):
                 matches.append(("unknown", False, "-m " + module))
         elif tok in ("-j", "--jump", "-g", "--goto"):
             tg = val()
@@ -344,6 +347,21 @@ def parse_ipt_tokens(t, fam):
                 step = 1
         elif tok == "--pkt-type" and module == "pkttype":
             matches.append(("pkttype", neg, {val().lower()}))
+        elif module == "set" and tok.startswith("--"):
+            # an ipset: its members are not in iptables-save. As the source it is a sample of its
+            # own; any other use (dst, several dimensions, counters) is not read.
+            if tok == "--match-set":
+                if val(2) == "src":
+                    matches.append(("saddr_set", neg, val()))
+                else:
+                    matches.append(("unknown", False, f"--match-set {val()} {val(2)}"))
+                step = 3
+            elif tok in ("--return-nomatch", "--update-counters", "--update-subcounters"):
+                step = 1
+            else:
+                matches.append(("unknown", False, "set " + tok))
+                if i + 1 >= len(t) or t[i + 1].startswith("-"):
+                    step = 1
         elif tok == "--syn":
             matches.append(("tcpflags", neg, ({"SYN", "RST", "ACK", "FIN"}, {"SYN"})))
             step = 1
@@ -715,21 +733,48 @@ def _render(left, op, right):
 # ---------------------------------------------------------------------------
 # Samples and packets
 
-class Sample:
-    """A symbolic source: all of the internet of a family, or a network.
-    `avoid` are the networks of other classes the sample is not in."""
+class IpSet:
+    """The members of an ipset as a source: a part of a sample whose
+    addresses are not known."""
 
-    def __init__(self, fam, net=None, internet=False, avoid=()):
-        self.fam, self.net, self.internet = fam, net, internet
+    def __init__(self, name):
+        self.name = name
+
+    def __eq__(self, other):
+        return isinstance(other, IpSet) and other.name == self.name
+
+    def __hash__(self):
+        return hash(("ipset", self.name))
+
+    def __str__(self):
+        return "ipset " + self.name
+
+
+class Sample:
+    """A symbolic source: all of the internet of a family, a network, or the
+    members of an ipset. `avoid` are the networks of other classes the sample
+    is not in."""
+
+    def __init__(self, fam, net=None, internet=False, avoid=(), ipset=None):
+        self.fam, self.net, self.internet, self.ipset = fam, net, internet, ipset
         self.avoid = [n for n in avoid if n.version == fam]
 
     def label(self):
-        return "internet" if self.internet else str(self.net)
+        return "internet" if self.internet else str(IpSet(self.ipset)) if self.ipset else str(self.net)
 
     def covered(self, n):
-        if self.internet:
+        if self.internet or self.ipset:
             return n.prefixlen == 0 or (self.fam == 6 and GLOBAL6.subnet_of(n))
         return self.net.subnet_of(n)
+
+    def in_set(self, name, cands):
+        """Whether the sample is in an ipset: the members of that set are; of
+        any other sample they are a part, followed on its own."""
+        if self.ipset is not None:
+            return YES if self.ipset == name else MAYBE
+        if IpSet(name) not in cands:
+            cands.append(IpSet(name))
+        return NO
 
     def part(self, n):
         """A narrower network inside the sample, or None."""
@@ -745,6 +790,8 @@ class Sample:
         nets = [n for n in nets if n.version == self.fam]
         if any(self.covered(n) for n in nets):
             return YES
+        if self.ipset is not None:
+            return MAYBE if nets else NO        # whether its members are in a network is not known
         for n in nets:
             p = self.part(n)
             if p is not None and p not in cands:
@@ -777,26 +824,28 @@ class Evaluator:
         self.cands = []
 
     def match(self, rule, pkt):
-        """YES, NO or MAYBE for a packet; source parts go to self.cands when
-        the rest of the rule matches and the rule does not drop."""
+        """YES, NO, MAYBE or CHOICE (the sender decides) for a packet; source
+        parts go to self.cands when the rest of the rule matches and the rule
+        does not drop."""
         result = YES
         pending = []
         for kind, neg, value in rule.matches:
-            if kind == "saddr":
+            if kind in ("saddr", "saddr_set"):
                 local = []
-                r = pkt.src.test(value, local)
+                r = pkt.src.test(value, local) if kind == "saddr" else pkt.src.in_set(value, local)
                 # A part of the sample takes the other way: worth following unless that way
                 # only drops it (a ban list), i.e. unless a plain match leads to a drop.
                 if neg or rule.verdict != DROP:
                     pending.extend(local)
             else:
                 r = self._one(kind, value, pkt)
-            if r == MAYBE:
-                result = MAYBE if result == YES else result
+            if r in (MAYBE, CHOICE):
+                if result == YES or (result == CHOICE and r == MAYBE):
+                    result = r
                 continue
             if neg:
                 r = NO if r == YES else YES
-            if r == NO and kind != "saddr":
+            if r == NO and kind not in ("saddr", "saddr_set"):
                 return NO
             if r == NO:
                 result = NO
@@ -822,9 +871,9 @@ class Evaluator:
         if kind == "dport":
             return YES if any(lo <= pkt.dport <= hi for lo, hi in value) else NO
         if kind == "anyport":
-            return YES if any(lo <= pkt.dport <= hi for lo, hi in value) else MAYBE
+            return YES if any(lo <= pkt.dport <= hi for lo, hi in value) else CHOICE
         if kind == "sport":
-            return MAYBE                         # a client's port is not known
+            return CHOICE                        # the sender picks its port
         if kind == "ctorigdstport":
             return YES if any(lo <= pkt.orig_dport <= hi for lo, hi in value) else NO
         if kind == "ct":
@@ -883,7 +932,7 @@ class Evaluator:
             m = self.match(r, pkt)
             if m == NO:
                 continue
-            if m == MAYBE:
+            if m in (MAYBE, CHOICE):
                 self.forks += 1
                 if self.forks > MAX_FORKS:
                     return Outcome(UNKNOWN, r, chain)
@@ -894,6 +943,9 @@ class Evaluator:
                 skipped = self._walk([list(f) for f in stack], pkt, base)
                 if taken.kind == skipped.kind and taken.kind != UNKNOWN:
                     return skipped
+                if m == CHOICE and ACCEPT in (taken.kind, skipped.kind):
+                    # the sender takes the way that lets it in
+                    return taken if taken.kind == ACCEPT else skipped
                 return Outcome(UNKNOWN, r, chain)
             o = self._apply(stack, r, chain, pkt)
             if o is not None:
@@ -929,7 +981,7 @@ class Evaluator:
                 return Outcome(UNKNOWN, r, chain)
             for keys, verdict2, target2 in vm["map"]:
                 hit = self._one(kind, _key_values(kind, keys), pkt)
-                if hit == MAYBE:
+                if hit in (MAYBE, CHOICE):
                     return Outcome(UNKNOWN, r, chain)
                 if hit == YES:
                     return self._apply(stack, r, chain, pkt, verdict2 if verdict2 != "continue" else CONTINUE,
@@ -988,18 +1040,24 @@ def reach(rs, make, samples, avoid=()):
             results.append({"result": "unknown", "steps": steps, "sources": [], "iface": iface,
                             "unknown": next((s for s in steps if s["result"] == UNKNOWN), None)})
             continue
-        allowed, steps_allowed = [], None
+        allowed, steps_allowed, unknown = [], None, None
         for c in cands[:MAX_CANDIDATES]:
             ev2 = Evaluator(rs)
-            s2 = Sample(sample.fam, net=c, avoid=avoid)
+            s2 = Sample(sample.fam, ipset=c.name) if isinstance(c, IpSet) else Sample(sample.fam, net=c, avoid=avoid)
             pre, post, hooks = make(iface, s2)
             k2, st2 = ev2.hook(pre, post, hooks)
             if k2 == ACCEPT:
                 allowed.append(str(c))
                 steps_allowed = steps_allowed or st2
+            elif k2 == UNKNOWN and unknown is None:
+                unknown = st2
         if allowed:
             results.append({"result": "restricted", "steps": steps_allowed, "sources": allowed, "iface": iface,
                             "denied_steps": steps})
+        elif unknown:
+            # only a part could get in, and for it a rule cannot be read: never "closed"
+            results.append({"result": "unknown", "steps": unknown, "sources": [], "iface": iface,
+                            "unknown": next((s for s in unknown if s["result"] == UNKNOWN), None)})
         else:
             results.append({"result": "closed", "steps": steps, "sources": [], "iface": iface})
     if not results:

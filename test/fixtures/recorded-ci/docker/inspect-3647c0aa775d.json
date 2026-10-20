@@ -1,0 +1,47 @@
+{
+ "Id": "3647c0aa775d22ef13f930079e805448e6ddd29c81bf9ea48bd336bf6ab34ca2",
+ "Name": "/runner-2",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/runner:1",
+  "User": "0:0"
+ },
+ "HostConfig": {
+  "NetworkMode": "analysis-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/runner-2-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/runner-2/2",
+   "Destination": "/data/2",
+   "RW": false
+  },
+  {
+   "Type": "bind",
+   "Source": "/var/run/docker.sock",
+   "Destination": "/var/run/docker.sock",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {},
+  "Networks": {
+   "analysis-net": {
+    "NetworkID": "4791ea4b7f449b8f91c9502f0b8852ca3e272ee4084a354ca2110e14066684ea",
+    "IPAddress": "172.19.0.2",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}
