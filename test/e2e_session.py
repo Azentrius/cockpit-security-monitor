@@ -10,11 +10,13 @@ Playwright drives Chromium through Cockpit's own login and shell. Spec 4.7:
   2. as an administrator: the page in Cockpit's menu; with no state yet it
      checks by itself, through cockpit-security-scan.service; Docker's
      0.0.0.0:8080 is "reachable from the internet, UFW does not apply here";
-     the state 0600, the status 0644, every source read;
+     the state 0600, the status 0644, every source read; a socket-activated
+     sshd without /run/sshd is "not checkable" with the fix the page names
+     (decision 9.6), and that fix is then applied;
   3. the status for the Status Board, as a user without sudo;
   4. 8080/tcp marked as expected from the page, then the mark removed: only
      /etc/cockpit-security-monitor/exposure.conf changes;
-  5. a DOCKER-USER rule, "Refresh": 8080/tcp is "VPN only";
+  5. a DOCKER-USER rule, "Refresh": 8080/tcp is "VPN only", and sshd -T is read;
   6. the regular check set up from the page, then switched off;
   7. a user without administrative access (German browser): the summary only;
   8. a link #/ssh opens the SSH tab with the configuration;
@@ -256,10 +258,25 @@ def main():
                     "-p", "CapabilityBoundingSet")
         note("the scan service ran, hardened, and succeeded", "Result=success" in unit and "IPAddressDeny=" in unit,
              unit.replace("\n", ", ")[:300])
-        src = {k: v.get("state") for k, v in (first or {}).get("sources", {}).items()}
-        bad = {k: v for k, v in src.items() if v not in ("ok", "missing", "skipped")}
+        sources = (first or {}).get("sources", {})
+        src = {k: v.get("state") for k, v in sources.items()}
+        # Ubuntu's sshd is socket-activated: until the first connection /run/sshd is missing and
+        # sshd -T fails (spec 4.3, decision 9.6). That is the one source allowed to fail here.
+        privsep = (sources.get("sshd") or {}).get("reason") == "privsep-dir-missing"
+        bad = {k: v for k, v in src.items() if v not in ("ok", "missing", "skipped") and not (k == "sshd" and privsep)}
         note("every source read in the real service", not bad, json.dumps(src))
         shot(page, "first-check")
+        if privsep:
+            frame.locator("#sm-tab-btn-ssh").click()
+            ssh_text = text(frame, "#sm-sshd")
+            note("sshd -T without /run/sshd (socket-activated sshd): not checkable, the page names the fix",
+                 "sshd -T fails on this server" in ssh_text and "/etc/tmpfiles.d/sshd-privsep.conf" in ssh_text,
+                 ssh_text[:200])
+            shot(page, "sshd-privsep")
+            # The fix as the page shows it, by hand (decision 9.6); the next check reads sshd -T.
+            root("sh", "-c", "echo 'd /run/sshd 0755 root root -' > /etc/tmpfiles.d/sshd-privsep.conf"
+                             " && systemd-tmpfiles --create")
+            frame.locator("#sm-tab-btn-exposure").click()
 
         # 3. The status for the Status Board, as a user without sudo.
         st = status_doc(E["PLAIN_USER"], "de")
@@ -303,6 +320,9 @@ def main():
         r4 = {c: v.get("result") for c, v in ((p8080.get("reach") or {}).get("4") or {}).items()}
         note("with a DOCKER-USER rule 8080/tcp is VPN only (spec 4.7)",
              "VPN only" in row and r4.get("internet") == "closed" and r4.get("vpn") == "open", f"{r4}; {row[:200]}")
+        sshd = ((second or {}).get("sources") or {}).get("sshd") or {}
+        note("sshd -T is read once /run/sshd exists" + (" (after the tmpfiles.d line of the page)" if privsep else ""),
+             sshd.get("state") == "ok", json.dumps(sshd))
         shot(page, "docker-user")
 
         # 6. The regular check, set up from the page and switched off.
