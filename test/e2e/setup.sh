@@ -41,7 +41,7 @@ ufw --force enable
 ufw status verbose
 
 docker run -d --name sm-web -p 8080:80 nginx:1.27-alpine
-for i in $(seq 30); do
+for _ in $(seq 30); do
     if curl -fsS -o /dev/null http://127.0.0.1:8080/; then break; fi
     sleep 1
 done

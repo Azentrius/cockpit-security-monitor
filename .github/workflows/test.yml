@@ -67,7 +67,9 @@ jobs:
                 --status /var/lib/cockpit-security-monitor/status.json
               test "$(stat -c %a /var/lib/cockpit-security-monitor/state.json)" = 600
               python3 -c "import json; argv = json.load(open(\"/usr/share/cockpit/security/manifest.json\"))[\"azentrius\"][\"status\"]; print(\" \".join(argv))" > /tmp/verb
-              su nobody -s /bin/sh -c "$(cat /tmp/verb) --lang de" | python3 -c "import json, sys; d = json.load(sys.stdin); print(d[\"state\"], d[\"summary\"]); assert d[\"schema\"] == 1 and d[\"version\"] != \"unknown\""
+              # as nobody (65534 in both images); the Fedora image has no su, so python3 drops the rights
+              python3 -c "import os, sys; os.setgroups([]); os.setgid(65534); os.setuid(65534); os.execv(sys.argv[1], sys.argv[1:])" \
+                $(cat /tmp/verb) --lang de | python3 -c "import json, sys; d = json.load(sys.stdin); print(d[\"state\"], d[\"summary\"]); assert d[\"schema\"] == 1 and d[\"version\"] != \"unknown\""
               case "$IMAGE" in
                 debian*) apt-get remove -y -qq cockpit-security-monitor > /dev/null ;;
                 fedora*) dnf remove -y -q cockpit-security-monitor ;;
