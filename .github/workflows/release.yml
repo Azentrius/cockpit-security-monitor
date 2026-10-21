@@ -2,7 +2,7 @@
 # Checks the version, requires the test workflow to have passed for this commit (waiting up to 20
 # minutes for it), runs the tests, builds the .deb and the source archive and creates the tag
 # vVERSION with a GitHub release (package, archive, SHA256SUMS, signed build provenance, notes
-# from CHANGELOG.md). Releases of 0.1 carry no .rpm: the page is tested only on Debian and Ubuntu
+# from CHANGELOG.md). Releases carry no .rpm yet: the page is tested only on Debian and Ubuntu
 # so far.
 name: release
 
