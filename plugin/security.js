@@ -26,7 +26,7 @@
     // --- Configuration -----------------------------------------------------
     // The one place for the version (SemVer). index.html loads every script and
     // stylesheet with ?v=VERSION; tools/check-version.sh keeps them in step.
-    const VERSION = "0.1.0";
+    const VERSION = "0.2.0";
     const HELPER = "/usr/lib/cockpit-security-monitor/security.py";
     const STATUS_PATH = "/var/lib/cockpit-security-monitor/status.json";
     const MARKS_FILE = "/etc/cockpit-security-monitor/exposure.conf";
