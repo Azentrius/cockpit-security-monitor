@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+Findings from the first real scan of a server, said more precisely.
+
+- **The rule that keeps everyone else out:** a port reachable only from some sources names, first,
+  the rule or policy that stops the rest (a country list in DOCKER-USER, `! -s NET -j DROP`, the
+  policy), not only the rule that lets the allowed sources in (`limited_by` in the state).
+- **Locked accounts whose keys still log in:** `passwd -l` closes only the password; with
+  `UsePAM yes` sshd does not check the lock. An account locked that way (a `!` in front of a real
+  hash in `/etc/shadow`, read as root) that still has keys is a warning, and the page names
+  `usermod --expiredate 1` as the way to close it. Not for root, an expired account, or sshd
+  without PAM; accounts that never had a password (`!`, `*`) are key-only by design.
+- **Ports only some addresses reach, counted apart:** the figure of the status item `exposure` and
+  the page's overview count the ports the whole internet reaches; a port open only to a country
+  list or an allowed network is named apart ("only from some addresses").
+- **The journal's real start:** when the journal begins later than 14 days back (rotation), the
+  status says since when instead of "in 14 days", and the logins tab says where the journal
+  begins (`journalctl --lines=+1`, systemd 254 or newer).
+
 ## 0.1.0 – 2026-10-21
 
 First version: what is reachable from where on a server, who logs in, and what
@@ -10,9 +29,8 @@ weakens the boundary of its containers. Read only.
   decides. The packet filter comes from `iptables-save` and `ip6tables-save` (UFW's and Docker's
   tables) and `nft -j list ruleset` (every other table); Docker's port mappings and their DNAT
   show where UFW does not apply. Rules the page cannot read make a port "Not assessable", never
-  "OK". An ipset of sources (a country list) makes a port "reachable only from" that set; a port
-  reachable only from some sources names the rule that keeps everyone else out; a source port is
-  the sender's choice. Databases, Docker's API, Cockpit and SSH open to the internet are a
+  "OK". An ipset of sources (a country list) makes a port "reachable only from" that set; a source
+  port is the sender's choice. Databases, Docker's API, Cockpit and SSH open to the internet are a
   danger, web, WireGuard and the DHCP client a note, everything else a warning until marked as
   expected.
 - **Hetzner Cloud Firewall:** read with a read-only token by a service of its own without root
@@ -21,10 +39,7 @@ weakens the boundary of its containers. Read only.
 - **SSH and logins:** the effective configuration (`sshd -T`), the authorized_keys of every account
   with a login shell (type, size, fingerprint, options, who can change the file), the logins of the
   last 14 days from the journal (sshd, sshd-session, sudo, cockpit-session); a login from outside
-  the VPN and private networks is a warning. An account locked with `passwd -l` whose keys still
-  log in is a warning: with `UsePAM yes` sshd does not check the lock, and the page names
-  `usermod --expiredate 1` as the way to close it. When the journal begins later than 14 days
-  back, the page and the status say since when instead of "14 days".
+  the VPN and private networks is a warning.
 - **Containers:** the Docker socket, privileged, host PIDs, extra capabilities, writable host
   folders, the host network, root, no-new-privileges, AppArmor.
 - **CrowdSec:** shown when installed: the service, its version, bouncers, active decisions, alerts
@@ -33,9 +48,7 @@ weakens the boundary of its containers. Read only.
 - **Mark as expected:** a port or a container finding, with a note, in
   `/etc/cockpit-security-monitor/exposure.conf`; the only change the page makes besides its timer.
 - **Status for the Status Board:** `security.py status --lang en|de` (status contract, schema 1)
-  with the items `exposure`, `ssh`, `logins`, `containers`, `crowdsec` and `scan`. The figure of
-  `exposure` counts the ports the whole internet reaches; ports only some addresses reach are
-  named apart, here and in the page's overview.
+  with the items `exposure`, `ssh`, `logins`, `containers`, `crowdsec` and `scan`.
 - **The page:** Azentrius page frame, tabs with links (`#/exposure`, `#/ssh`, …), English and
   German, light and dark, phones; without administrative access the summary only.
 - **In Cockpit's menu:** the entry carries the add-on's state as Cockpit's own status icon, judged
