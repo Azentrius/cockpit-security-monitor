@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.1.0 – 2026-10-20
+## 0.1.0 – 2026-10-21
 
-First version (not released yet): what is reachable from where on a server, who logs in, and what
+First version: what is reachable from where on a server, who logs in, and what
 weakens the boundary of its containers. Read only.
 
 - **Exposure:** every listening socket and every port Docker publishes, reachable from the internet,
