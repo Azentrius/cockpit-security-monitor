@@ -115,11 +115,47 @@ class UfwDocker(unittest.TestCase):
         self.assertEqual(ssh["state"], "warning")
         self.assertEqual(ssh["ports"], ["22"])
 
+    def test_locked_account_with_keys(self):
+        """alex's password is locked with passwd -l ("!" before a hash), but sshd uses PAM and
+        does not check the lock: the keys still log in. root's "*" is no lock but no password."""
+        files = {f["user"]: f for f in self.doc["ssh"]["keys"]}
+        self.assertEqual(files["alex"]["account"], {"password": "locked", "expired": False,
+                                                    "finding": "locked-with-keys"})
+        self.assertEqual(files["root"]["account"], {"password": "none", "expired": False})
+
+    def test_locked_account_variants(self):
+        def alex(**kw):
+            doc = scan("ufw-docker", **kw)
+            return next(f for f in doc["ssh"]["keys"] if f["user"] == "alex").get("account")
+        shadow = fixture("ufw-docker", "files", "etc", "shadow")
+        expired = shadow.replace(":20370:0:99999:7:::", ":20370:0:99999:7::20000:")
+        self.assertEqual(alex(files={"/etc/shadow": expired}), {"password": "locked", "expired": True},
+                         "an expired account refuses keys too")
+        nopam = fixture("ufw-docker", "commands", "sshd-T.txt").replace("usepam yes", "usepam no")
+        self.assertEqual(alex(results={"sshd-T": nopam}), {"password": "locked", "expired": False},
+                         "without PAM sshd refuses a locked account itself")
+        alex_line = next(line for line in shadow.splitlines() if line.startswith("alex:"))
+        keyonly = shadow.replace(alex_line, "alex:!:20370:0:99999:7:::")
+        self.assertEqual(alex(files={"/etc/shadow": keyonly}), {"password": "none", "expired": False},
+                         "an account without a password is key-only by design")
+        self.assertIsNone(alex(uid=1000), "without root /etc/shadow is not read")
+        self.assertIsNone(alex(files={"/etc/shadow": None}))
+
     def test_logins(self):
         lg = self.doc["logins"]
         self.assertEqual((lg["state"], lg["success_total"], lg["outside"], lg["failed_total"]), ("ok", 3, 0, 1))
         self.assertEqual(lg["success"][0]["time"], "2026-10-20T11:55:00Z")
         self.assertEqual(lg["assessment"], "ok")
+
+    def test_journal_start(self):
+        """The oldest entry within the 14 days (journalctl --lines=+1): here 9 days and 4 hours
+        back. Without an answer (systemd before 254) it stays unknown."""
+        self.assertEqual(self.doc["logins"]["journal_start"], "2026-10-11T08:00:00Z")
+        self.assertIsNone(scan("hetzner-open")["logins"]["journal_start"])
+        bad = scan("ufw-docker", results={"journal-start": secproc.Result(1, "", "journalctl: invalid option")})
+        self.assertIsNone(bad["logins"]["journal_start"])
+        empty = scan("ufw-docker", results={"journal-start": ""})
+        self.assertIsNone(empty["logins"]["journal_start"])
 
     def test_containers(self):
         items = {c["name"]: [(f["kind"], f["state"]) for f in c["findings"]] for c in self.doc["containers"]["items"]}

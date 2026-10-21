@@ -2355,6 +2355,7 @@
   "outside": 1,
   "state": "ok",
   "truncated": false,
+  "journal_start": null,
   "assessment": "warning"
  },
  "containers": {

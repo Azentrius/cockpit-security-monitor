@@ -21,8 +21,8 @@
    "id": "ssh",
    "state": "warning",
    "title": "SSH",
-   "value": "2",
-   "detail": "root may log in with a key; 1 RSA key under 3072 bits; 1 key file others can change; 3 keys without from=",
+   "value": "3",
+   "detail": "root may log in with a key; 1 locked account can still log in with keys; 1 RSA key under 3072 bits; 1 key file others can change; 3 keys without from=",
    "link": "#/ssh",
    "checked_at": "2026-10-20T12:00:00Z",
    "stale_after": 3600
@@ -32,7 +32,7 @@
    "state": "ok",
    "title": "Logins",
    "value": "1",
-   "detail": "1 failed attempt from 1 source in 14 days",
+   "detail": "1 failed attempt from 1 source since 11 Oct (the journal begins there)",
    "link": "#/logins",
    "checked_at": "2026-10-20T12:00:00Z",
    "stale_after": 3600
@@ -66,11 +66,11 @@
     },
     "ssh": {
      "title": "SSH",
-     "detail": "root darf sich mit Schlüssel anmelden; 1 RSA-Schlüssel unter 3072 Bit; 1 Schlüsseldatei, die andere ändern können; 3 Schlüssel ohne from="
+     "detail": "root darf sich mit Schlüssel anmelden; 1 gesperrtes Konto kann sich per Schlüssel anmelden; 1 RSA-Schlüssel unter 3072 Bit; 1 Schlüsseldatei, die andere ändern können; 3 Schlüssel ohne from="
     },
     "logins": {
      "title": "Anmeldungen",
-     "detail": "1 Fehlversuch von 1 Quelle in 14 Tagen"
+     "detail": "1 Fehlversuch von 1 Quelle seit 11.10. (dort beginnt das Journal)"
     },
     "containers": {
      "title": "Container-Härtung",

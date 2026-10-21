@@ -731,6 +731,9 @@ def collect_keys(system, src, root, sshd):
         src.note("keys", "error", t0, error="/etc/passwd not readable")
         return None
     spec = ((sshd or {}).get("config") or {}).get("authorizedkeysfile")
+    # Only root can read /etc/shadow; without it nothing is said about locked accounts.
+    accounts = seclib.parse_shadow(system.read("/etc/shadow", 4 << 20)) if root else {}
+    today = int(system.now().timestamp() // 86400)
     out = []
     unreadable = 0
     for name, uid, home in seclib.login_accounts(passwd):
@@ -747,8 +750,13 @@ def collect_keys(system, src, root, sshd):
             parent = system.stat(os.path.dirname(path))
             problems = seclib.file_problems(st, uid, parent)
             keys = seclib.parse_authorized_keys(text)
-            out.append({"user": seclib.clean(name, 40), "file": path, "mode": oct(st.st_mode & 0o777)[2:],
-                        "problems": problems, "keys": keys[:100]})
+            entry = {"user": seclib.clean(name, 40), "file": path, "mode": oct(st.st_mode & 0o777)[2:],
+                     "problems": problems, "keys": keys[:100]}
+            acct = accounts.get(name)
+            if acct:
+                entry["account"] = {"password": acct["password"],
+                                    "expired": acct["expire"] is not None and acct["expire"] <= today}
+            out.append(entry)
     if not root and unreadable:
         src.note("keys", "partial", t0, missing="other-users")
     else:
@@ -761,12 +769,22 @@ def assess_ssh(sshd, keys):
     if sshd and sshd.get("state") == "ok":
         findings = seclib.assess_sshd(sshd["config"])
     key_states = []
+    cfg = (sshd or {}).get("config") if (sshd or {}).get("state") == "ok" else None
+    usepam = ((cfg or {}).get("usepam") or [""])[0].lower()
     for f in keys or []:
         f["state"] = "warning" if f["problems"] else "ok"
         for k in f["keys"]:
             k["state"] = max((x["state"] for x in k["findings"]), key=ORDER.get, default="ok")
             key_states.append(k["state"])
         f["state"] = max([f["state"]] + [k["state"] for k in f["keys"]], key=ORDER.get)
+        # passwd -l closes the password only: with UsePAM, sshd does not check the lock, and the
+        # keys still log in. Without PAM sshd refuses a locked account itself. root with a locked
+        # password and keys is how Ubuntu sets up root, and "root may log in" says that already.
+        acct = f.get("account")
+        if acct and acct["password"] == "locked" and not acct["expired"] and f["keys"] \
+                and f["user"] != "root" and usepam != "no":
+            acct["finding"] = "locked-with-keys"
+            f["state"] = max([f["state"], "warning"], key=ORDER.get)
     state_cfg = max((x["state"] for x in findings), key=ORDER.get, default="none")
     state_keys = max([f["state"] for f in keys or []], key=ORDER.get, default="ok" if keys is not None else "none")
     out = {"sshd": {k: v for k, v in (sshd or {"state": "missing"}).items() if k != "config"},
@@ -814,6 +832,11 @@ def collect_logins(system, src, root, ifaces):
         f["last"] = iso_ts(f["last"])
     for s in data["sudo"]:
         s["last"] = iso_ts(s["last"])
+    # Where the journal begins within the 14 days: rotation can leave fewer (journalctl
+    # --lines=+N, the oldest entries, needs systemd 254 or newer; else unknown).
+    first = system.run(["journalctl", "-o", "json", "--no-pager", "-q", "--since=-14d", "--lines=+1",
+                        "--output-fields=__REALTIME_TIMESTAMP"], 30)
+    data["journal_start"] = iso_ts(seclib.journal_first(first.out)) if first.ok else None
     data["assessment"] = "warning" if outside else "ok"
     return data
 

@@ -1983,6 +1983,7 @@
   "outside": 0,
   "state": "ok",
   "truncated": false,
+  "journal_start": null,
   "assessment": "ok"
  },
  "containers": {

@@ -138,6 +138,43 @@ test("nft-native: sshd -T without /run/sshd, a DSA key, containers, a restricted
     assert.ok(!runner.querySelector("[data-kind='root-user'] button"), "notes are not offered for marking");
 });
 
+test("ufw-docker: a locked account whose keys still log in, a journal shorter than 14 days", async () => {
+    const { d } = boot({ location: ["ssh"] });
+    await settle();
+    const blocks = [...d.getElementById("sm-keys").querySelectorAll(".sm-keyfile")];
+    const alex = blocks.find((b) => /^alex:/.test(text(b)));
+    assert.strictEqual(alex.dataset.state, "warning");
+    assert.match(text(alex.querySelector(".sm-account")),
+                 /^Password locked The password of alex is locked \(passwd -l\), but these keys still log in: with UsePAM yes, sshd does not check the lock\. usermod --expiredate 1 alex closes the account for keys too\.$/);
+    assert.ok(!blocks.find((b) => /^root:/.test(text(b))).querySelector(".sm-account"), "root never had a password: no lock");
+    assert.match(text(d.getElementById("sm-journal-start")),
+                 /^The journal begins on 11 October: older entries are gone, so the lists on this tab cover less than 14 days\.$/);
+    const { d: de } = boot({ language: "de", location: ["logins"] });
+    await settle();
+    assert.match(text(de.getElementById("sm-journal-start")), /^Das Journal beginnt am 11\. Oktober: Ältere Einträge sind gelöscht/);
+    assert.match(text(de.querySelector(".sm-account")), /Das Passwort von alex ist gesperrt \(passwd -l\)/);
+    const { d: h } = boot({ scenario: "hetzner-open" });
+    await settle();
+    assert.strictEqual(h.getElementById("sm-journal-start"), null, "start unknown: no note");
+});
+
+test("ports only some addresses reach are counted apart in the overview", async () => {
+    const { d } = boot({ scenario: "nft-native" });
+    await settle();
+    const ov = text(d.getElementById("sm-ov"));
+    assert.match(ov, /4 ports are reachable from the internet\./);
+    assert.match(ov, /1 port is reachable only from some addresses on the internet\./);
+    const st = state("nft-native");
+    st.ports.forEach((p) => ["4", "6"].forEach((f) => {
+        if (p.reach[f].internet.result === "open") p.reach[f].internet.result = "closed";
+    }));
+    const { d: only } = boot({ view: show(st) });
+    await settle();
+    const ov2 = text(only.getElementById("sm-ov"));
+    assert.ok(!/reachable from the internet\.|No port is reachable/.test(ov2), ov2);
+    assert.match(ov2, /1 port is reachable only from some addresses on the internet\./);
+});
+
 test("recorded-services: a port only an ipset reaches names the rule that keeps everyone else out", async () => {
     const { d } = boot({ scenario: "recorded-services" });
     await settle();

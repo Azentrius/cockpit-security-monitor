@@ -11,8 +11,8 @@
    "id": "exposure",
    "state": "info",
    "title": "Reachable from the internet",
-   "value": "4",
-   "detail": "80/tcp http, 443/tcp https, 443/udp http3, 8443/tcp onlyoffice",
+   "value": "3",
+   "detail": "80/tcp http, 443/tcp https, 443/udp http3; only from some addresses: 8443/tcp onlyoffice",
    "link": "#/exposure",
    "checked_at": "2026-10-20T12:00:00Z",
    "stale_after": 3600
@@ -72,7 +72,7 @@
    "items": {
     "exposure": {
      "title": "Aus dem Internet erreichbar",
-     "detail": "80/tcp http, 443/tcp https, 443/udp http3, 8443/tcp onlyoffice"
+     "detail": "80/tcp http, 443/tcp https, 443/udp http3; nur von manchen Adressen: 8443/tcp onlyoffice"
     },
     "ssh": {
      "title": "SSH",

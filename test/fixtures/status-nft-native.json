@@ -11,8 +11,8 @@
    "id": "exposure",
    "state": "warning",
    "title": "Reachable from the internet",
-   "value": "5",
-   "detail": "3000/tcp forgejo, 80/tcp http, 443/tcp https, 51820/udp wireguard, 60001/tcp syncthing",
+   "value": "4",
+   "detail": "3000/tcp forgejo, 80/tcp http, 443/tcp https, 51820/udp wireguard; only from some addresses: 60001/tcp syncthing",
    "link": "#/exposure",
    "checked_at": "2026-10-20T12:00:00Z",
    "stale_after": 3600
@@ -62,7 +62,7 @@
    "items": {
     "exposure": {
      "title": "Aus dem Internet erreichbar",
-     "detail": "3000/tcp forgejo, 80/tcp http, 443/tcp https, 51820/udp wireguard, 60001/tcp syncthing"
+     "detail": "3000/tcp forgejo, 80/tcp http, 443/tcp https, 51820/udp wireguard; nur von manchen Adressen: 60001/tcp syncthing"
     },
     "ssh": {
      "title": "SSH",

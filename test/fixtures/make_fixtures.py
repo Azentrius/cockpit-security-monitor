@@ -187,6 +187,9 @@ def ufw_docker():
                                             "by alex(uid=0)"),
     ]
     write(s, "commands/journal.jsonl", "\n".join(j) + "\n")
+    # The journal begins 9 days and 4 hours back (rotation): the logins cover less than 14 days.
+    write(s, "commands/journal-start.jsonl",
+          json.dumps({"__REALTIME_TIMESTAMP": str((T0 - 9 * 86400 - 4 * 3600) * 10**6)}) + "\n")
     # Only the tables of iptables-nft: read from iptables-save, left out here.
     write(s, "commands/nft.json", {"nftables": [
         {"metainfo": {"version": "1.0.9", "release_name": "Old Doc Yak #3", "json_schema_version": 1}},

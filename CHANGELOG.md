@@ -21,7 +21,10 @@ weakens the boundary of its containers. Read only.
 - **SSH and logins:** the effective configuration (`sshd -T`), the authorized_keys of every account
   with a login shell (type, size, fingerprint, options, who can change the file), the logins of the
   last 14 days from the journal (sshd, sshd-session, sudo, cockpit-session); a login from outside
-  the VPN and private networks is a warning.
+  the VPN and private networks is a warning. An account locked with `passwd -l` whose keys still
+  log in is a warning: with `UsePAM yes` sshd does not check the lock, and the page names
+  `usermod --expiredate 1` as the way to close it. When the journal begins later than 14 days
+  back, the page and the status say since when instead of "14 days".
 - **Containers:** the Docker socket, privileged, host PIDs, extra capabilities, writable host
   folders, the host network, root, no-new-privileges, AppArmor.
 - **CrowdSec:** shown when installed: the service, its version, bouncers, active decisions, alerts
@@ -30,7 +33,9 @@ weakens the boundary of its containers. Read only.
 - **Mark as expected:** a port or a container finding, with a note, in
   `/etc/cockpit-security-monitor/exposure.conf`; the only change the page makes besides its timer.
 - **Status for the Status Board:** `security.py status --lang en|de` (status contract, schema 1)
-  with the items `exposure`, `ssh`, `logins`, `containers`, `crowdsec` and `scan`.
+  with the items `exposure`, `ssh`, `logins`, `containers`, `crowdsec` and `scan`. The figure of
+  `exposure` counts the ports the whole internet reaches; ports only some addresses reach are
+  named apart, here and in the page's overview.
 - **The page:** Azentrius page frame, tabs with links (`#/exposure`, `#/ssh`, …), English and
   German, light and dark, phones; without administrative access the summary only.
 - **In Cockpit's menu:** the entry carries the add-on's state as Cockpit's own status icon, judged
