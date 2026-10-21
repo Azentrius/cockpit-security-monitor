@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.3.0 – 2026-10-22
+
+fail2ban, shown: what it watches, whom it bans, and where a ban does not take effect.
+
+- **A tab fail2ban** when fail2ban is installed: the service, every jail with what it reads (files
+  or journal), where its ban takes effect (the chain or hook the packet filter has, else the
+  action's options), ports and protocols, its counters since the start and its rules; the bans now
+  and the history of 14 days from fail2ban's database, opened read-only. The page changes nothing in
+  fail2ban.
+- **Where a ban fails:** a ban only at INPUT or the hook input (Ubuntu's default `nftables` action)
+  in front of a port Docker publishes to the internet does not reach the container (warning; a
+  note for an all-ports ban); TCP only while the port is open for UDP too (HTTP/3); a log missing
+  or unchanged for 3 days; not one hit since fail2ban started although the log is not empty.
+- **Bans fail2ban does not manage:** addresses in fail2ban's chains or sets that fail2ban does not
+  hold as banned (they never expire), and `f2b-` chains in a saved ruleset such as
+  `/etc/iptables/rules.v4`.
+- **Status item `fail2ban`** for the Status Board, only when installed: the bans now, the warnings
+  with their jail, no addresses.
+- Tests: a scenario with four jails and each finding, the parsers of `fail2ban-client status` and
+  `-d`, and in the end-to-end job fail2ban as Ubuntu ships it with a jail in front of Docker's port.
+
 ## 0.2.0 – 2026-10-21
 
 Findings from the first real scan of a server, said more precisely.

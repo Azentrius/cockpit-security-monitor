@@ -1,0 +1,5 @@
+*filter
+:INPUT DROP [0:0]
+:f2b-sshd - [0:0]
+-A f2b-sshd -s 198.51.100.7/32 -j REJECT --reject-with icmp-port-unreachable
+COMMIT

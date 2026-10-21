@@ -1,0 +1,61 @@
+{
+ "Id": "2123456789ab2222222222222222222222222222222222222222222222222222",
+ "Created": "2026-10-18T08:00:00Z",
+ "Name": "/cache",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Hostname": "2123456789ab",
+  "User": "redis",
+  "Image": "redis:7.4",
+  "ExposedPorts": {
+   "6379/tcp": {}
+  },
+  "Labels": {
+   "com.docker.compose.project": "app",
+   "com.docker.compose.service": "cache"
+  }
+ },
+ "HostConfig": {
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "CapDrop": null,
+  "NetworkMode": "app",
+  "SecurityOpt": [
+   "no-new-privileges:true"
+  ],
+  "PortBindings": {
+   "6379/tcp": [
+    {
+     "HostIp": "10.8.0.1",
+     "HostPort": "6379"
+    }
+   ]
+  }
+ },
+ "Mounts": [],
+ "NetworkSettings": {
+  "Ports": {
+   "6379/tcp": [
+    {
+     "HostIp": "10.8.0.1",
+     "HostPort": "6379"
+    }
+   ]
+  },
+  "Networks": {
+   "app": {
+    "NetworkID": "1a2b3c4d5e6f7777777777777777777777777777777777777777777777777777",
+    "IPAddress": "172.18.0.3",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": "",
+    "Gateway": "172.18.0.1"
+   }
+  }
+ },
+ "State": {
+  "Status": "running",
+  "Running": true,
+  "Pid": 4000
+ }
+}

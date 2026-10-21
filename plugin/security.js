@@ -26,13 +26,13 @@
     // --- Configuration -----------------------------------------------------
     // The one place for the version (SemVer). index.html loads every script and
     // stylesheet with ?v=VERSION; tools/check-version.sh keeps them in step.
-    const VERSION = "0.2.0";
+    const VERSION = "0.3.0";
     const HELPER = "/usr/lib/cockpit-security-monitor/security.py";
     const STATUS_PATH = "/var/lib/cockpit-security-monitor/status.json";
     const MARKS_FILE = "/etc/cockpit-security-monitor/exposure.conf";
     const FORMAT = 1;          // newest state.json format this page knows
     const STALE_MIN = 60;      // a state older than this gets a hint (the board calls it out of date)
-    const TABS = ["exposure", "ssh", "logins", "containers", "crowdsec"];
+    const TABS = ["exposure", "ssh", "logins", "containers", "crowdsec", "fail2ban"];
     const CLASSES = ["internet", "vpn", "private", "local"];
     const ORDER = { none: 0, ok: 1, info: 2, warning: 3, danger: 4 };
     const ICONS = { none: "ban", ok: "check-circle", info: "info-circle", warning: "exclamation-triangle",
@@ -242,7 +242,8 @@
     // --- Tabs --------------------------------------------------------------
     function visibleTabs() {
         const st = state();
-        return TABS.filter((k) => k !== "crowdsec" || (st && st.crowdsec && st.crowdsec.installed));
+        // CrowdSec and fail2ban only when installed.
+        return TABS.filter((k) => (k !== "crowdsec" && k !== "fail2ban") || !!(st && st[k] && st[k].installed));
     }
     function renderTabs() {
         const nav = $("sm-tabs");
@@ -716,6 +717,65 @@
         fill(box, top, bouncers, decisions, scenarios, uncheckedCard("sm-unchecked-crowdsec", [rich(t("unchecked.crowdsec.more"))], ["crowdsec"]));
     }
 
+    // --- fail2ban ----------------------------------------------------------------
+    // Shown only: the page installs nothing, sets up no jail and lifts no ban.
+    function f2bText(jail, f) {
+        return tr("f2b." + f.code, { jail: jail || "", value: f.value == null ? "" : f.value, days: f.days == null ? "" : f.days,
+                                     date: f.code === "no-match" ? fmtDate(f.value) : "", chains: (f.chains || []).join(", ") });
+    }
+    function f2bLog(l) {
+        const note = l.exists === false ? t("f2b.log.missing") : l.mtime ? t("f2b.log.changed", { ago: ago(l.mtime) }) : "";
+        return h("div", null, h("span", { class: "az-mono", text: l.path }), note ? h("span", { class: "sm-sub", text: note }) : null);
+    }
+    function f2bAction(a) {
+        const where = (a.where || []).join(", ") || "?";
+        const ports = a.allports ? t("f2b.allports") : (a.port || "?");
+        return h("div", null, h("span", { class: "az-mono", text: a.name + " " }), t("f2b.in", { where }),
+            h("span", { class: "sm-sub", text: t("f2b.ports", { ports, protocols: (a.protocols || []).join(", ") }) +
+                (a.observed ? " · " + t("f2b.observed") : "") }));
+    }
+    function renderFail2ban() {
+        const box = $("sm-tab-fail2ban");
+        const st = state();
+        const fb = st && st.fail2ban;
+        if (!fb || !fb.installed) { fill(box); return; }
+        const num = (v) => (v == null ? "–" : String(v));
+        const top = card("sm-fail2ban", t("f2b.title"), label(fb.state), [h("p", { class: "sm-intro", text: t("f2b.intro") }), kv([
+            [t("f2b.service"), fb.running ? t("f2b.running", { since: fb.since ? fmtDate(fb.since) : "?" }) : t("f2b.stopped", { state: fb.active || "?" })],
+            [t("f2b.version"), fb.version || "?"],
+            [t("f2b.bansNow"), String(fb.bans_total || 0)],
+            fb.history_total == null ? null : [t("f2b.history", { days: fb.history_days }), String(fb.history_total)],
+            [t("f2b.purge"), h("span", { class: "az-mono", text: fb.dbpurgeage || "?" })],
+        ]), (fb.findings || []).map((f) => alertBox(f.state === "danger" ? "danger" : f.state === "info" ? "info" : "warning",
+            t("label." + f.state), f2bText(null, f))),
+            Object.keys(fb.errors || {}).length ? h("p", { class: "sm-note", text: t("f2b.errors", { list: Object.keys(fb.errors).join(", ") }) }) : null]);
+        const jails = (fb.jails || []).slice().sort((a, b) => (ORDER[b.state] - ORDER[a.state]) || (a.name < b.name ? -1 : 1));
+        const jailCard = card("sm-f2b-jails", t("f2b.jailsTitle"), null, [h("p", { class: "sm-intro", text: t("f2b.jailsIntro") }), jails.length
+            ? table([{ label: t("col.jail") }, { label: t("col.reads") }, { label: t("col.bansIn") }, { label: t("col.counts") },
+                     { label: t("col.findings"), cls: "sm-findings" }],
+                jails.map((j) => ({ attrs: { id: "sm-f2b-jail-" + j.name.replace(/[^A-Za-z0-9_-]/g, "_") }, cells: [
+                    [h("strong", { text: j.name }), j.running ? null : h("span", { class: "sm-sub", text: t("f2b.jail.notRunning") })],
+                    String(j.backend || "").indexOf("systemd") === 0
+                        ? h("div", null, t("f2b.journal"), h("span", { class: "sm-sub az-mono", text: j.journal || "" }))
+                        : (j.logs || []).map(f2bLog),
+                    (j.actions || []).length ? j.actions.map(f2bAction) : "?",
+                    [t("f2b.counts", { failed: num(j.failed_total), now: num(j.banned_now), total: num(j.banned_total) }),
+                     h("span", { class: "sm-sub", text: t("f2b.rules", { maxretry: num(j.maxretry), findtime: num(j.findtime), bantime: num(j.bantime) }) })],
+                    (j.findings || []).length
+                        ? h("ul", { class: "sm-plain-list sm-findings-list" }, j.findings.map((f) => h("li", { "data-code": f.code, "data-state": f.state },
+                            label(f.state, null), " ", f2bText(j.name, f))))
+                        : label("ok", t("ck.none"))] })))
+            : h("p", { text: t("f2b.jails.none") })]);
+        const bans = fb.bans || [];
+        const banCard = card("sm-f2b-bans", t("f2b.bansTitle"), null, bans.length
+            ? table([{ label: t("col.source") }, { label: t("col.jail") }, { label: t("col.since") }, { label: t("col.until") }],
+                bans.map((b) => [[h("span", { class: "az-mono", text: b.ip + " " }), classLabel(b.class)], b.jail,
+                                 b.since ? fmtDate(b.since) : "–", b.until ? fmtDate(b.until) : (b.since ? t("f2b.permanent") : "–")]))
+            : h("p", { text: t("f2b.bans.none") }));
+        fill(box, top, jailCard, banCard, uncheckedCard("sm-unchecked-fail2ban", [rich(t("unchecked.f2b.regex")),
+            rich(t("unchecked.f2b.actions"))], ["fail2ban"]));
+    }
+
     function render() {
         renderMeta();
         renderStatus();
@@ -726,6 +786,7 @@
         renderLogins();
         renderContainers();
         renderCrowdsec();
+        renderFail2ban();
         $("sm-loading").hidden = !((scanning && !state()) || (!loadedOnce));
     }
 

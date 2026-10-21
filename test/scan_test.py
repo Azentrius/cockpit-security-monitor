@@ -51,7 +51,8 @@ class UfwDocker(unittest.TestCase):
     def test_sources(self):
         self.assertEqual({k: v["state"] for k, v in self.doc["sources"].items()},
                          {"ip": "ok", "ss": "ok", "docker": "ok", "rules": "ok", "ufw": "ok", "hetzner": "skipped",
-                          "sshd": "ok", "keys": "ok", "journal": "ok", "crowdsec": "missing"})
+                          "sshd": "ok", "keys": "ok", "journal": "ok", "crowdsec": "missing",
+                          "fail2ban": "missing"})
         self.assertEqual(self.doc["firewall"]["input_filter"], {4: "on", 6: "on"})
         self.assertEqual(self.doc["firewall"]["iptables"], {"version": "1.8.10", "variant": "nf_tables"})
         self.assertEqual(self.doc["network"]["public"], {"4": True, "6": True})
@@ -302,7 +303,8 @@ class Recorded(unittest.TestCase):
         for s, doc in self.docs.items():
             self.assertEqual({k: v["state"] for k, v in doc["sources"].items()},
                              {"ip": "ok", "ss": "ok", "docker": "ok", "rules": "ok", "ufw": "ok", "hetzner": "skipped",
-                              "sshd": "ok", "keys": "ok", "journal": "ok", "crowdsec": "missing"}, s)
+                              "sshd": "ok", "keys": "ok", "journal": "ok", "crowdsec": "missing",
+                          "fail2ban": "missing"}, s)
             self.assertEqual(doc["firewall"]["iptables"]["variant"], "nf_tables", s)
             self.assertFalse(doc["firewall"]["legacy_rules"], s)
             self.assertEqual([p["port"] for p in doc["ports"] if p["why"] == "unknown"], [], s)
@@ -461,6 +463,111 @@ class Variants(unittest.TestCase):
         inet = p["reach"]["4"]["internet"]
         self.assertEqual((inet["result"], inet["sources"]), ("restricted", ["ipset office"]))
         self.assertEqual(p["reach"]["6"]["internet"]["result"], "closed", "ip6tables names no set")
+
+
+class Fail2ban(unittest.TestCase):
+    """fail2ban (spec 5.3): jails, bans, where a ban takes effect, and what makes one fail."""
+
+    def setUp(self):
+        self.doc = scan("fail2ban")
+        self.f = self.doc["fail2ban"]
+        self.j = {j["name"]: j for j in self.f["jails"]}
+
+    def codes(self, name, doc=None):
+        jails = {j["name"]: j for j in (doc or self.doc)["fail2ban"]["jails"]}
+        return [(f["code"], f["state"], f.get("value")) for f in jails[name]["findings"]]
+
+    def test_service(self):
+        self.assertEqual((self.f["version"], self.f["active"], self.f["running"], self.f["since"], self.f["dbpurgeage"]),
+                         ("1.0.2", "active", True, "2026-10-18T08:00:00Z", "1d"))
+        self.assertEqual(sorted(self.j), ["nginx-botsearch", "recidive", "sshd", "web"])
+        self.assertEqual((self.doc["sources"]["fail2ban"]["state"], self.f["state"]), ("ok", "warning"))
+        self.assertEqual((self.f["history_total"], self.j["sshd"]["history"], self.j["nginx-botsearch"]["history"]),
+                         (11, 7, None))
+        self.assertEqual((self.j["sshd"]["failed_total"], self.j["sshd"]["banned_now"], self.j["sshd"]["journal"]),
+                         (41, 1, "_SYSTEMD_UNIT=ssh.service + _COMM=sshd"))
+
+    def test_where_each_jail_bans(self):
+        a = {n: self.j[n]["actions"][0] for n in self.j}
+        self.assertEqual([a["sshd"][k] for k in ("kind", "where", "observed", "forward")], ["iptables", ["INPUT"], True, False])
+        self.assertEqual([a["web"][k] for k in ("kind", "where", "observed", "forward")],
+                         ["nftables", ["hook input"], True, False])
+        self.assertEqual((a["recidive"]["allports"], a["recidive"]["where"]), (True, ["INPUT"]))
+        self.assertEqual((a["nginx-botsearch"]["observed"], a["nginx-botsearch"]["where"]), (False, ["INPUT"]),
+                         "no chain before the first ban: iptables' default")
+
+    def test_findings_per_jail(self):
+        self.assertEqual(self.codes("sshd"), [])
+        self.assertEqual(self.codes("web"), [("input-only", "warning", "8080/tcp"), ("udp-open", "warning", "443/udp")])
+        self.assertEqual(self.codes("recidive"), [("allports-input", "info", "8080/tcp"),
+                                                  ("log-idle", "warning", "/var/log/fail2ban.log")])
+        self.assertEqual(self.j["recidive"]["findings"][1]["days"], 5)
+        self.assertEqual(self.codes("nginx-botsearch"), [("udp-open", "warning", "443/udp"),
+                                                         ("no-match", "warning", "2026-10-18T08:00:00Z")])
+
+    def test_unmanaged_and_persisted(self):
+        g = {f["code"]: f for f in self.f["findings"]}
+        self.assertEqual((g["unmanaged-bans"]["value"], g["unmanaged-bans"]["chains"]), (1, ["f2b-sshd"]))
+        self.assertEqual((g["persisted-chains"]["state"], g["persisted-chains"]["value"]), ("info", "/etc/iptables/rules.v4"))
+
+    def test_bans_now(self):
+        self.assertEqual([(b["ip"], b["jail"], b["class"]) for b in self.f["bans"]],
+                         [("203.0.113.50", "sshd", "internet"), ("198.51.100.20", "recidive", "internet"),
+                          ("192.0.2.80", "web", "internet")], "the expired ban is left out")
+        self.assertEqual((self.f["bans"][1]["since"], self.f["bans"][1]["until"]), ("2026-10-19T12:00:00Z", "2026-10-26T12:00:00Z"))
+
+    def test_ports_unchanged(self):
+        base = scan("ufw-docker")
+        self.assertEqual({k: (p["state"], p["why"]) for k, p in ports(self.doc).items()},
+                         {k: (p["state"], p["why"]) for k, p in ports(base).items()})
+
+    def test_log_missing(self):
+        doc = scan("fail2ban", files={"/var/log/web/access.log": None})
+        self.assertIn(("log-missing", "warning", "/var/log/web/access.log"), self.codes("web", doc))
+
+    def test_not_running(self):
+        doc = scan("fail2ban", results={
+            "f2b-ping": secproc.Result(255, "", "ERROR   Failed to access socket path"),
+            "systemctl-show-fail2ban": "ActiveState=failed\nUnitFileState=enabled\nActiveEnterTimestamp=\n"})
+        f = doc["fail2ban"]
+        self.assertEqual([(x["code"], x["value"]) for x in f["findings"] if x["state"] == "warning"],
+                         [("not-running", "failed")])
+        self.assertEqual(len(f["bans"]), 3, "the database still says who is banned")
+        self.assertNotIn("no-match", [c for c, _, _ in self.codes("nginx-botsearch", doc)])
+
+    def test_database_unreadable(self):
+        doc = scan("fail2ban", meta={"db_error": "unable to open database file"})
+        f = doc["fail2ban"]
+        self.assertEqual(doc["sources"]["fail2ban"]["state"], "partial")
+        self.assertEqual(sorted(b["ip"] for b in f["bans"]), ["192.0.2.80", "198.51.100.20", "203.0.113.50"],
+                         "from fail2ban-client status")
+        self.assertIsNone(f["history_total"])
+
+    def test_where_the_packet_filter_says(self):
+        dump = fixture("fail2ban", "commands", "f2b-dump.txt").replace(
+            "['name', 'sshd'], ['port', 'ssh'], ['protocol', 'tcp'], ['chain', '<known/chain>']",
+            "['name', 'sshd'], ['port', '8080'], ['protocol', 'tcp'], ['chain', 'DOCKER-USER']")
+        doc = scan("fail2ban", results={"f2b-dump": dump})
+        sshd = {j["name"]: j for j in doc["fail2ban"]["jails"]}["sshd"]
+        self.assertEqual((sshd["actions"][0]["where"], self.codes("sshd", doc)), (["INPUT"], [
+            ("input-only", "warning", "8080/tcp")]), "the chain the packet filter jumps from, not the configuration")
+        ipt = fixture("fail2ban", "commands", "iptables-save.txt").replace(
+            "-A INPUT -p tcp -m multiport --dports 22 -j f2b-sshd\n", "-A DOCKER-USER -p tcp -m multiport --dports 80 -j f2b-sshd\n")
+        doc = scan("fail2ban", results={"f2b-dump": dump, "iptables-save": ipt})
+        sshd = {j["name"]: j for j in doc["fail2ban"]["jails"]}["sshd"]
+        self.assertEqual((sshd["actions"][0]["where"], sshd["actions"][0]["forward"], self.codes("sshd", doc)),
+                         (["DOCKER-USER"], True, []))
+        nft = json.loads(fixture("fail2ban", "commands", "nft.json"))
+        for e in nft["nftables"]:
+            if "chain" in e and e["chain"]["name"] == "f2b-chain":
+                e["chain"]["hook"] = "forward"
+        doc = scan("fail2ban", results={"nft": json.dumps(nft)})
+        web = {j["name"]: j for j in doc["fail2ban"]["jails"]}["web"]
+        self.assertEqual((web["actions"][0]["where"], self.codes("web", doc)), (["hook forward"], [
+            ("udp-open", "warning", "443/udp")]))
+
+    def test_not_installed(self):
+        self.assertEqual(scan("ufw-docker")["fail2ban"], {"installed": False})
 
 
 class Marks(unittest.TestCase):

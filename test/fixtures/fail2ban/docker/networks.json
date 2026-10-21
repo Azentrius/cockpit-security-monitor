@@ -1,0 +1,70 @@
+[
+ {
+  "Name": "bridge",
+  "Id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "Created": "2026-09-01T10:00:00Z",
+  "Scope": "local",
+  "Driver": "bridge",
+  "EnableIPv4": true,
+  "EnableIPv6": false,
+  "IPAM": {
+   "Driver": "default",
+   "Options": null,
+   "Config": [
+    {
+     "Subnet": "172.17.0.0/16",
+     "Gateway": "172.17.0.1"
+    }
+   ]
+  },
+  "Internal": false,
+  "Attachable": false,
+  "Ingress": false,
+  "Options": {
+   "com.docker.network.bridge.name": "docker0"
+  },
+  "Labels": {}
+ },
+ {
+  "Name": "app",
+  "Id": "1a2b3c4d5e6f7777777777777777777777777777777777777777777777777777",
+  "Created": "2026-09-01T10:00:00Z",
+  "Scope": "local",
+  "Driver": "bridge",
+  "EnableIPv4": true,
+  "EnableIPv6": false,
+  "IPAM": {
+   "Driver": "default",
+   "Options": null,
+   "Config": [
+    {
+     "Subnet": "172.18.0.0/16",
+     "Gateway": "172.18.0.1"
+    }
+   ]
+  },
+  "Internal": false,
+  "Attachable": false,
+  "Ingress": false,
+  "Options": {},
+  "Labels": {}
+ },
+ {
+  "Name": "host",
+  "Id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "Driver": "host",
+  "IPAM": {
+   "Config": []
+  },
+  "Options": {}
+ },
+ {
+  "Name": "none",
+  "Id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "Driver": "null",
+  "IPAM": {
+   "Config": []
+  },
+  "Options": {}
+ }
+]

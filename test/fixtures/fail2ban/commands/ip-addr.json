@@ -1,0 +1,218 @@
+[
+ {
+  "ifindex": 1,
+  "ifname": "lo",
+  "flags": [
+   "LOOPBACK",
+   "UP",
+   "LOWER_UP"
+  ],
+  "mtu": 1500,
+  "qdisc": "fq_codel",
+  "operstate": "UP",
+  "group": "default",
+  "txqlen": 1000,
+  "link_type": "loopback",
+  "address": "52:54:00:00:00:01",
+  "broadcast": "ff:ff:ff:ff:ff:ff",
+  "addr_info": [
+   {
+    "family": "inet",
+    "local": "127.0.0.1",
+    "prefixlen": 8,
+    "scope": "host",
+    "label": "lo",
+    "valid_life_time": 4294967295,
+    "preferred_life_time": 4294967295
+   },
+   {
+    "family": "inet6",
+    "local": "::1",
+    "prefixlen": 128,
+    "scope": "host",
+    "valid_life_time": 4294967295,
+    "preferred_life_time": 4294967295
+   }
+  ]
+ },
+ {
+  "ifindex": 2,
+  "ifname": "eth0",
+  "flags": [
+   "BROADCAST",
+   "MULTICAST",
+   "UP",
+   "LOWER_UP"
+  ],
+  "mtu": 1500,
+  "qdisc": "fq_codel",
+  "operstate": "UP",
+  "group": "default",
+  "txqlen": 1000,
+  "link_type": "ether",
+  "address": "52:54:00:00:00:02",
+  "broadcast": "ff:ff:ff:ff:ff:ff",
+  "addr_info": [
+   {
+    "family": "inet",
+    "local": "203.0.113.10",
+    "prefixlen": 32,
+    "scope": "global",
+    "label": "eth0",
+    "valid_life_time": 4294967295,
+    "preferred_life_time": 4294967295
+   },
+   {
+    "family": "inet6",
+    "local": "2001:db8:10::1",
+    "prefixlen": 64,
+    "scope": "global",
+    "valid_life_time": 4294967295,
+    "preferred_life_time": 4294967295
+   },
+   {
+    "family": "inet6",
+    "local": "fe80::5054:ff:fe00:2",
+    "prefixlen": 64,
+    "scope": "link",
+    "valid_life_time": 4294967295,
+    "preferred_life_time": 4294967295
+   }
+  ]
+ },
+ {
+  "ifindex": 3,
+  "ifname": "enp7s0",
+  "flags": [
+   "BROADCAST",
+   "MULTICAST",
+   "UP",
+   "LOWER_UP"
+  ],
+  "mtu": 1500,
+  "qdisc": "fq_codel",
+  "operstate": "UP",
+  "group": "default",
+  "txqlen": 1000,
+  "link_type": "ether",
+  "address": "52:54:00:00:00:03",
+  "broadcast": "ff:ff:ff:ff:ff:ff",
+  "addr_info": [
+   {
+    "family": "inet",
+    "local": "10.0.0.2",
+    "prefixlen": 32,
+    "scope": "global",
+    "label": "enp7s0",
+    "valid_life_time": 4294967295,
+    "preferred_life_time": 4294967295
+   }
+  ]
+ },
+ {
+  "ifindex": 4,
+  "ifname": "wg0",
+  "flags": [
+   "POINTOPOINT",
+   "NOARP",
+   "UP",
+   "LOWER_UP"
+  ],
+  "mtu": 1500,
+  "qdisc": "fq_codel",
+  "operstate": "UP",
+  "group": "default",
+  "txqlen": 1000,
+  "link_type": "none",
+  "address": "52:54:00:00:00:04",
+  "broadcast": "ff:ff:ff:ff:ff:ff",
+  "addr_info": [
+   {
+    "family": "inet",
+    "local": "10.8.0.1",
+    "prefixlen": 24,
+    "scope": "global",
+    "label": "wg0",
+    "valid_life_time": 4294967295,
+    "preferred_life_time": 4294967295
+   }
+  ]
+ },
+ {
+  "ifindex": 5,
+  "ifname": "docker0",
+  "flags": [
+   "BROADCAST",
+   "MULTICAST",
+   "UP",
+   "LOWER_UP"
+  ],
+  "mtu": 1500,
+  "qdisc": "fq_codel",
+  "operstate": "UP",
+  "group": "default",
+  "txqlen": 1000,
+  "link_type": "ether",
+  "address": "52:54:00:00:00:05",
+  "broadcast": "ff:ff:ff:ff:ff:ff",
+  "addr_info": [
+   {
+    "family": "inet",
+    "local": "172.17.0.1",
+    "prefixlen": 16,
+    "scope": "global",
+    "label": "docker0",
+    "valid_life_time": 4294967295,
+    "preferred_life_time": 4294967295
+   }
+  ]
+ },
+ {
+  "ifindex": 6,
+  "ifname": "br-1a2b3c4d5e6f",
+  "flags": [
+   "BROADCAST",
+   "MULTICAST",
+   "UP",
+   "LOWER_UP"
+  ],
+  "mtu": 1500,
+  "qdisc": "fq_codel",
+  "operstate": "UP",
+  "group": "default",
+  "txqlen": 1000,
+  "link_type": "ether",
+  "address": "52:54:00:00:00:06",
+  "broadcast": "ff:ff:ff:ff:ff:ff",
+  "addr_info": [
+   {
+    "family": "inet",
+    "local": "172.18.0.1",
+    "prefixlen": 16,
+    "scope": "global",
+    "label": "br-1a2b3c4d5e6f",
+    "valid_life_time": 4294967295,
+    "preferred_life_time": 4294967295
+   }
+  ]
+ },
+ {
+  "ifindex": 7,
+  "ifname": "veth1f2e3d4",
+  "flags": [
+   "BROADCAST",
+   "MULTICAST",
+   "UP",
+   "LOWER_UP"
+  ],
+  "mtu": 1500,
+  "qdisc": "fq_codel",
+  "operstate": "UP",
+  "group": "default",
+  "txqlen": 1000,
+  "link_type": "ether",
+  "address": "52:54:00:00:00:07",
+  "broadcast": "ff:ff:ff:ff:ff:ff",
+  "addr_info": []
+ }
+]

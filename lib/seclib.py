@@ -784,6 +784,138 @@ def yaml_keys(text, keys):
 
 
 # ---------------------------------------------------------------------------
+# fail2ban (fail2ban-client 1.0 and 1.1: status, -d; formats in fail2ban/client/beautifier.py
+# and jailreader.py)
+
+F2B_JAIL_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.@-]{0,63}$")
+F2B_COUNTERS = {"Currently failed": "failed_now", "Total failed": "failed_total",
+                "Currently banned": "banned_now", "Total banned": "banned_total"}
+F2B_LISTS = {"File list": "files", "Journal matches": "journal", "Banned IP list": "banned"}
+# Options of an action that say where it bans (the rest are its commands).
+F2B_ACTION_OPTS = ("name", "port", "protocol", "chain", "chain_hook", "table", "table_family", "blocktype")
+F2B_GLOBAL_OPTS = ("dbfile", "dbpurgeage", "loglevel", "logtarget", "allowipv6")
+F2B_LINE_RE = re.compile(r"^[\s|`-]*([A-Za-z ]+?):\t?(.*)$")
+
+
+def parse_f2b_status(text):
+    """`fail2ban-client status`: the jails, or None when the answer has no list."""
+    for line in (text or "").splitlines():
+        m = F2B_LINE_RE.match(line)
+        if m and m.group(1).strip() == "Jail list":
+            return [j.strip() for j in m.group(2).split(",") if F2B_JAIL_RE.match(j.strip())]
+    return None
+
+
+def parse_f2b_jail_status(text):
+    """`fail2ban-client status JAIL`: the counters since the jail started, the
+    files or journal matches it reads, and the addresses it has banned."""
+    out = {}
+    for line in (text or "").splitlines():
+        m = F2B_LINE_RE.match(line)
+        if not m:
+            continue
+        k, v = m.group(1).strip(), m.group(2).strip()
+        if k in F2B_COUNTERS:
+            out[F2B_COUNTERS[k]] = int(v) if v.isdigit() else None
+        elif k == "Journal matches":
+            out["journal"] = clean(v, 300)
+        elif k in F2B_LISTS:
+            out[F2B_LISTS[k]] = [clean(x, 300) for x in v.split()][:500]
+    return out
+
+
+def parse_f2b_dump(text):
+    """`fail2ban-client -d`: the configuration fail2ban would run, one Python
+    literal per line (["add", jail, backend], ["set", jail, option, ...],
+    ["multi-set", jail, "action", name, [[key, value], ...]]). Read with
+    ast.literal_eval only. {"global": {...}, "jails": {name: {...}}}."""
+    import ast
+    glob, jails = {}, {}
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line.startswith("[") or len(line) > 1 << 16:
+            continue
+        try:
+            cmd = ast.literal_eval(line)
+        except (ValueError, SyntaxError, MemoryError, RecursionError, TypeError):
+            continue
+        if not isinstance(cmd, list) or len(cmd) < 3 or not all(isinstance(x, str) for x in cmd[:2]):
+            continue
+        op, name = cmd[0], cmd[1]
+        if op == "set" and name in F2B_GLOBAL_OPTS and len(cmd) == 3:
+            glob[name] = clean(str(cmd[2]), 200)
+            continue
+        if op == "add" and F2B_JAIL_RE.match(name):
+            jails[name] = {"backend": clean(str(cmd[2]), 40), "logpaths": [], "journalmatch": [], "ignoreip": [],
+                           "actions": [], "failregex": 0}
+            continue
+        j = jails.get(name)
+        if j is None or op not in ("set", "multi-set") or not isinstance(cmd[2], str):
+            continue
+        key, rest = cmd[2], cmd[3:]
+        if key == "addlogpath" and rest:
+            j["logpaths"].append(clean(str(rest[0]), 300))
+        elif key == "addjournalmatch":
+            j["journalmatch"].append(clean(" ".join(str(x) for x in rest), 300))
+        elif key == "addignoreip":
+            j["ignoreip"].extend(clean(str(x), 80) for x in rest[:100])
+        elif key in ("maxretry", "findtime", "bantime", "maxmatches") and rest:
+            j[key] = rest[0] if isinstance(rest[0], int) else clean(str(rest[0]), 40)
+        elif key == "addfailregex":
+            j["failregex"] += len(rest[0]) if op == "multi-set" and rest and isinstance(rest[0], list) else 1
+        elif key == "addaction" and rest:
+            j["actions"].append({"name": clean(str(rest[0]), 80), "opts": {}})
+        elif key == "action" and len(rest) >= 2:
+            act = next((a for a in j["actions"] if a["name"] == rest[0]), None)
+            if act is None:
+                continue
+            pairs = rest[1] if op == "multi-set" and isinstance(rest[1], list) else [rest[1:3]]
+            for pair in pairs:
+                if isinstance(pair, (list, tuple)) and len(pair) == 2 and pair[0] in F2B_ACTION_OPTS:
+                    act["opts"][pair[0]] = clean(str(pair[1]), 200)
+    return {"global": glob, "jails": jails}
+
+
+SERVICE_PORTS = {"ssh": 22, "http": 80, "https": 443, "smtp": 25, "submission": 587, "smtps": 465, "imap": 143,
+                 "imap2": 143, "imaps": 993, "pop3": 110, "pop3s": 995, "ftp": 21, "ftp-data": 20, "mysql": 3306,
+                 "postgresql": 5432, "domain": 53, "http-alt": 8080, "sieve": 4190}
+
+
+def f2b_ports(spec, services=None):
+    """The ports of an action's `port` option ("ssh", "http,https", "8080",
+    "1000:2000", "0:65535"): a list of (low, high), or None when a name is
+    unknown. `services` maps names to ports (/etc/services)."""
+    names = dict(SERVICE_PORTS)
+    names.update(services or {})
+    out = []
+    for part in re.split(r"[,\s]+", str(spec or "").strip()):
+        if not part:
+            continue
+        m = re.match(r"^(\d{1,5})(?:[:-](\d{1,5}))?$", part)
+        if m:
+            lo = int(m.group(1))
+            out.append((lo, int(m.group(2)) if m.group(2) else lo))
+        elif part.lower() in names:
+            out.append((names[part.lower()], names[part.lower()]))
+        else:
+            return None
+    return out or None
+
+
+def parse_services(text):
+    """/etc/services: name and aliases -> port (tcp entries)."""
+    out = {}
+    for line in (text or "").splitlines():
+        line = line.split("#", 1)[0].split()
+        if len(line) >= 2:
+            m = re.match(r"^(\d{1,5})/(tcp|udp)$", line[1])
+            if m:
+                for n in [line[0]] + line[2:]:
+                    out.setdefault(n.lower(), int(m.group(1)))
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Findings marked as expected (/etc/cockpit-security-monitor/exposure.conf)
 
 PORT_KEY_RE = re.compile(r"^([0-9]{1,5})/(tcp|udp)$")

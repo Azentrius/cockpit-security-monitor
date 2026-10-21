@@ -12,7 +12,9 @@ Playwright drives Chromium through Cockpit's own login and shell. Spec 4.7:
      Cockpit's menu; with no state yet it checks by itself, through
      cockpit-security-scan.service; Docker's 0.0.0.0:8080 is "reachable from
      the internet, UFW does not apply here"; the state 0600, the status 0644,
-     every source read; the menu icon as the status verb says; a
+     every source read; the menu icon as the status verb says; fail2ban's
+     jail on 8080 with Ubuntu's default ban at the hook input is "does not
+     protect container ports", its banned address listed (stage 2a); a
      socket-activated sshd without /run/sshd is "not checkable" with the fix
      the page names (decision 9.6), and that fix is then applied;
   3. the status for the Status Board, as a user without sudo;
@@ -221,7 +223,14 @@ def capture():
                       ("docker-info.json", ["curl", "-s", "--unix-socket", "/var/run/docker.sock", "http://d/info"]),
                       ("docker-containers.json", ["curl", "-s", "--unix-socket", "/var/run/docker.sock",
                                                   "http://d/containers/json"]),
-                      ("user.rules", ["cat", "/etc/ufw/user.rules"])):
+                      ("user.rules", ["cat", "/etc/ufw/user.rules"]),
+                      ("f2b-version.txt", ["fail2ban-client", "--version"]),
+                      ("f2b-status.txt", ["fail2ban-client", "status"]),
+                      ("f2b-status-e2e-web.txt", ["fail2ban-client", "status", "e2e-web"]),
+                      ("f2b-status-sshd.txt", ["fail2ban-client", "status", "sshd"]),
+                      ("f2b-dump.txt", ["fail2ban-client", "-d"]),
+                      ("systemctl-show-fail2ban.txt", ["systemctl", "show", "fail2ban.service", "-p", "ActiveState",
+                                                       "-p", "UnitFileState", "-p", "ActiveEnterTimestamp"])):
         with open(os.path.join(d, name), "w") as f:
             f.write(root(*cmd, check=False))
 
@@ -308,6 +317,25 @@ def main():
         bad = {k: v for k, v in src.items() if v not in ("ok", "missing", "skipped") and not (k == "sshd" and privsep)}
         note("every source read in the real service", not bad, json.dumps(src))
         check_menu(page, "en", "after the first check")
+        # fail2ban (stage 2a): Ubuntu's default ban at the hook input does not reach Docker's 8080.
+        fb = (first or {}).get("fail2ban") or {}
+        jail = next((j for j in fb.get("jails", []) if j["name"] == "e2e-web"), {})
+        codes = [(f["code"], f.get("value")) for f in jail.get("findings", [])]
+        note("fail2ban, read by the hardened scan service: the jail on 8080 bans at the hook input, which "
+             "Docker's forwarding passes; the banned address listed (spec 5.3)",
+             bool(fb.get("running")) and ("input-only", "8080/tcp") in codes
+             and any(b["ip"] == "192.0.2.77" for b in fb.get("bans", [])),
+             json.dumps({"running": fb.get("running"), "version": fb.get("version"), "e2e-web": codes,
+                         "where": [a.get("where") for a in jail.get("actions", [])],
+                         "bans": [b["ip"] for b in fb.get("bans", [])], "errors": fb.get("errors")})[:500])
+        frame.locator("#sm-tab-btn-fail2ban").click()
+        frame.locator("#sm-f2b-jail-e2e-web").wait_for(timeout=30000)
+        jail_text = text(frame, "#sm-f2b-jail-e2e-web")
+        note("the fail2ban tab: the jail with its warning, the ban in the list",
+             "Docker forwards 8080/tcp past it" in jail_text and "192.0.2.77" in text(frame, "#sm-f2b-bans"),
+             jail_text[:300])
+        shot(page, "fail2ban")
+        frame.locator("#sm-tab-btn-exposure").click()
         shot(page, "first-check")
         if privsep:
             frame.locator("#sm-tab-btn-ssh").click()

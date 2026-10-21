@@ -44,6 +44,7 @@ check.
 | **Logins** of the last 14 days | the journal of `sshd`, `sshd-session`, `sudo`, `cockpit-session` | successful logins with source, account and method; failed attempts per source; a login from outside VPN and private networks is a warning; when the journal begins later than 14 days back, the page and the status say since when |
 | **Container hardening** | Docker's API | the Docker socket mounted (danger, also read-only), privileged, host PIDs, extra capabilities, writable host folders (warnings), the host network, root, no-new-privileges, AppArmor (notes) |
 | **CrowdSec**, when installed | `cscli` (JSON), the firewall bouncer's configuration | the service, version, bouncers, active decisions, alerts of 14 days, whether signals are shared; Ubuntu's outdated package and a bouncer that does not protect container ports are warnings |
+| **fail2ban**, when installed (shown only) | `fail2ban-client status` and `-d`, its database read-only, the packet filter | the service, every jail with what it reads, where its ban takes effect (the chain or hook, from the packet filter where it is there), ports, counters since the start, the bans now and of 14 days. Warnings: a ban only at INPUT or the hook input in front of a port Docker publishes (Docker forwards past it), TCP only where the port is open for UDP too, a log missing or unchanged for days, not one hit while the log is not empty, addresses blocked for fail2ban that fail2ban does not manage; chains saved in `/etc/iptables/rules.v4` are a note |
 
 How the packet filter is followed: [docs/INTERNALS.md](docs/INTERNALS.md#the-evaluator-secfwpy).
 In short: every base chain of the hooks a new connection passes, in order; addresses, ports,
@@ -70,13 +71,15 @@ Always listed on the page, under "Not checked":
 - vulnerabilities in images (the add-on
   [Image Update Monitor](https://github.com/Azentrius/cockpit-image-update-monitor) shows their
   versions), seccomp, user namespaces, rootless Docker, Podman, compose files,
-- whether CrowdSec's scenarios fit the services.
+- whether CrowdSec's scenarios fit the services,
+- whether a fail2ban filter catches the attacks on a service (only its hits are counted;
+  `fail2ban-regex` is not run), and where actions other than iptables and nftables ban.
 
 Not part of this add-on: missing updates and restarts
 ([Update Gaps](https://github.com/Azentrius/cockpit-update-gaps)), cron jobs and timers
 ([Cron Jobs](https://github.com/Azentrius/cockpit-cronjobs)), backups, setting up CrowdSec, and
-changing firewall rules (the page says which rule is missing; you set it by hand). fail2ban follows
-in a later version.
+changing firewall rules (the page says which rule is missing; you set it by hand). Setting up
+fail2ban and its jails, and lifting bans from the page, follow in a later version.
 
 ## Reading the page
 
@@ -86,7 +89,8 @@ in a later version.
   Docker and DOCKER-USER, the Hetzner Cloud Firewall, the regular check), then every port with its
   service and the four classes. "Details" under the assessment names the binding, Docker's DNAT,
   and the rule or policy that decided per class.
-- **SSH, Logins, Containers, CrowdSec:** one tab each. Links like `#/ssh` open a tab, as the
+- **SSH, Logins, Containers, CrowdSec, fail2ban:** one tab each (CrowdSec and fail2ban only when
+  installed). Links like `#/ssh` open a tab, as the
   Status Board does.
 - **Without administrative access** the page shows only the summary the Status Board sees.
 - **In Cockpit's menu:** the entry "Security Monitor" shows the same state with Cockpit's own icon

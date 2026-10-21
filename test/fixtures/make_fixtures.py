@@ -16,6 +16,7 @@ import base64
 import json
 import os
 import random
+import shutil
 import struct
 from datetime import datetime, timezone
 
@@ -146,8 +147,7 @@ def dsa_pub(comment):
 # ---------------------------------------------------------------------------
 # Scenario ufw-docker: UFW on, Docker publishes 8080 past it, WireGuard, IPv4 and IPv6
 
-def ufw_docker():
-    s = "ufw-docker"
+def ufw_docker(s="ufw-docker"):
     write(s, "commands/ip-addr.json", [
         LO,
         link(2, "eth0", [("203.0.113.10", 32), ("2001:db8:10::1", 64), ("fe80::5054:ff:fe00:2", 64, "link")]),
@@ -417,8 +417,144 @@ def hetzner_answer():
              now=datetime(2026, 10, 20, 11, 59, tzinfo=timezone.utc))
 
 
+# ---------------------------------------------------------------------------
+# Scenario fail2ban: ufw-docker plus fail2ban 1.0.2 (formats of fail2ban-client's beautifier and
+# `-d` dump), four jails with one finding of each kind:
+#   sshd             journal, iptables-multiport in INPUT, a ban; f2b-sshd also blocks an address
+#                    fail2ban does not hold (left from /etc/iptables/rules.v4)
+#   recidive         iptables-allports in INPUT (container ports not covered: a note), its log idle
+#   web              Ubuntu's default nftables action (hook input) in front of Docker's 8080 and
+#                    caddy's 443 (also UDP): both findings
+#   nginx-botsearch  reads the error log, never a hit while fail2ban has run for two days
+
+def fail2ban():
+    s = "fail2ban"
+    base = os.path.join(HERE, "ufw-docker")
+    shutil.copytree(os.path.join(base, "files"), os.path.join(HERE, s, "files"), dirs_exist_ok=True)
+    for rel in ("commands/ss.txt", "commands/ip6tables-save.txt", "commands/sshd-T.txt"):
+        with open(os.path.join(base, rel), encoding="utf-8") as f:
+            write(s, rel, f.read())
+    ufw_docker(s)
+    with open(os.path.join(base, "commands/iptables-save.txt"), encoding="utf-8") as f:
+        ipt = f.read()
+    ipt = ipt.replace(":DOCKER-USER - [0:0]\n", ":DOCKER-USER - [0:0]\n:f2b-recidive - [0:0]\n:f2b-sshd - [0:0]\n", 1)
+    ipt = ipt.replace("-A INPUT -j ufw-before-logging-input\n",
+                      "-A INPUT -p tcp -j f2b-recidive\n-A INPUT -p tcp -m multiport --dports 22 -j f2b-sshd\n"
+                      "-A INPUT -j ufw-before-logging-input\n", 1)
+    rej = " -j REJECT --reject-with icmp-port-unreachable\n"
+    chains = ("-A f2b-recidive -s 198.51.100.20/32" + rej + "-A f2b-recidive -j RETURN\n"
+              "-A f2b-sshd -s 203.0.113.50/32" + rej + "-A f2b-sshd -s 198.51.100.7/32" + rej +
+              "-A f2b-sshd -j RETURN\n")
+    i = ipt.index("COMMIT\n")
+    write(s, "commands/iptables-save.txt", ipt[:i] + chains + ipt[i:])
+    with open(os.path.join(HERE, s, "commands/nft.json"), encoding="utf-8") as f:
+        nft = json.load(f)
+    nft["nftables"] += [
+        {"table": {"family": "inet", "name": "f2b-table", "handle": 5}},
+        {"chain": {"family": "inet", "table": "f2b-table", "name": "f2b-chain", "handle": 1, "type": "filter",
+                   "hook": "input", "prio": -1, "policy": "accept"}},
+        {"set": {"family": "inet", "name": "addr-set-web", "table": "f2b-table", "type": "ipv4_addr", "handle": 2,
+                 "elem": ["192.0.2.80"]}},
+        {"rule": {"family": "inet", "table": "f2b-table", "chain": "f2b-chain", "handle": 3, "expr": [
+            {"match": {"op": "==", "left": {"payload": {"protocol": "tcp", "field": "dport"}},
+                       "right": {"set": [443, 8080]}}},
+            {"match": {"op": "==", "left": {"payload": {"protocol": "ip", "field": "saddr"}}, "right": "@addr-set-web"}},
+            {"reject": None}]}},
+    ]
+    write(s, "commands/nft.json", nft)
+    write(s, "commands/systemctl-show-fail2ban.txt",
+          "ActiveState=active\nUnitFileState=enabled\nActiveEnterTimestamp=Sun 2026-10-18 08:00:00 UTC\n")
+    write(s, "commands/f2b-version.txt", "Fail2Ban v1.0.2\n")
+    write(s, "commands/f2b-ping.txt", "Server replied: pong\n")
+    write(s, "commands/f2b-status.txt",
+          "Status\n|- Number of jail:\t4\n`- Jail list:\tnginx-botsearch, recidive, sshd, web\n")
+
+    def jail_status(name, failed_now, failed_total, source, banned_total, banned):
+        return (f"Status for the jail: {name}\n|- Filter\n|  |- Currently failed:\t{failed_now}\n"
+                f"|  |- Total failed:\t{failed_total}\n|  `- {source}\n`- Actions\n"
+                f"   |- Currently banned:\t{len(banned)}\n   |- Total banned:\t{banned_total}\n"
+                f"   `- Banned IP list:\t{' '.join(banned)}\n")
+
+    write(s, "commands/f2b-status-sshd.txt", jail_status(
+        "sshd", 1, 41, "Journal matches:\t_SYSTEMD_UNIT=ssh.service + _COMM=sshd", 7, ["203.0.113.50"]))
+    write(s, "commands/f2b-status-recidive.txt", jail_status(
+        "recidive", 0, 2, "File list:\t/var/log/fail2ban.log", 1, ["198.51.100.20"]))
+    write(s, "commands/f2b-status-web.txt", jail_status(
+        "web", 0, 12, "File list:\t/var/log/web/access.log", 3, ["192.0.2.80"]))
+    write(s, "commands/f2b-status-nginx-botsearch.txt", jail_status(
+        "nginx-botsearch", 0, 0, "File list:\t/var/log/nginx/error.log", 0, []))
+    start = "<iptables> -N f2b-<name>\n<iptables> -A f2b-<name> -j <returntype>\n" \
+            "<iptables> -I <chain> -p <protocol> -m multiport --dports <port> -j f2b-<name>"
+    ban = "<iptables> -I f2b-<name> 1 -s <ip> -j <blocktype>"
+    dump = [
+        ["set", "syslogsocket", "auto"], ["set", "loglevel", "INFO"], ["set", "logtarget", "/var/log/fail2ban.log"],
+        ["set", "allowipv6", "auto"], ["set", "dbfile", "/var/lib/fail2ban/fail2ban.sqlite3"],
+        ["set", "dbmaxmatches", 10], ["set", "dbpurgeage", "1d"],
+        ["add", "nginx-botsearch", "auto"], ["set", "nginx-botsearch", "usedns", "warn"],
+        ["set", "nginx-botsearch", "maxretry", 2], ["set", "nginx-botsearch", "findtime", "10m"],
+        ["set", "nginx-botsearch", "bantime", "10m"],
+        ["multi-set", "nginx-botsearch", "addfailregex", ['^<HOST> \\- \\S+ \\[\\] \\"(GET|POST|HEAD) '
+                                                          '\\/<block> \\S+\\" 404 .+$']],
+        ["set", "nginx-botsearch", "addlogpath", "/var/log/nginx/error.log", "head"],
+        ["set", "nginx-botsearch", "addaction", "iptables-multiport"],
+        ["multi-set", "nginx-botsearch", "action", "iptables-multiport",
+         [["actionstart", start], ["actionban", ban], ["name", "nginx-botsearch"], ["port", "http,https"],
+          ["protocol", "tcp"], ["chain", "<known/chain>"]]],
+        ["add", "recidive", "auto"], ["set", "recidive", "maxretry", 5], ["set", "recidive", "findtime", "1d"],
+        ["set", "recidive", "bantime", "1w"],
+        ["multi-set", "recidive", "addfailregex", ['^(%(__prefix_line)s|,\\d{3} fail2ban.actions:\\s+)WARNING '
+                                                   '\\[(?!recidive)\\S+\\] Ban <HOST>']],
+        ["set", "recidive", "addlogpath", "/var/log/fail2ban.log", "head"],
+        ["set", "recidive", "addaction", "iptables-allports"],
+        ["multi-set", "recidive", "action", "iptables-allports",
+         [["actionban", ban], ["name", "recidive"], ["protocol", "tcp"], ["chain", "<known/chain>"]]],
+        ["add", "sshd", "systemd"], ["set", "sshd", "usedns", "warn"], ["set", "sshd", "maxretry", 5],
+        ["set", "sshd", "addignoreip", "127.0.0.1/8", "::1", "10.8.0.0/24"],
+        ["set", "sshd", "addjournalmatch", "_SYSTEMD_UNIT=ssh.service", "+", "_COMM=sshd"],
+        ["multi-set", "sshd", "addfailregex", ["^Failed \\S+ for .* from <HOST>", "^Invalid user .* from <HOST>"]],
+        ["set", "sshd", "findtime", "10m"], ["set", "sshd", "bantime", "1h"],
+        ["set", "sshd", "addaction", "iptables-multiport"],
+        ["multi-set", "sshd", "action", "iptables-multiport",
+         [["actionstart", start], ["actionban", ban], ["name", "sshd"], ["port", "ssh"], ["protocol", "tcp"],
+          ["chain", "<known/chain>"]]],
+        ["add", "web", "auto"], ["set", "web", "maxretry", 3], ["set", "web", "findtime", "10m"],
+        ["set", "web", "bantime", "10m"],
+        ["multi-set", "web", "addfailregex", ['^<HOST> .* "POST /login[^"]*" 401 ']],
+        ["set", "web", "addlogpath", "/var/log/web/access.log", "head"],
+        ["set", "web", "addaction", "nftables"],
+        ["multi-set", "web", "action", "nftables",
+         [["actionban", "<nftables> add element <table_family> <table> <addr_set> { <ip> }"], ["name", "web"],
+          ["port", "8080,443"], ["protocol", "tcp"], ["chain", "<known/chain>"]]],
+        ["start", "nginx-botsearch"], ["start", "recidive"], ["start", "sshd"], ["start", "web"],
+    ]
+    write(s, "commands/f2b-dump.txt", "".join(repr(c) + "\n" for c in dump))
+    write(s, "fail2ban-db.json", {
+        "bips": [["203.0.113.50", "sshd", T0 - 1800, 3600, 1], ["198.51.100.20", "recidive", T0 - 86400, 604800, 1],
+                 ["192.0.2.80", "web", T0 - 300, 600, 2], ["198.51.100.99", "sshd", T0 - 10000, 3600, 1]],
+        "history": [["recidive", 1, T0 - 86400], ["sshd", 7, T0 - 1800], ["web", 3, T0 - 300]]})
+    write(s, "files/etc/iptables/rules.v4", "*filter\n:INPUT DROP [0:0]\n:f2b-sshd - [0:0]\n"
+                                            "-A f2b-sshd -s 198.51.100.7/32" + rej + "COMMIT\n")
+    for p, text in (("var/log/fail2ban.log", "2026-10-15 09:00:00,000 fail2ban.actions [900]: NOTICE  [sshd] "
+                                             "Ban 198.51.100.20\n"),
+                    ("var/log/web/access.log", '192.0.2.80 - - [20/Oct/2026:11:58:00 +0000] "POST /login HTTP/1.1" '
+                                               '401 12 "-" "curl/8.5.0"\n'),
+                    ("var/log/nginx/error.log", "2026/10/20 10:00:00 [error] 1450#1450: *7 open() "
+                                                '"/usr/share/nginx/html/wp-login.php" failed (2: No such file or '
+                                                "directory)\n")):
+        write(s, "files/" + p, text)
+    with open(os.path.join(HERE, s, "meta.json"), encoding="utf-8") as f:
+        meta = json.load(f)
+    meta["exists"] = meta.get("exists", []) + ["/usr/bin/fail2ban-client"]
+    meta["stat"].update({
+        "/var/log/fail2ban.log": {"mode": "640", "uid": 0, "size": 12000, "mtime": "2026-10-15T09:00:00Z"},
+        "/var/log/web/access.log": {"mode": "640", "uid": 0, "size": 48000, "mtime": "2026-10-20T11:58:00Z"},
+        "/var/log/nginx/error.log": {"mode": "640", "uid": 0, "size": 2048, "mtime": "2026-10-20T10:00:00Z"}})
+    write(s, "meta.json", meta)
+
+
 if __name__ == "__main__":
     ufw_docker()
+    fail2ban()
     hetzner_open()
     nft_native()
     hetzner_answer()

@@ -1,0 +1,46 @@
+{
+ "now": "2026-10-20T12:00:00Z",
+ "uid": 0,
+ "stat": {
+  "/root/.ssh/authorized_keys": {
+   "mode": "600",
+   "uid": 0
+  },
+  "/root/.ssh": {
+   "mode": "700",
+   "uid": 0,
+   "type": "dir"
+  },
+  "/home/alex/.ssh/authorized_keys": {
+   "mode": "664",
+   "uid": 1000
+  },
+  "/home/alex/.ssh": {
+   "mode": "700",
+   "uid": 1000,
+   "type": "dir"
+  },
+  "/var/log/fail2ban.log": {
+   "mode": "640",
+   "uid": 0,
+   "size": 12000,
+   "mtime": "2026-10-15T09:00:00Z"
+  },
+  "/var/log/web/access.log": {
+   "mode": "640",
+   "uid": 0,
+   "size": 48000,
+   "mtime": "2026-10-20T11:58:00Z"
+  },
+  "/var/log/nginx/error.log": {
+   "mode": "640",
+   "uid": 0,
+   "size": 2048,
+   "mtime": "2026-10-20T10:00:00Z"
+  }
+ },
+ "exists": [
+  "/var/run/docker.sock",
+  "/usr/bin/fail2ban-client"
+ ]
+}

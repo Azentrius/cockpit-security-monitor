@@ -95,6 +95,8 @@ class Contract(unittest.TestCase):
             "recorded-services": ("danger", [("exposure", "warning", "10"), ("ssh", "info", None),
                                              ("logins", "ok", "0"), ("containers", "danger", "1"),
                                              ("scan", "ok", None)]),
+            "fail2ban": ("danger", [("exposure", "warning", "5"), ("ssh", "warning", "3"), ("logins", "ok", "1"),
+                                    ("containers", "danger", "1"), ("fail2ban", "warning", "3"), ("scan", "ok", None)]),
         }
         for s, (state, items) in want.items():
             st = status(s)
@@ -105,6 +107,22 @@ class Contract(unittest.TestCase):
                 self.assertEqual(i.get("link"), None if i["id"] == "scan" else "#/" + i["id"])
         ex = status("ufw-docker")["items"][0]["detail"]
         self.assertEqual(ex, "8080/tcp web, 80/tcp http, 443/tcp https, 443/udp http3, 51820/udp wireguard")
+        fb = {lang: next(i for i in secstatus.localize(status("fail2ban"), lang, NOW)["items"]
+                         if i["id"] == "fail2ban")["detail"] for lang in ("en", "de")}
+        self.assertEqual(fb["en"], secstatus._clip(
+            "1 address blocked that fail2ban does not manage; nginx-botsearch: TCP only, 443/udp stays open; "
+            "nginx-botsearch: not one hit since 18 Oct; recidive: log unchanged for 5 days; web: does not protect "
+            "container ports (8080/tcp); web: TCP only, 443/udp stays open"), "the warnings, cut as every detail")
+        self.assertTrue(fb["en"].endswith(" …"))
+        quiet = {"installed": True, "state": "ok", "bans_total": 1, "findings": [], "jails": [
+            {"name": "sshd", "findings": []}, {"name": "recidive", "findings": [{"code": "allports-input", "state": "info"}]}]}
+        item = secstatus.items_of({"ports": [], "ssh": {}, "logins": {}, "containers": {}, "fail2ban": quiet,
+                                   "sources": {}}, "en")
+        self.assertEqual([(i["id"], i["state"], i.get("value"), i.get("detail")) for i in item if i["id"] == "fail2ban"],
+                         [("fail2ban", "ok", "1", "2 jails, 1 ban")], "without warnings: jails and bans")
+        self.assertTrue(fb["de"].startswith("1 Adresse gesperrt, die fail2ban nicht verwaltet; nginx-botsearch: nur TCP"),
+                        fb["de"])
+        self.assertIn("kein einziger Treffer seit 18.10.", fb["de"])
         cr = status("hetzner-open")["items"][4]["detail"]
         self.assertEqual(cr, "outdated version 1.4.6; bouncer does not protect container ports; 2 active decisions")
         de = secstatus.localize(status("hetzner-open"), "de", NOW)

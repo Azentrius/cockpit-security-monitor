@@ -61,11 +61,13 @@ t("every key the page asks for exists", () => {
         "key.": ["dsa", "rsa-short", "no-from", "unreadable"],
         "file.": ["file-writable", "dir-writable", "file-owner", "dir-owner", "link"],
         "src.class.": ["internet", "vpn", "private", "local", "cgnat", "link", "other"],
-        "src.": ["ip", "ss", "rules", "docker", "ufw", "hetzner", "sshd", "keys", "journal", "crowdsec"],
+        "src.": ["ip", "ss", "rules", "docker", "ufw", "hetzner", "sshd", "keys", "journal", "crowdsec", "fail2ban"],
         "reason.": ["missing", "needs-root", "error", "timeout", "partial"],
         "cs.": ["old-engine", "not-running", "bouncer-input-only", "bouncer-no-docker-user", "no-bouncer"],
         "svc.": ["ssh", "cockpit"],
-        "tab.": ["exposure", "ssh", "logins", "containers", "crowdsec"],
+        "tab.": ["exposure", "ssh", "logins", "containers", "crowdsec", "fail2ban"],
+        "f2b.": ["not-running", "unmanaged-bans", "persisted-chains", "input-only", "allports-input", "udp-open",
+                 "log-missing", "log-idle", "no-match"],
     };
     Object.entries(families).forEach(([prefix, keys]) => keys.forEach((k) => assert.ok(prefix + k in en, "missing: " + prefix + k)));
 });

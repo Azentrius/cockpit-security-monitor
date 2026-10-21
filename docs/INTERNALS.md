@@ -90,6 +90,7 @@ Commands run through `secproc.run`: a list (never a shell), `PATH=/usr/sbin:/usr
 | `keys` | `/etc/passwd`, `/etc/shadow` (only as root), the authorized_keys files of accounts with a login shell (no link followed at the last step, regular files only, 1 MiB) | keys, options, who can change the file, accounts locked with `passwd -l` whose keys still log in |
 | `journal` | `journalctl -o json --since=-14d` for `SYSLOG_IDENTIFIER` `sshd`, `sshd-session`, `sudo`, `cockpit-session`; `journalctl -o json --since=-14d --lines=+1` for where the journal begins (systemd 254 or newer, else unknown) | logins of the last 14 days, or since the journal begins |
 | `crowdsec` | `systemctl is-active crowdsec.service`, `cscli version`, `cscli decisions list -o json`, `cscli alerts list -o json --since 14d`, `cscli bouncers list -o json`, the firewall bouncer's YAML, `online_api_credentials.yaml` | what CrowdSec does |
+| `fail2ban` | `systemctl show fail2ban.service -p ActiveState -p UnitFileState -p ActiveEnterTimestamp`, `fail2ban-client --version`, `ping`, `-d` (the configuration it runs, one Python literal per line, read with `ast.literal_eval`), `status` and `status JAIL`; its SQLite database opened read-only (`mode=ro`: `bips` for the bans now, `bans` counted per jail for 14 days, never the column `data` with log lines); size and age of the jails' log files; `/etc/iptables/rules.v4` and `rules.v6` for `f2b-` chains; `/etc/services` for port names | what fail2ban does |
 
 Each source has a `state`: `ok`, `missing` (not installed), `skipped` (`reason`), `needs-root`,
 `partial` (`missing`: what), `error` (`error`: a short reason) or `timeout`.
@@ -207,6 +208,17 @@ A port marked as expected becomes `info` (`expected`, `base_state`).
             "outside": 0, "truncated": false, "journal_start": "2026-10-11T08:00:00Z", "assessment": "ok"},
  "containers": {"state": "ok", "items": [{"name": "runner", "image": "…", "findings": [{"kind": "docker-socket", "state": "danger", "detail": "/var/run/docker.sock"}]}]},
  "crowdsec": {"installed": false},
+ "fail2ban": {"installed": true, "version": "1.0.2", "active": "active", "running": true, "since": "2026-10-18T08:00:00Z",
+              "dbpurgeage": "1d", "state": "warning",
+              "findings": [{"code": "unmanaged-bans", "state": "warning", "value": 1, "chains": ["f2b-sshd"]}],
+              "jails": [{"name": "web", "backend": "auto", "logs": [{"path": "/var/log/web/access.log", "exists": true, "size": 48000, "mtime": "…"}],
+                         "journal": null, "maxretry": 3, "findtime": "10m", "bantime": "10m", "failregex": 1, "running": true,
+                         "actions": [{"name": "nftables", "port": "8080,443", "protocols": ["tcp"], "allports": false, "kind": "nftables",
+                                      "where": ["hook input"], "forward": false, "observed": true}],
+                         "failed_now": 0, "failed_total": 12, "banned_now": 1, "banned_total": 3, "history": 3,
+                         "findings": [{"code": "input-only", "state": "warning", "value": "8080/tcp"}], "state": "warning"}],
+              "bans": [{"ip": "192.0.2.80", "class": "internet", "jail": "web", "since": "…", "until": "…", "count": 2}],
+              "bans_total": 1, "history_total": 3, "history_days": 14, "errors": {}},
  "sources": {"ip": {"state": "ok", "took_ms": 3}, …}}
 ```
 
@@ -245,6 +257,17 @@ A port marked as expected becomes `info` (`expected`, `base_state`).
 - CrowdSec findings: `old-engine` (before 1.5), `not-running`, `bouncer-input-only` (nftables mode
   without the hook forward), `bouncer-no-docker-user` (iptables mode without DOCKER-USER), both only
   when Docker publishes ports, and `no-bouncer`.
+- fail2ban: `where` is the chain the packet filter jumps to `f2b-NAME` from (iptables) or the hook
+  of nftables' `f2b-chain`, when the packet filter has them (`observed`); before its first ban
+  iptables has no chain yet, and the action's options decide (`chain`, default INPUT; `chain_hook`,
+  default input). `forward` is true for FORWARD, DOCKER-USER, the hook forward or prerouting.
+  Findings per jail: `input-only` (warning: a port of the jail that Docker publishes to the
+  internet, the ban not in front of the forwarding), `allports-input` (note: the same for an
+  all-ports ban), `udp-open` (warning: TCP only while one of its ports is open for UDP from the
+  internet), `log-missing`, `log-idle` (unchanged for 3 days), `no-match` (warning: a file log that
+  is not empty, 0 hits, fail2ban running for more than a day). For the whole: `not-running`,
+  `unmanaged-bans` (warning: addresses in `f2b-` chains or `addr-set-` sets that fail2ban does not
+  hold as banned), `persisted-chains` (note: `f2b-` lines in a saved ruleset).
 
 ## The marks (`/etc/cockpit-security-monitor/exposure.conf`)
 
@@ -297,6 +320,7 @@ exists but cannot be read exits 77. Without the file the state is `none` ("Not c
 | `logins` | `warning` with a successful login from outside VPN and private networks, else `ok` | logins from outside, else failed attempts | counts, no addresses or names; "since DAY" instead of "in 14 days" when the journal begins later |
 | `containers` | the most severe finding not marked | containers with a warning or danger | the finding and container names, at most 3 per finding |
 | `crowdsec` | only when installed: its findings, else `ok` | active decisions | |
+| `fail2ban` | only when installed: the most severe finding, else `ok` | bans now | the warnings with their jail (no addresses), else jails and bans |
 | `scan` | `ok`; `warning` when the state is older than an hour (decided when the verb runs) | | |
 
 `stale_after` is 3600 for every item, `link` is `#/<id>` (no link for `scan`). The file holds the
@@ -309,7 +333,8 @@ English document plus the German texts under `i18n.de`; the verb returns one lan
 - Values from the system reach the page through `h()` and `textContent` only; translated texts may
   mark code with backticks (`rich()`), and a backtick in a value cannot open one (`tr()`).
   `test/files.test.js` refuses `innerHTML` and its relatives.
-- Tabs: `exposure`, `ssh`, `logins`, `containers`, `crowdsec` (only when installed). The location
+- Tabs: `exposure`, `ssh`, `logins`, `containers`, `crowdsec` and `fail2ban` (both only when
+  installed). The location
   `#/<tab>` opens a tab, also while the page is open (`locationchanged`), as a link of the Status
   Board does.
 - Loading: `safeLoad()` never runs twice at once; the watch of status.json reloads only on a new tag.
@@ -343,13 +368,13 @@ English document plus the German texts under `i18n.de`; the verb returns one lan
 
 | File | Checks |
 |---|---|
-| `test/lib_test.py` | address classes, `ip -j addr`, every form of `ss` addresses, UFW's tuples, `sshd -T` and its assessment, authorized_keys (sizes and fingerprints equal to ssh-keygen's, options with quotes, DSA, garbage), accounts and key files, the journal (one failure per connection), cscli and the bouncer's YAML, the marks, Docker's allowed paths, every code with its page text |
+| `test/lib_test.py` | address classes, `ip -j addr`, every form of `ss` addresses, UFW's tuples, `sshd -T` and its assessment, authorized_keys (sizes and fingerprints equal to ssh-keygen's, options with quotes, DSA, garbage), accounts and key files, the journal (one failure per connection), cscli and the bouncer's YAML, the marks, Docker's allowed paths, fail2ban-client's `status` and `-d` (literals only, a jail only once added, the options that say where an action bans), port names and ranges, every code with its page text |
 | `test/fw_test.py` | iptables-save and nft's JSON read into chains; UFW's default deny and allow rules, `ufw limit`, the IPv6 routing header rule, DOCKER-USER (new connections, the original port, one allowed network, ban lists), unknown matches both ways (also across chains), a part of the internet whose rule cannot be read, too many forks, queues, ipsets (as the source: a country list, an allow list, a ban list, against networks; as the destination), source ports (DHCP replies, a drop avoided, `--ports`), goto, two base chains, verdict maps, netdev ingress, samples |
-| `test/scan_test.py` | every port of the three hand-made scenarios and of the four recorded servers with state and reason; Docker past UFW and docker-proxy for IPv6; addresses a socket is bound to; the Hetzner Cloud Firewall (blocks, restricted, no token, stale, not matched, unreadable); SSH, logins, containers, CrowdSec; a DOCKER-USER rule (VPN only), no root, Docker failing or missing, legacy rules, an unreadable rule, an ipset as the source; the marks; the state fixtures current; only documentation and private addresses in the fixtures |
+| `test/scan_test.py` | every port of the three hand-made scenarios and of the four recorded servers with state and reason; Docker past UFW and docker-proxy for IPv6; addresses a socket is bound to; the Hetzner Cloud Firewall (blocks, restricted, no token, stale, not matched, unreadable); SSH, logins, containers, CrowdSec; fail2ban (where each jail bans, the packet filter before the configuration, every finding, the bans now, not running, an unreadable database); a DOCKER-USER rule (VPN only), no root, Docker failing or missing, legacy rules, an unreadable rule, an ipset as the source; the marks; the state fixtures current; only documentation and private addresses in the fixtures |
 | `test/status_test.py` | the status of every scenario in both languages: fields, ids, links, lengths, nothing private, no German in English; marks; unknown ports; an unreadable packet filter; an old state; `security.py status` (languages, wrong calls, missing, broken, unreadable, as a process within 2 seconds) |
 | `test/verbs_test.py` | the arguments of `expect`/`unexpect`; writing the marks file, its copy, lines by hand kept, a file others can change refused, root required, German messages |
 | `test/hetzner_test.py` | the server by IPv4 or IPv6 network, pages, no match, failures keeping the last good answer, the token never in the output; how the scan reads rules |
-| `test/page.test.js` | the page in jsdom with the state fixtures: overview, ports and their reasons, every tab, links and keyboard, the summary without administrative access, the first check by itself, Refresh and its failures, the dialogs (timer, marks), page messages, escaping; the menu icon (every scenario's status in both languages, no file, a broken one, an item worse than the whole, out of date, the check again after an hour, what the board ignores), the page loaded hidden (nothing run, the first check only once shown), a link while the page is hidden |
+| `test/page.test.js` | the page in jsdom with the state fixtures: overview, ports and their reasons, every tab, links and keyboard, the summary without administrative access, the first check by itself, Refresh and its failures, the dialogs (timer, marks), page messages, escaping; the menu icon (every scenario's status in both languages, no file, a broken one, an item worse than the whole, out of date, the check again after an hour, what the board ignores), the page loaded hidden (nothing run, the first check only once shown), a link while the page is hidden; the fail2ban tab (only when installed, findings, jails, bans, both languages) |
 | `test/i18n.test.js`, `test/files.test.js` | every text in both languages, no German in English, no long dash; no HTML from strings, nothing the CSP blocks, only the fixed verbs, the menu icon reading status.json only and sending only its page status, the manifest |
 | `test/contrast_test.py`, `test/fonts_test.py` | WCAG contrast in light and dark; every font the page uses ships with it |
 | `tools/check-units.sh` | `systemd-analyze verify`, and `systemd-analyze security` exposure at most 5.0 |
@@ -358,6 +383,10 @@ English document plus the German texts under `i18n.de`; the verb returns one lan
 Fixtures: `test/fixtures/<scenario>/` hold the outputs of the commands and files of a host; the text
 outputs are written by hand after the formats of iptables 1.8.10, iproute2 6.x, OpenSSH 9.6 and ufw
 0.36, the JSON parts by `test/fixtures/make_fixtures.py`, the SSH keys are real throw-away keys.
+The scenario `fail2ban` is `ufw-docker` plus fail2ban 1.0.2 in the formats of its beautifier and
+jail reader (four jails, one finding of each kind, `fail2ban-db.json` standing in for the
+database); the job `e2e` checks the same against fail2ban as Ubuntu ships it and keeps its raw
+answers in the artifact.
 `test/fixtures/capture.sh` records a real host (to be made anonymous by hand; with `-` it prints
 everything and keeps nothing, for a remote shell). The scenarios `recorded-*` are four real
 servers recorded that way on 2026-10-20 (CI host, WireGuard edge, IPv6-only host, service host):
