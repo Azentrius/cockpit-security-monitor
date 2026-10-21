@@ -1026,7 +1026,9 @@ def _key_values(kind, keys):
 def reach(rs, make, samples, avoid=()):
     """How a class of sources reaches a port. make(iface, sample) -> (pre,
     post, hooks); samples: [(iface, Sample)]. Returns {"result": open |
-    restricted | closed | unknown, "steps", "sources", "unknown"}."""
+    restricted | closed | unknown, "steps", "sources", "unknown",
+    "limited_by"}: for restricted, steps are those of an allowed source and
+    limited_by is the step that stops the rest of the class."""
     results = []
     for iface, sample in samples:
         ev = Evaluator(rs)
@@ -1052,8 +1054,9 @@ def reach(rs, make, samples, avoid=()):
             elif k2 == UNKNOWN and unknown is None:
                 unknown = st2
         if allowed:
+            # hook() ends with the base chain that dropped the class as a whole
             results.append({"result": "restricted", "steps": steps_allowed, "sources": allowed, "iface": iface,
-                            "denied_steps": steps})
+                            "limited_by": steps[-1]})
         elif unknown:
             # only a part could get in, and for it a rule cannot be read: never "closed"
             results.append({"result": "unknown", "steps": unknown, "sources": [], "iface": iface,

@@ -414,6 +414,36 @@ def login_accounts(passwd):
     return out
 
 
+def password_kind(field):
+    """The password field of /etc/shadow: "locked" when passwd -l or usermod -L
+    put a "!" in front of a real hash (the account was meant to be closed),
+    "none" for an account that never had a password ("!", "!!", "*", "!*": a
+    key-only account by design), "empty", or "set"."""
+    if field == "":
+        return "empty"
+    if field.startswith("!"):
+        rest = field.lstrip("!")
+        return "none" if rest in ("", "*") else "locked"
+    return "none" if field.startswith("*") else "set"
+
+
+def parse_shadow(text):
+    """/etc/shadow: name -> {"password": password_kind, "expire": day or None}
+    (the account's expiry in days since 1970-01-01; fields that are not
+    numbers count as unset)."""
+    out = {}
+    for line in (text or "").splitlines():
+        f = line.split(":")
+        if len(f) < 8 or not f[0] or f[0].startswith(("#", "+", "-")):
+            continue
+        try:
+            expire = int(f[7]) if f[7].strip() else None
+        except ValueError:
+            expire = None
+        out[f[0]] = {"password": password_kind(f[1]), "expire": expire}
+    return out
+
+
 def key_files(spec_values, name, home):
     """The authorized_keys files of an account from AuthorizedKeysFile
     (%h, %u, %%; relative paths below the home)."""
@@ -600,6 +630,22 @@ def _message(entry):
         except (TypeError, ValueError):
             return ""
     return m if isinstance(m, str) else ""
+
+
+def journal_first(text):
+    """The time (seconds since 1970) of the first entry of `journalctl -o json
+    --lines=+1`, or None."""
+    for raw in (text or "").splitlines():
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            e = json.loads(raw)
+            us = int(e.get("__REALTIME_TIMESTAMP")) if isinstance(e, dict) else None
+        except (TypeError, ValueError):
+            return None
+        return us / 1e6 if us and us > 0 else None
+    return None
 
 
 def parse_journal(text, vpn_nets=(), limit_success=200, limit_sources=100):

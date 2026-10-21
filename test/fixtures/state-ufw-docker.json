@@ -2513,6 +2513,10 @@
       "state": "ok"
      }
     ],
+    "account": {
+     "password": "none",
+     "expired": false
+    },
     "state": "ok"
    },
    {
@@ -2576,6 +2580,11 @@
       "state": "info"
      }
     ],
+    "account": {
+     "password": "locked",
+     "expired": false,
+     "finding": "locked-with-keys"
+    },
     "state": "warning"
    }
   ],
@@ -2646,6 +2655,7 @@
   "outside": 0,
   "state": "ok",
   "truncated": false,
+  "journal_start": "2026-10-11T08:00:00Z",
   "assessment": "ok"
  },
  "containers": {

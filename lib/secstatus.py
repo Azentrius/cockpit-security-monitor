@@ -14,7 +14,7 @@ no addresses, no user names, no paths.
 
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 SCHEMA = 1
 ADDON = "security"
@@ -42,10 +42,13 @@ T = {
         "exposure.title": "Reachable from the internet",
         "exposure.none": "no port reachable from the internet",
         "exposure.public": "{list}",
+        "exposure.limited": "only from some addresses: {list}",
         "exposure.unknown": {"one": "{n} port not assessable", "other": "{n} ports not assessable"},
         "exposure.nopublic": "no public address",
         "exposure.norules": "the packet filter could not be read",
         "ssh.title": "SSH",
+        "ssh.locked-keys": {"one": "{n} locked account can still log in with keys",
+                            "other": "{n} locked accounts can still log in with keys"},
         "ssh.password-on": "password login on",
         "ssh.kbd-pam": "passwords through PAM (keyboard-interactive)",
         "ssh.empty-passwords": "empty passwords allowed",
@@ -61,11 +64,13 @@ T = {
         "logins.title": "Logins",
         "logins.outside": {"one": "{n} successful login from outside VPN and private networks",
                            "other": "{n} successful logins from outside VPN and private networks"},
-        "logins.failed": {"one": "{n} failed attempt from {m} sources in 14 days",
-                          "other": "{n} failed attempts from {m} sources in 14 days"},
-        "logins.failed1": {"one": "{n} failed attempt from 1 source in 14 days",
-                           "other": "{n} failed attempts from 1 source in 14 days"},
-        "logins.none": "no failed attempts in 14 days",
+        "logins.failed": {"one": "{n} failed attempt from {m} sources {period}",
+                          "other": "{n} failed attempts from {m} sources {period}"},
+        "logins.failed1": {"one": "{n} failed attempt from 1 source {period}",
+                           "other": "{n} failed attempts from 1 source {period}"},
+        "logins.none": "no failed attempts {period}",
+        "period.days": "in 14 days",
+        "period.since": "since {date} (the journal begins there)",
         "containers.title": "Container hardening",
         "containers.ok": "no finding in {n} containers",
         "containers.kind.docker-socket": "Docker socket",
@@ -103,10 +108,13 @@ T = {
         "exposure.title": "Aus dem Internet erreichbar",
         "exposure.none": "kein Port aus dem Internet erreichbar",
         "exposure.public": "{list}",
+        "exposure.limited": "nur von manchen Adressen: {list}",
         "exposure.unknown": {"one": "{n} Port nicht beurteilbar", "other": "{n} Ports nicht beurteilbar"},
         "exposure.nopublic": "keine öffentliche Adresse",
         "exposure.norules": "der Paketfilter ließ sich nicht lesen",
         "ssh.title": "SSH",
+        "ssh.locked-keys": {"one": "{n} gesperrtes Konto kann sich per Schlüssel anmelden",
+                            "other": "{n} gesperrte Konten können sich per Schlüssel anmelden"},
         "ssh.password-on": "Anmeldung mit Passwort an",
         "ssh.kbd-pam": "Passwörter über PAM (keyboard-interactive)",
         "ssh.empty-passwords": "leere Passwörter erlaubt",
@@ -123,11 +131,13 @@ T = {
         "logins.title": "Anmeldungen",
         "logins.outside": {"one": "{n} erfolgreiche Anmeldung von außerhalb von VPN und Privatnetz",
                            "other": "{n} erfolgreiche Anmeldungen von außerhalb von VPN und Privatnetz"},
-        "logins.failed": {"one": "{n} Fehlversuch von {m} Quellen in 14 Tagen",
-                          "other": "{n} Fehlversuche von {m} Quellen in 14 Tagen"},
-        "logins.failed1": {"one": "{n} Fehlversuch von 1 Quelle in 14 Tagen",
-                           "other": "{n} Fehlversuche von 1 Quelle in 14 Tagen"},
-        "logins.none": "keine Fehlversuche in 14 Tagen",
+        "logins.failed": {"one": "{n} Fehlversuch von {m} Quellen {period}",
+                          "other": "{n} Fehlversuche von {m} Quellen {period}"},
+        "logins.failed1": {"one": "{n} Fehlversuch von 1 Quelle {period}",
+                           "other": "{n} Fehlversuche von 1 Quelle {period}"},
+        "logins.none": "keine Fehlversuche {period}",
+        "period.days": "in 14 Tagen",
+        "period.since": "seit {date} (dort beginnt das Journal)",
         "containers.title": "Container-Härtung",
         "containers.ok": "kein Befund in {n} Containern",
         "containers.kind.docker-socket": "Docker-Socket",
@@ -199,6 +209,33 @@ def _clip(text):
     return (cut[:at] if at > 0 else cut).rstrip(",; ") + " …"
 
 
+MONTHS_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _parse_iso(text):
+    try:
+        return datetime.strptime(text or "", "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def journal_short(lg, generated):
+    """The day the journal begins when it covers clearly less than the 14 days
+    the logins are read for (more than a day missing), else None."""
+    start, now = _parse_iso(lg.get("journal_start")), _parse_iso(generated)
+    if not start or not now or start - (now - timedelta(days=14)) <= timedelta(days=1):
+        return None
+    return start
+
+
+def period(lang, lg, generated):
+    start = journal_short(lg, generated)
+    if not start:
+        return t(lang, "period.days")
+    day = f"{start.day} {MONTHS_EN[start.month - 1]}" if lang == "en" else f"{start.day}.{start.month}."
+    return t(lang, "period.since", date=day)
+
+
 def _port_label(p):
     what = (p.get("service") or {}).get("containers") or (p.get("service") or {}).get("processes") or []
     name = p.get("name") or (what[0] if what else "")
@@ -227,20 +264,29 @@ def items_of(doc, lang):
     if (src.get("rules") or {}).get("state") != "ok":
         out.append(item("exposure", "none", detail=t(lang, "exposure.norules")))
     else:
-        public = [p for p in ports if any(p["reach"][f]["internet"]["result"] in ("open", "restricted")
-                                          for f in ("4", "6"))]
+        def reached(p, result):
+            return any(p["reach"][f]["internet"]["result"] == result for f in ("4", "6"))
+
+        # The figure counts what the whole internet reaches; ports only some addresses reach
+        # (a country list, an allowed network) are named apart, so that they do not look as open.
+        public = [p for p in ports if reached(p, "open")]
+        limited = [p for p in ports if not reached(p, "open") and reached(p, "restricted")]
         unknown = [p for p in ports if p["state"] == "none"]
         state = worst([p["state"] for p in ports if p["state"] != "none"], "ok")
         if unknown and ORDER[state] < ORDER["info"]:
             state = "info"
         public.sort(key=lambda p: (-ORDER.get(p["state"], 0), p["port"]))
+        limited.sort(key=lambda p: (-ORDER.get(p["state"], 0), p["port"]))
         parts = []
         if public:
             parts.append(t(lang, "exposure.public", list=_names([_port_label(p) for p in public])))
-        elif not any((doc.get("network") or {}).get("public", {}).values()):
-            parts.append(t(lang, "exposure.nopublic"))
-        else:
-            parts.append(t(lang, "exposure.none"))
+        if limited:
+            parts.append(t(lang, "exposure.limited", list=_names([_port_label(p) for p in limited], 3)))
+        if not public and not limited:
+            if not any((doc.get("network") or {}).get("public", {}).values()):
+                parts.append(t(lang, "exposure.nopublic"))
+            else:
+                parts.append(t(lang, "exposure.none"))
         if unknown:
             parts.append(t(lang, "exposure.unknown", n=len(unknown)))
         out.append(item("exposure", state, len(public), "; ".join(parts)))
@@ -254,6 +300,9 @@ def items_of(doc, lang):
         for code in ("password-on", "kbd-pam", "empty-passwords", "root-yes", "root-key"):
             if code in codes:
                 parts.append(t(lang, "ssh." + code))
+        locked = sum(1 for f in ssh.get("keys") or [] if (f.get("account") or {}).get("finding") == "locked-with-keys")
+        if locked:
+            parts.append(t(lang, "ssh.locked-keys", n=locked))
         keys = [k for f in ssh.get("keys") or [] for k in f["keys"]]
         for code in ("rsa-short", "dsa"):
             n = sum(1 for k in keys if any(x["code"] == code for x in k["findings"]))
@@ -270,7 +319,7 @@ def items_of(doc, lang):
         state = ssh.get("state") or "none"
         warn = sum(1 for f in ssh.get("findings") or [] if ORDER[f["state"]] >= ORDER["warning"]) + \
             sum(1 for k in keys if ORDER[k.get("state", "ok")] >= ORDER["warning"]) + \
-            sum(1 for f in ssh.get("keys") or [] if f["problems"])
+            sum(1 for f in ssh.get("keys") or [] if f["problems"]) + locked
         out.append(item("ssh", state, warn or None, "; ".join(parts)))
     elif sshd.get("state") == "error":
         out.append(item("ssh", "none", detail=t(lang, "ssh.privsep" if sshd.get("reason") == "privsep-dir-missing"
@@ -283,8 +332,9 @@ def items_of(doc, lang):
             out.append(item("logins", "warning", lg["outside"], t(lang, "logins.outside", n=lg["outside"])))
         else:
             n, m = lg.get("failed_total", 0), lg.get("failed_sources", 0)
-            detail = t(lang, "logins.none") if not n else t(lang, "logins.failed1" if m == 1 else "logins.failed",
-                                                             n=n, m=m)
+            when = period(lang, lg, at)
+            detail = t(lang, "logins.none", period=when) if not n else \
+                t(lang, "logins.failed1" if m == 1 else "logins.failed", n=n, m=m, period=when)
             out.append(item("logins", "ok", n, detail))
     elif lg.get("state") in ("error", "timeout"):
         out.append(item("logins", "none", detail=t(lang, "unchecked")))

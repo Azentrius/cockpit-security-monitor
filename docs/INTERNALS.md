@@ -87,8 +87,8 @@ Commands run through `secproc.run`: a list (never a shell), `PATH=/usr/sbin:/usr
 | `ufw` | `/etc/ufw/ufw.conf`, `/etc/default/ufw`, `/etc/ufw/user.rules`, `user6.rules` | UFW's state and rules in readable form |
 | `hetzner` | `/var/lib/cockpit-security-hetzner/hetzner.json` (from the Hetzner service) | the Cloud Firewalls applied to this server |
 | `sshd` | `/usr/sbin/sshd -T`, `/etc/ssh/sshd_config`, `sshd_config.d/*.conf` (Match blocks) | the effective configuration |
-| `keys` | `/etc/passwd`, the authorized_keys files of accounts with a login shell (no link followed at the last step, regular files only, 1 MiB) | keys, options, who can change the file |
-| `journal` | `journalctl -o json --since=-14d` for `SYSLOG_IDENTIFIER` `sshd`, `sshd-session`, `sudo`, `cockpit-session` | logins of the last 14 days |
+| `keys` | `/etc/passwd`, `/etc/shadow` (only as root), the authorized_keys files of accounts with a login shell (no link followed at the last step, regular files only, 1 MiB) | keys, options, who can change the file, accounts locked with `passwd -l` whose keys still log in |
+| `journal` | `journalctl -o json --since=-14d` for `SYSLOG_IDENTIFIER` `sshd`, `sshd-session`, `sudo`, `cockpit-session`; `journalctl -o json --since=-14d --lines=+1` for where the journal begins (systemd 254 or newer, else unknown) | logins of the last 14 days, or since the journal begins |
 | `crowdsec` | `systemctl is-active crowdsec.service`, `cscli version`, `cscli decisions list -o json`, `cscli alerts list -o json --since 14d`, `cscli bouncers list -o json`, the firewall bouncer's YAML, `online_api_credentials.yaml` | what CrowdSec does |
 
 Each source has a `state`: `ok`, `missing` (not installed), `skipped` (`reason`), `needs-root`,
@@ -136,7 +136,9 @@ forward (a port Docker forwards to a container), in the order of their prioritie
   private network are their networks. A rule that names only part of a class (`-s
   198.51.100.0/24 -j ACCEPT`, `! -s 10.8.0.0/24 -j DROP`) gives a narrower sample that is
   followed on its own: when only such parts get in, the result is **restricted** with them as
-  `sources`; when a part could get in but a rule for it cannot be read, the result is **unknown**.
+  `sources` and the rule or policy that stops the class as a whole as `limited_by` (the page
+  names it as what keeps everyone else out); when a part could get in but a rule for it cannot be
+  read, the result is **unknown**.
   Parts of ban lists (a plain match that drops) are not followed.
 - An ipset as the source (`-m set --match-set NAME src`, a country list in DOCKER-USER) is such a
   part, `ipset NAME` in `sources`: its members are not in iptables-save, so the page says
@@ -196,23 +198,27 @@ A port marked as expected becomes `info` (`expected`, `base_state`).
             "state": "warning", "why": "public-other"}],
  "ssh": {"sshd": {"state": "ok", "match": []}, "findings": [{"key": "passwordauthentication", "value": "no", "state": "ok", "code": "password-off"}, …],
          "keys": [{"user": "root", "file": "/root/.ssh/authorized_keys", "mode": "600", "problems": [], "state": "ok",
+                   "account": {"password": "none", "expired": false},
                    "keys": [{"line": 1, "type": "ssh-ed25519", "bits": 256, "fingerprint": "SHA256:…", "comment": "bastion", "options": ["from=\"10.8.0.0/24\""], "findings": [], "state": "ok"}]}],
          "counts": {"keys": 4, "files": 2}, "ports": ["22"], "listen": [], "state": "warning"},
  "logins": {"state": "ok", "entries": 9, "success": [{"time": "…", "service": "ssh", "method": "publickey", "user": "root", "source": "10.8.0.2", "class": "vpn"}],
             "success_total": 3, "failed": [{"source": "10.8.0.9", "class": "vpn", "count": 1, "last": "…", "services": ["ssh"], "users": 1}],
             "failed_sources": 1, "failed_total": 1, "sudo": [{"user": "alex", "uses": 1, "failures": 1, "last": "…"}],
-            "outside": 0, "truncated": false, "assessment": "ok"},
+            "outside": 0, "truncated": false, "journal_start": "2026-10-11T08:00:00Z", "assessment": "ok"},
  "containers": {"state": "ok", "items": [{"name": "runner", "image": "…", "findings": [{"kind": "docker-socket", "state": "danger", "detail": "/var/run/docker.sock"}]}]},
  "crowdsec": {"installed": false},
  "sources": {"ip": {"state": "ok", "took_ms": 3}, …}}
 ```
 
 - `format`: 1. A page that knows a lower format says so.
-- `reach.<family>.<class>.result`: `open`, `restricted` (+ `sources`: networks, or `ipset NAME`), `closed`, `unknown` (+
-  `unknown`: the step with the rule), `absent` (no address of that family and class receives the
-  socket). `path`: `input` or `forward` (+ `to`); `proxy`: true for docker-proxy;
+- `reach.<family>.<class>.result`: `open`, `restricted` (+ `sources`: networks, or `ipset NAME`;
+  `limited_by`: the step, in the form of `steps`, that drops the rest of the class), `closed`,
+  `unknown` (+ `unknown`: the step with the rule), `absent` (no address of that family and class
+  receives the socket). `path`: `input` or `forward` (+ `to`); `proxy`: true for docker-proxy;
   `reason`: `local-published` (the host to a published port), `no-rules` (the packet filter could
-  not be read). `steps` keep the base chains that decided (a rule, or the policy).
+  not be read). `steps` keep the base chains that decided (a rule, or the policy); for
+  `restricted` they are the way of an allowed source. A port only the Hetzner Cloud Firewall
+  restricts has no `limited_by` (see `hetzner`).
 - Container findings: `docker-socket` (danger, also read-only: `:ro` protects the file, not the
   API), `privileged`, `pid-host`, `cap-add` (`SYS_ADMIN`, `NET_ADMIN`, `ALL`), `host-mount` (`/`,
   `/etc`, `/root`, `/var/run`, `/run` writable) (warning), `network-host`, `root-user`,
@@ -223,9 +229,19 @@ A port marked as expected becomes `info` (`expected`, `base_state`).
   `file-writable`, `dir-writable`, `file-owner`, `dir-owner` (warning), `link` (not read).
   `sshd.reason` `privsep-dir-missing`: `/run/sshd` is missing (socket-activated sshd), so `sshd
   -T` cannot run; the page shows the line for `tmpfiles.d` (decision 9.6: set up by hand).
+- `ssh.keys[].account` (only when the scan could read `/etc/shadow`, i.e. as root):
+  `password` `locked` (a `!` in front of a real hash: `passwd -l`, `usermod -L`), `none` (`!`,
+  `!!`, `*`, `!*`: never had a password, a key-only account by design), `empty` or `set`;
+  `expired` from the account's expiry date. `finding: "locked-with-keys"` (warning, also on the
+  file's `state`) for a locked, not expired account with keys while sshd uses PAM: with `UsePAM
+  yes` sshd does not check the lock, so the keys still log in (`usermod --expiredate 1` stops
+  them). Not for root: a locked root password with keys is how Ubuntu sets up root.
 - `logins.success[].class` and `failed[].class`: `internet`, `vpn`, `private`, `local`, `cgnat`,
   `link`, `other`; `null` for Cockpit sessions (Cockpit does not log their source on the target).
   Failed attempts count once per connection (process). At most 200 successes and 100 sources.
+  `logins.journal_start`: the oldest entry within the 14 days, `null` when unknown. When it lies
+  more than a day after the start of the 14 days (rotation), the page and the status name that day
+  instead of "14 days".
 - CrowdSec findings: `old-engine` (before 1.5), `not-running`, `bouncer-input-only` (nftables mode
   without the hook forward), `bouncer-no-docker-user` (iptables mode without DOCKER-USER), both only
   when Docker publishes ports, and `no-bouncer`.
@@ -276,9 +292,9 @@ exists but cannot be read exits 77. Without the file the state is `none` ("Not c
 
 | `id` | State | `value` | `detail` |
 |---|---|---|---|
-| `exposure` | the most severe port; at least `info` when a port could not be assessed; `none` when the packet filter could not be read | ports reachable from the internet | those ports with their service, at most 5 |
-| `ssh` | the most severe of the configuration and the keys | findings at warning or above | password login, root, short or DSA keys, files others can change, keys without `from=` |
-| `logins` | `warning` with a successful login from outside VPN and private networks, else `ok` | logins from outside, else failed attempts | counts, no addresses or names |
+| `exposure` | the most severe port; at least `info` when a port could not be assessed; `none` when the packet filter could not be read | ports the whole internet reaches | those ports with their service, at most 5; then the ports only some addresses reach (`restricted`), at most 3 |
+| `ssh` | the most severe of the configuration and the keys | findings at warning or above | password login, root, locked accounts whose keys still log in (a count, no names), short or DSA keys, files others can change, keys without `from=` |
+| `logins` | `warning` with a successful login from outside VPN and private networks, else `ok` | logins from outside, else failed attempts | counts, no addresses or names; "since DAY" instead of "in 14 days" when the journal begins later |
 | `containers` | the most severe finding not marked | containers with a warning or danger | the finding and container names, at most 3 per finding |
 | `crowdsec` | only when installed: its findings, else `ok` | active decisions | |
 | `scan` | `ok`; `warning` when the state is older than an hour (decided when the verb runs) | | |

@@ -148,6 +148,17 @@
         const d = new Date(iso || "");
         return isNaN(d) ? "?" : d.toLocaleString(LOCALE, { dateStyle: "medium", timeStyle: "short" });
     }
+    function fmtDay(ms) {
+        return new Date(ms).toLocaleDateString(LOCALE, { day: "numeric", month: "long" });
+    }
+    // The start of the journal when it covers clearly less than the 14 days the logins are read
+    // for (more than a day missing), else null; as lib/secstatus.py journal_short().
+    function journalShort(lg, generated) {
+        const start = Date.parse(lg.journal_start || "");
+        const now = Date.parse(generated || "");
+        if (isNaN(start) || isNaN(now)) return null;
+        return start - (now - 14 * 86400000) > 86400000 ? start : null;
+    }
     function minutesSince(iso) {
         const ts = Date.parse(iso || "");
         return isNaN(ts) ? null : Math.max(0, (Date.now() - ts) / 60000);
@@ -337,11 +348,17 @@
         if (step.rule) return tr("det.rule", { rule: step.rule.text, where: where(step.rule) });
         return tr("det.policy", { policy: step.chain.policy || "accept", where: where(step.chain) });
     }
+    // The rule (or policy) that keeps out everyone but the allowed sources of a restricted port.
+    function limitText(step) {
+        if (step.rule) return tr("det.limitRule", { rule: step.rule.text, where: where(step.rule) });
+        return tr("det.limitPolicy", { policy: step.chain.policy || "drop", where: where(step.chain) });
+    }
     function classLine(cls, r) {
         let res = t("det.res." + r.result, { list: (r.sources || []).join(", ") });
         const why = [];
         if (r.reason === "local-published") why.push(rich(t("det.localPublished")));
         else if (r.reason === "no-rules") why.push(rich(t("det.noRules")));
+        if (r.limited_by) why.push(limitText(r.limited_by));
         const steps = r.steps || [];
         const decisive = r.result === "unknown" ? steps.filter((s) => s.result === "unknown") :
             r.result === "closed" ? steps.filter((s) => s.result === "drop") : steps.filter((s) => s.rule || s.policy);
@@ -498,12 +515,17 @@
         if (!st) { fill(box); return; }
         const ports = (st.ports || []).slice().sort((a, b) => (ORDER[b.state] - ORDER[a.state]) || (a.port - b.port) ||
                                                                (a.proto < b.proto ? -1 : 1));
-        const pub = ports.filter((p) => ["4", "6"].some((f) => ["open", "restricted"].indexOf(p.reach[f].internet.result) >= 0));
+        const reached = (p, result) => ["4", "6"].some((f) => p.reach[f].internet.result === result);
+        const pub = ports.filter((p) => reached(p, "open") || reached(p, "restricted"));
+        const open = pub.filter((p) => reached(p, "open"));
+        const limited = pub.length - open.length;
         const attention = pub.filter((p) => ORDER[p.state] >= ORDER.warning);
         const unknown = ports.filter((p) => p.state === "none");
         const intro = [];
         if (!Object.values((st.network || {}).public || {}).some(Boolean)) intro.push(h("p", { text: t("ov.noPublic") }));
-        intro.push(h("p", { text: pub.length ? t("ov.public", { n: pub.length }) : t("ov.publicNone") }));
+        if (open.length) intro.push(h("p", { text: t("ov.public", { n: open.length }) }));
+        if (limited) intro.push(h("p", { text: t("ov.limited", { n: limited }) }));
+        if (!pub.length) intro.push(h("p", { text: t("ov.publicNone") }));
         if (attention.length) {
             intro.push(h("p", { text: t("ov.attention", { n: attention.length }) },
                 h("span", { class: "sm-chips" }, attention.map((p) => label(p.state, p.port + "/" + p.proto + (p.name ? " " + p.name : ""))))));
@@ -558,9 +580,17 @@
         const files = ssh.keys || [];
         const keyCols = [{ label: t("col.type") }, { label: t("col.bits") }, { label: t("col.fingerprint") }, { label: t("col.comment") },
                          { label: t("col.options") }, { label: t("col.findings") }];
+        const fileNotes = (f) => {
+            const items = (f.problems || []).map((x) => h("li", null, label("warning", t("file." + x))));
+            if ((f.account || {}).finding === "locked-with-keys") {
+                items.push(h("li", { class: "sm-account" }, label("warning", t("account.locked")), " ",
+                    tr("account.locked-with-keys", { user: f.user })));
+            }
+            return items.length ? h("ul", { class: "sm-plain-list" }, items) : null;
+        };
         const fileBlocks = files.map((f) => h("div", { class: "sm-keyfile", "data-state": f.state },
             h("p", { class: "sm-sub-title" }, tr("keys.file", { user: f.user, file: f.file, mode: f.mode || "?" }), " ", label(f.state)),
-            (f.problems || []).length ? h("ul", { class: "sm-plain-list" }, f.problems.map((x) => h("li", null, label("warning", t("file." + x))))) : null,
+            fileNotes(f),
             f.keys.length ? table(keyCols, f.keys.map((k) => [
                 h("span", { class: "az-mono", text: k.type || "?" }), k.bits ? t("keys.bits", { n: k.bits }) : "–",
                 k.fingerprint ? h("span", { class: "az-mono", text: k.fingerprint }) : "–", k.comment || "–",
@@ -595,7 +625,9 @@
             return;
         }
         const ok = lg.success || [];
+        const start = journalShort(lg, st.generated);
         const okCard = card("sm-logins", t("logins.title"), label(lg.outside ? "warning" : "ok"), [
+            start ? h("p", { class: "sm-note", id: "sm-journal-start", text: t("logins.since", { date: fmtDay(start) }) }) : null,
             h("p", { class: "sm-intro", text: ok.length ? t("logins.intro", { n: lg.success_total }) : t("logins.none") }),
             ok.length ? table([{ label: t("col.time") }, { label: t("col.service") }, { label: t("col.user") }, { label: t("col.source") },
                                { label: t("col.method") }],

@@ -2071,6 +2071,28 @@
        "ipset germany"
       ],
       "iface": "eth0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "FORWARD",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "DOCKER-USER",
+        "index": 1,
+        "text": "-p tcp -m multiport --dports 21115,21116,21117,21118,21119 -m set ! --match-set germany src -j DROP",
+        "comment": "",
+        "owner": "docker"
+       },
+       "policy": false
+      },
       "path": "forward",
       "to": {
        "addr": "172.20.0.3",
@@ -2134,6 +2156,28 @@
        "ipset germany"
       ],
       "iface": "enp7s0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "FORWARD",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "DOCKER-USER",
+        "index": 1,
+        "text": "-p tcp -m multiport --dports 21115,21116,21117,21118,21119 -m set ! --match-set germany src -j DROP",
+        "comment": "",
+        "owner": "docker"
+       },
+       "policy": false
+      },
       "path": "forward",
       "to": {
        "addr": "172.20.0.3",
@@ -2300,6 +2344,28 @@
        "ipset germany"
       ],
       "iface": "eth0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "FORWARD",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "DOCKER-USER",
+        "index": 1,
+        "text": "-p tcp -m multiport --dports 21115,21116,21117,21118,21119 -m set ! --match-set germany src -j DROP",
+        "comment": "",
+        "owner": "docker"
+       },
+       "policy": false
+      },
       "path": "forward",
       "to": {
        "addr": "172.20.0.3",
@@ -2363,6 +2429,28 @@
        "ipset germany"
       ],
       "iface": "enp7s0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "FORWARD",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "DOCKER-USER",
+        "index": 1,
+        "text": "-p tcp -m multiport --dports 21115,21116,21117,21118,21119 -m set ! --match-set germany src -j DROP",
+        "comment": "",
+        "owner": "docker"
+       },
+       "policy": false
+      },
       "path": "forward",
       "to": {
        "addr": "172.20.0.3",
@@ -2529,6 +2617,28 @@
        "ipset germany"
       ],
       "iface": "eth0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "FORWARD",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "DOCKER-USER",
+        "index": 2,
+        "text": "-p udp -m udp --dport 21116 -m set ! --match-set germany src -j DROP",
+        "comment": "",
+        "owner": "docker"
+       },
+       "policy": false
+      },
       "path": "forward",
       "to": {
        "addr": "172.20.0.3",
@@ -2592,6 +2702,28 @@
        "ipset germany"
       ],
       "iface": "enp7s0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "FORWARD",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "DOCKER-USER",
+        "index": 2,
+        "text": "-p udp -m udp --dport 21116 -m set ! --match-set germany src -j DROP",
+        "comment": "",
+        "owner": "docker"
+       },
+       "policy": false
+      },
       "path": "forward",
       "to": {
        "addr": "172.20.0.3",
@@ -2758,6 +2890,28 @@
        "ipset germany"
       ],
       "iface": "eth0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "FORWARD",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "DOCKER-USER",
+        "index": 1,
+        "text": "-p tcp -m multiport --dports 21115,21116,21117,21118,21119 -m set ! --match-set germany src -j DROP",
+        "comment": "",
+        "owner": "docker"
+       },
+       "policy": false
+      },
       "path": "forward",
       "to": {
        "addr": "172.20.0.2",
@@ -2821,6 +2975,28 @@
        "ipset germany"
       ],
       "iface": "enp7s0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "FORWARD",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "DOCKER-USER",
+        "index": 1,
+        "text": "-p tcp -m multiport --dports 21115,21116,21117,21118,21119 -m set ! --match-set germany src -j DROP",
+        "comment": "",
+        "owner": "docker"
+       },
+       "policy": false
+      },
       "path": "forward",
       "to": {
        "addr": "172.20.0.2",
@@ -2987,6 +3163,28 @@
        "ipset germany"
       ],
       "iface": "eth0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "FORWARD",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "DOCKER-USER",
+        "index": 1,
+        "text": "-p tcp -m multiport --dports 21115,21116,21117,21118,21119 -m set ! --match-set germany src -j DROP",
+        "comment": "",
+        "owner": "docker"
+       },
+       "policy": false
+      },
       "path": "forward",
       "to": {
        "addr": "172.20.0.3",
@@ -3050,6 +3248,28 @@
        "ipset germany"
       ],
       "iface": "enp7s0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "FORWARD",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "DOCKER-USER",
+        "index": 1,
+        "text": "-p tcp -m multiport --dports 21115,21116,21117,21118,21119 -m set ! --match-set germany src -j DROP",
+        "comment": "",
+        "owner": "docker"
+       },
+       "policy": false
+      },
       "path": "forward",
       "to": {
        "addr": "172.20.0.3",
@@ -3216,6 +3436,28 @@
        "ipset germany"
       ],
       "iface": "eth0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "FORWARD",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "DOCKER-USER",
+        "index": 1,
+        "text": "-p tcp -m multiport --dports 21115,21116,21117,21118,21119 -m set ! --match-set germany src -j DROP",
+        "comment": "",
+        "owner": "docker"
+       },
+       "policy": false
+      },
       "path": "forward",
       "to": {
        "addr": "172.20.0.2",
@@ -3279,6 +3521,28 @@
        "ipset germany"
       ],
       "iface": "enp7s0",
+      "limited_by": {
+       "chain": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "FORWARD",
+        "policy": "drop",
+        "owner": null
+       },
+       "result": "drop",
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "filter",
+        "chain": "DOCKER-USER",
+        "index": 1,
+        "text": "-p tcp -m multiport --dports 21115,21116,21117,21118,21119 -m set ! --match-set germany src -j DROP",
+        "comment": "",
+        "owner": "docker"
+       },
+       "policy": false
+      },
       "path": "forward",
       "to": {
        "addr": "172.20.0.2",
@@ -3456,6 +3720,7 @@
   "outside": 0,
   "state": "ok",
   "truncated": false,
+  "journal_start": null,
   "assessment": "ok"
  },
  "containers": {

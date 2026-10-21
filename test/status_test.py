@@ -79,12 +79,12 @@ class Contract(unittest.TestCase):
 
     def test_items_of_the_scenarios(self):
         want = {
-            "ufw-docker": ("danger", [("exposure", "warning", "5"), ("ssh", "warning", "2"), ("logins", "ok", "1"),
+            "ufw-docker": ("danger", [("exposure", "warning", "5"), ("ssh", "warning", "3"), ("logins", "ok", "1"),
                                       ("containers", "danger", "1"), ("scan", "ok", None)]),
-            "hetzner-open": ("warning", [("exposure", "info", "4"), ("ssh", "warning", "2"),
+            "hetzner-open": ("warning", [("exposure", "info", "3"), ("ssh", "warning", "2"),
                                          ("logins", "warning", "1"), ("containers", "warning", "2"),
                                          ("crowdsec", "warning", "2"), ("scan", "ok", None)]),
-            "nft-native": ("danger", [("exposure", "warning", "5"), ("ssh", "warning", "2"), ("logins", "ok", "0"),
+            "nft-native": ("danger", [("exposure", "warning", "4"), ("ssh", "warning", "2"), ("logins", "ok", "0"),
                                       ("containers", "danger", "2"), ("scan", "ok", None)]),
             "recorded-ci": ("danger", [("exposure", "info", "2"), ("ssh", "info", None), ("logins", "ok", "0"),
                                        ("containers", "danger", "5"), ("scan", "ok", None)]),
@@ -109,6 +109,43 @@ class Contract(unittest.TestCase):
         self.assertEqual(cr, "outdated version 1.4.6; bouncer does not protect container ports; 2 active decisions")
         de = secstatus.localize(status("hetzner-open"), "de", NOW)
         self.assertEqual(de["items"][2]["detail"], "1 erfolgreiche Anmeldung von außerhalb von VPN und Privatnetz")
+
+    def test_limited_ports_apart(self):
+        """The figure counts what the whole internet reaches; a port only some addresses reach
+        (here an allowed network) is named apart."""
+        ex = status("nft-native")["items"][0]
+        self.assertEqual((ex["value"], ex["detail"]),
+                         ("4", "3000/tcp forgejo, 80/tcp http, 443/tcp https, 51820/udp wireguard; "
+                               "only from some addresses: 60001/tcp syncthing"))
+        doc, _ = make_states.state("nft-native")
+        for p in doc["ports"]:
+            for f in ("4", "6"):
+                if p["reach"][f]["internet"]["result"] == "open":
+                    p["reach"][f]["internet"]["result"] = "closed"
+        ex = secstatus.status_file(doc, "0.1.0")["items"][0]
+        self.assertEqual((ex["value"], ex["detail"]), ("0", "only from some addresses: 60001/tcp syncthing"))
+
+    def test_locked_account(self):
+        ssh = {i["id"]: i for i in status("ufw-docker")["items"]}["ssh"]
+        self.assertIn("1 locked account can still log in with keys", ssh["detail"])
+        de = {i["id"]: i for i in secstatus.localize(status("ufw-docker"), "de", NOW)["items"]}["ssh"]
+        self.assertIn("1 gesperrtes Konto kann sich per Schlüssel anmelden", de["detail"])
+        self.assertFalse(de["detail"].endswith("…"), "within the 200 characters of a detail")
+
+    def test_journal_shorter_than_14_days(self):
+        """The journal begins 9 days back: the counts name that day instead of "14 days"."""
+        lg = {i["id"]: i for i in status("ufw-docker")["items"]}["logins"]
+        self.assertEqual(lg["detail"], "1 failed attempt from 1 source since 11 Oct (the journal begins there)")
+        de = {i["id"]: i for i in secstatus.localize(status("ufw-docker"), "de", NOW)["items"]}["logins"]
+        self.assertEqual(de["detail"], "1 Fehlversuch von 1 Quelle seit 11.10. (dort beginnt das Journal)")
+        doc, _ = make_states.state("ufw-docker")
+        doc["logins"]["journal_start"] = "2026-10-06T20:00:00Z"      # 13 days 16 hours back: 14 days
+        lg = {i["id"]: i for i in secstatus.status_file(doc, "0.1.0")["items"]}["logins"]
+        self.assertEqual(lg["detail"], "1 failed attempt from 1 source in 14 days")
+        doc["logins"]["journal_start"] = None
+        doc["logins"]["failed_total"] = 0
+        lg = {i["id"]: i for i in secstatus.status_file(doc, "0.1.0")["items"]}["logins"]
+        self.assertEqual(lg["detail"], "no failed attempts in 14 days")
 
     def test_marks_change_the_status(self):
         st = status("ufw-docker", {"ports": {"8080/tcp": "test page"},

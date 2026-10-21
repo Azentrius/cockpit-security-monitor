@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+Findings from the first real scan of a server, said more precisely.
+
+- **The rule that keeps everyone else out:** a port reachable only from some sources names, first,
+  the rule or policy that stops the rest (a country list in DOCKER-USER, `! -s NET -j DROP`, the
+  policy), not only the rule that lets the allowed sources in (`limited_by` in the state).
+- **Locked accounts whose keys still log in:** `passwd -l` closes only the password; with
+  `UsePAM yes` sshd does not check the lock. An account locked that way (a `!` in front of a real
+  hash in `/etc/shadow`, read as root) that still has keys is a warning, and the page names
+  `usermod --expiredate 1` as the way to close it. Not for root, an expired account, or sshd
+  without PAM; accounts that never had a password (`!`, `*`) are key-only by design.
+- **Ports only some addresses reach, counted apart:** the figure of the status item `exposure` and
+  the page's overview count the ports the whole internet reaches; a port open only to a country
+  list or an allowed network is named apart ("only from some addresses").
+- **The journal's real start:** when the journal begins later than 14 days back (rotation), the
+  status says since when instead of "in 14 days", and the logins tab says where the journal
+  begins (`journalctl --lines=+1`, systemd 254 or newer).
+
 ## 0.1.0 – 2026-10-21
 
 First version: what is reachable from where on a server, who logs in, and what

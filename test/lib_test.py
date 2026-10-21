@@ -200,8 +200,30 @@ class Keys(unittest.TestCase):
         self.assertEqual(seclib.key_files(None, "r", "/root"), ["/root/.ssh/authorized_keys",
                                                                 "/root/.ssh/authorized_keys2"])
 
+    def test_password_kinds(self):
+        """passwd -l and usermod -L put "!" in front of the hash: locked. "!", "!!" (RHEL's useradd),
+        "*" and "!*" never had a password: a key-only account by design."""
+        for field, kind in (("!$6$salt$hash", "locked"), ("!!$y$j9T$hash", "locked"), ("!", "none"),
+                            ("!!", "none"), ("*", "none"), ("!*", "none"), ("*LK*", "none"),
+                            ("", "empty"), ("$6$salt$hash", "set"), ("$y$j9T$hash", "set")):
+            self.assertEqual(seclib.password_kind(field), kind, field)
+
+    def test_shadow(self):
+        sh = seclib.parse_shadow(fixture("ufw-docker", "files", "etc", "shadow"))
+        self.assertEqual(sh["alex"], {"password": "locked", "expire": None})
+        self.assertEqual(sh["root"], {"password": "none", "expire": None})
+        self.assertEqual(seclib.parse_shadow("a:!$6$x$y:20000:0:99999:7::19999:\nbad line\nb:*:1::::::x\n"),
+                         {"a": {"password": "locked", "expire": 19999}, "b": {"password": "none", "expire": None}})
+        self.assertEqual(seclib.parse_shadow(None), {})
+
 
 class Journal(unittest.TestCase):
+    def test_first_entry(self):
+        self.assertEqual(seclib.journal_first(fixture("ufw-docker", "commands", "journal-start.jsonl")),
+                         1791705600.0)
+        for text in ("", "\n", "not json", '{"MESSAGE":"x"}', '{"__REALTIME_TIMESTAMP":"x"}', "[]"):
+            self.assertIsNone(seclib.journal_first(text), text)
+
     def test_hetzner_open(self):
         j = seclib.parse_journal(fixture("hetzner-open", "commands", "journal.jsonl"))
         self.assertEqual([(s["user"], s["source"], s["class"], s["method"]) for s in j["success"]],

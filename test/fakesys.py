@@ -2,7 +2,8 @@
 """A stand-in for seccheck.System that answers from a scenario in
 test/fixtures/<scenario>/:
 
-  commands/<key>.txt|.json|.jsonl   the output of a command (keys below)
+  commands/<key>.txt|.json|.jsonl   the output of a command (keys below); a command without a
+                                    file is missing (journal-start: an older systemd)
   files/<absolute path>             files, also what exists and what a directory lists
   docker/*.json                     Docker's API (info, version, containers, networks, inspect-<id>)
   meta.json                         now, uid, exit codes and stderr of commands, stat data,
@@ -36,6 +37,8 @@ def key(argv):
         return "nft"
     if a == ["/usr/sbin/sshd", "-T"]:
         return "sshd-T"
+    if a[:1] == ["journalctl"] and "--lines=+1" in a:
+        return "journal-start"
     if a[:1] == ["journalctl"]:
         return "journal"
     if a == ["systemctl", "is-active", "crowdsec.service"]:

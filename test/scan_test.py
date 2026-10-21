@@ -115,11 +115,47 @@ class UfwDocker(unittest.TestCase):
         self.assertEqual(ssh["state"], "warning")
         self.assertEqual(ssh["ports"], ["22"])
 
+    def test_locked_account_with_keys(self):
+        """alex's password is locked with passwd -l ("!" before a hash), but sshd uses PAM and
+        does not check the lock: the keys still log in. root's "*" is no lock but no password."""
+        files = {f["user"]: f for f in self.doc["ssh"]["keys"]}
+        self.assertEqual(files["alex"]["account"], {"password": "locked", "expired": False,
+                                                    "finding": "locked-with-keys"})
+        self.assertEqual(files["root"]["account"], {"password": "none", "expired": False})
+
+    def test_locked_account_variants(self):
+        def alex(**kw):
+            doc = scan("ufw-docker", **kw)
+            return next(f for f in doc["ssh"]["keys"] if f["user"] == "alex").get("account")
+        shadow = fixture("ufw-docker", "files", "etc", "shadow")
+        expired = shadow.replace(":20370:0:99999:7:::", ":20370:0:99999:7::20000:")
+        self.assertEqual(alex(files={"/etc/shadow": expired}), {"password": "locked", "expired": True},
+                         "an expired account refuses keys too")
+        nopam = fixture("ufw-docker", "commands", "sshd-T.txt").replace("usepam yes", "usepam no")
+        self.assertEqual(alex(results={"sshd-T": nopam}), {"password": "locked", "expired": False},
+                         "without PAM sshd refuses a locked account itself")
+        alex_line = next(line for line in shadow.splitlines() if line.startswith("alex:"))
+        keyonly = shadow.replace(alex_line, "alex:!:20370:0:99999:7:::")
+        self.assertEqual(alex(files={"/etc/shadow": keyonly}), {"password": "none", "expired": False},
+                         "an account without a password is key-only by design")
+        self.assertIsNone(alex(uid=1000), "without root /etc/shadow is not read")
+        self.assertIsNone(alex(files={"/etc/shadow": None}))
+
     def test_logins(self):
         lg = self.doc["logins"]
         self.assertEqual((lg["state"], lg["success_total"], lg["outside"], lg["failed_total"]), ("ok", 3, 0, 1))
         self.assertEqual(lg["success"][0]["time"], "2026-10-20T11:55:00Z")
         self.assertEqual(lg["assessment"], "ok")
+
+    def test_journal_start(self):
+        """The oldest entry within the 14 days (journalctl --lines=+1): here 9 days and 4 hours
+        back. Without an answer (systemd before 254) it stays unknown."""
+        self.assertEqual(self.doc["logins"]["journal_start"], "2026-10-11T08:00:00Z")
+        self.assertIsNone(scan("hetzner-open")["logins"]["journal_start"])
+        bad = scan("ufw-docker", results={"journal-start": secproc.Result(1, "", "journalctl: invalid option")})
+        self.assertIsNone(bad["logins"]["journal_start"])
+        empty = scan("ufw-docker", results={"journal-start": ""})
+        self.assertIsNone(empty["logins"]["journal_start"])
 
     def test_containers(self):
         items = {c["name"]: [(f["kind"], f["state"]) for f in c["findings"]] for c in self.doc["containers"]["items"]}
@@ -151,6 +187,7 @@ class HetznerOpen(unittest.TestCase):
         self.assertEqual(pg["hetzner"]["refs"], [{"firewall": "web", "id": 38}])
         office = self.p["8443/tcp"]["reach"]["4"]["internet"]
         self.assertEqual((office["result"], office["sources"]), ("restricted", ["198.51.100.0/24"]))
+        self.assertNotIn("limited_by", office, "the host lets everyone in; the Hetzner firewall limits it")
         self.assertEqual(self.p["8443/tcp"]["reach"]["6"]["internet"]["result"], "closed",
                          "the rule names no IPv6 source")
         self.assertEqual(reach(self.p["5432/tcp"])["private"], "open", "Hetzner's private network is not filtered")
@@ -226,7 +263,12 @@ class NftNative(unittest.TestCase):
             "2222/tcp": ("ok", "only-vpn"), "3000/tcp": ("warning", "public-other"),
             "9090/tcp": ("ok", "only-vpn"), "9100/tcp": ("ok", "only-vpn"), "51820/udp": ("info", "public-expected"),
             "60001/tcp": ("info", "restricted")})
-        self.assertEqual(self.p["60001/tcp"]["reach"]["4"]["internet"]["sources"], ["192.0.2.0/24"])
+        inet = self.p["60001/tcp"]["reach"]["4"]["internet"]
+        self.assertEqual(inet["sources"], ["192.0.2.0/24"])
+        self.assertEqual(inet["steps"][-1]["rule"]["text"], "tcp dport 60000-60010 ip saddr 192.0.2.0/24 accept")
+        lim = inet["limited_by"]
+        self.assertEqual((lim["result"], lim["rule"], lim["policy"], lim["chain"]["chain"], lim["chain"]["family"]),
+                         ("drop", None, True, "input", "inet"), "everyone else: the policy of nft's input chain")
         self.assertEqual(self.p["9100/tcp"]["service"]["containers"], ["monitor"], "from the process's cgroup")
         self.assertEqual(self.doc["network"]["public"], {"4": True, "6": False})
 
@@ -337,7 +379,13 @@ class Recorded(unittest.TestCase):
         relay = ports(doc)["21116/udp"]
         v4, v6 = relay["reach"]["4"]["internet"], relay["reach"]["6"]["internet"]
         self.assertEqual((v4["result"], v4["path"], v4["sources"]), ("restricted", "forward", ["ipset germany"]))
+        self.assertEqual(v4["steps"][-1]["rule"]["chain"], "DOCKER", "Docker's rule lets the members in")
+        lim = v4["limited_by"]
+        self.assertEqual((lim["result"], lim["chain"]["chain"], lim["rule"]["chain"]), ("drop", "FORWARD", "DOCKER-USER"))
+        self.assertEqual(lim["rule"]["text"], "-p udp -m udp --dport 21116 -m set ! --match-set germany src -j DROP",
+                         "the geo rule keeps everyone else out")
         self.assertEqual((v6["result"], v6["path"], v6.get("proxy")), ("open", "input", True))
+        self.assertNotIn("limited_by", v6)
         self.assertEqual(reach(ports(doc)["8080/tcp"]), {"internet": "absent", "vpn": "absent", "private": "absent",
                                                          "local": "open"}, "the office suite on 127.0.0.1")
         f2b = [t for t in doc["firewall"]["tables"] if "fail2ban" in t["owners"]]
