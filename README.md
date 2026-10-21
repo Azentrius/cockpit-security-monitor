@@ -167,12 +167,25 @@ table, but not explained on their own.
 
 ## Install
 
-No release yet. To try a build, make the package and install it:
+From the Azentrius package repository (set up once, see
+[packages.azentrius.com](https://packages.azentrius.com)):
 
 ```bash
-make packages                                      # needs dpkg-deb and rpmbuild
-sudo apt install ./dist/cockpit-security-monitor_0.1.0-1_all.deb
+sudo apt update && sudo apt install cockpit-security-monitor
 ```
+
+Or install **Security Monitor** in Cockpit under **Applications**.
+
+Or from the files of a release: download the `.deb` and `SHA256SUMS`, check them, install:
+
+```bash
+sha256sum --ignore-missing -c SHA256SUMS
+gh attestation verify cockpit-security-monitor_X.Y.Z-1_all.deb --repo Azentrius/cockpit-security-monitor
+sudo apt install ./cockpit-security-monitor_X.Y.Z-1_all.deb
+```
+
+Or build the package yourself: `make packages` (needs dpkg-deb and rpmbuild), then
+`sudo apt install ./dist/cockpit-security-monitor_X.Y.Z-1_all.deb`.
 
 The package must be installed on each server you look at in Cockpit, also behind a Cockpit
 bastion. Open the page with administrative access: it checks the server once by itself. Set up the
