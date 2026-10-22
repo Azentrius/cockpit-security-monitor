@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+What could not be read is never OK.
+
+- **Addresses or sockets not read:** when `ip -j addr` fails, every port not bound to the loopback
+  is "Not assessable" from the internet, the VPN and the private network (it was "this host
+  only"), and "no public address" becomes "not known" (`network.public` `null`). When `ss` fails,
+  only the ports Docker publishes are listed and the page says so. The status item `exposure` is
+  then "not checked" unless a port found is at least a note, and its detail names what could not be
+  read instead of "no port reachable". A host that really has no public address or no listening
+  socket stays OK.
+- **Hetzner Cloud Firewall whose rules are not known:** a firewall applied to the server but
+  missing from the API's answer (`rules` null) was read as having no rules, so it blocked every
+  port. It now counts as no protection: the port is judged as without a Hetzner answer ("only rules
+  outside this host could protect it" when the host does not filter), unless a known rule lets the
+  whole internet in anyway. A known empty rule list still blocks everything, and the rules of
+  several firewalls are joined as Hetzner does. The overview names such a firewall.
+- **fail2ban not read completely:** a failed `fail2ban-client -d`, `status` or `status JAIL`, or no
+  answer to `ping` while the service is active, made the assessment OK. Now fail2ban and the jails
+  concerned are "not checked" (`incomplete` in the state) unless a finding is at least a note; the
+  tab says what failed and why, the status item starts with it. Without fail2ban's database only
+  the history is missing: a note on the tab and at the end of the status detail, the state stands.
+- **A jail that does not run:** a jail in the configuration that fail2ban's list of running jails
+  lacks is a warning (`jail-not-running`), on the tab and in the status. A jail is OK only when it
+  runs and answered.
+- Tests for each case and its counterpart (a real empty answer, an empty Hetzner rule list,
+  several firewalls, only the history missing, a jail running).
+
 ## 0.3.0 – 2026-10-22
 
 fail2ban, shown: what it watches, whom it bans, and where a ban does not take effect.

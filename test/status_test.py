@@ -24,8 +24,10 @@ sys.path.insert(0, LIB)
 sys.path.insert(0, os.path.join(HERE, "fixtures"))
 import importlib.util  # noqa: E402
 
+import fakesys  # noqa: E402
 import make_states  # noqa: E402
 import seccheck  # noqa: E402
+import secproc  # noqa: E402
 import secstatus  # noqa: E402
 
 spec = importlib.util.spec_from_file_location("security", os.path.join(LIB, "security.py"))
@@ -188,6 +190,75 @@ class Contract(unittest.TestCase):
         doc["sources"]["rules"] = {"state": "needs-root"}
         ex = secstatus.status_file(doc, "0.1.0")["items"][0]
         self.assertEqual((ex["state"], ex["detail"]), ("none", "the packet filter could not be read"))
+
+    def test_addresses_or_sockets_not_readable(self):
+        """Never OK and never "nothing reachable" without the addresses or the sockets; what is
+        known (a port Docker publishes) still counts. A host really without a public address or a
+        listening socket stays OK."""
+        def item(scenario="ufw-docker", lang="en", iid="exposure", **kw):
+            doc, system = make_states.state(scenario, **kw)
+            st = secstatus.localize(make_states.status(doc, system), lang, NOW)
+            self.assertEqual(secstatus.problems(st), [])
+            return next((i["state"], i.get("value"), i.get("detail")) for i in st["items"] if i["id"] == iid)
+        no_ip = {"results": {"ip-addr": fakesys.failing("Cannot open netlink socket")}}
+        self.assertEqual(item(**no_ip), ("none", None, "the addresses could not be read; 9 ports not assessable"))
+        self.assertEqual(item(lang="de", **no_ip), ("none", None, "die Adressen ließen sich nicht lesen; "
+                                                                  "9 Ports nicht beurteilbar"))
+        no_ss = {"results": {"ss": fakesys.failing("ss: failed")}}
+        self.assertEqual(item(**no_ss), ("warning", "1", "the listening sockets could not be read; 8080/tcp web"))
+        self.assertEqual(item(meta={"exists": []}, **no_ss), ("none", None, "the listening sockets could not be read"))
+        self.assertEqual(item(lang="de", meta={"exists": []}, **no_ss),
+                         ("none", None, "die lauschenden Sockets ließen sich nicht lesen"))
+        lo_only = json.dumps([{"ifname": "lo", "flags": ["LOOPBACK", "UP"], "addr_info": [
+            {"family": "inet", "local": "127.0.0.1", "prefixlen": 8, "scope": "host"}]}])
+        self.assertEqual(item(results={"ip-addr": lo_only}), ("ok", "0", "no public address"))
+        self.assertEqual(item(meta={"exists": []}, results={"ss": ""}), ("ok", "0", "no port reachable from the internet"))
+
+    def test_hetzner_rules_not_known(self):
+        """A firewall missing from the API's answer protects nothing: the ports count as open
+        (UFW is off there); a known empty list of rules blocks all."""
+        def exposure(change):
+            doc, system = make_states.state("hetzner-open", **fakesys.hetzner_firewalls(change))
+            return {i["id"]: i for i in make_states.status(doc, system)["items"]}["exposure"]
+        ex = exposure(lambda h: h["firewalls"][0].update(rules=None))
+        self.assertEqual((ex["state"], ex["value"]), ("warning", "9"), "as without a token: every public port")
+        self.assertTrue(ex["detail"].startswith("22/tcp ssh, 80/tcp http, 443/tcp https, 443/udp http3, 5432/tcp "
+                                                "postgresql (+4)"), ex["detail"])
+        ex = exposure(lambda h: h["firewalls"][0].update(rules=[]))
+        self.assertEqual((ex["state"], ex["value"], ex["detail"]), ("ok", "0", "no port reachable from the internet"))
+
+    def test_fail2ban_not_read(self):
+        """What fail2ban-client could not answer is "not checked" (none) first in the detail, a
+        configured jail that does not run a warning, a missing database only a note."""
+        def item(lang="en", results=None, meta=None):
+            doc, system = make_states.state("fail2ban", meta=meta, **fakesys.fail2ban_quiet(results))
+            st = secstatus.localize(make_states.status(doc, system), lang, NOW)
+            self.assertEqual(secstatus.problems(st), [])
+            for t in texts(st):
+                self.assertIsNone(PRIVATE.search(t), t)
+            return next((i["state"], i.get("value"), i.get("detail")) for i in st["items"] if i["id"] == "fail2ban")
+        self.assertEqual(item(), ("ok", "3", "1 jail, 3 bans"))
+        broken = {"f2b-dump": fakesys.failing("ERROR  /etc/fail2ban/jail.local: bad", 255),
+                  "f2b-status": fakesys.failing("ERROR  NOK", 255)}
+        self.assertEqual(item(results=broken), ("none", "3", "not checked completely: the configuration, the running "
+                                                             "jails; 0 jails, 3 bans"))
+        self.assertEqual(item("de", broken), ("none", "3", "nicht vollständig geprüft: die Konfiguration, die laufenden "
+                                                           "Jails; 0 Jails, 3 Sperren"))
+        self.assertEqual(item(results={"f2b-ping": secproc.Result(None, "", "", timeout=True)})[:2], ("none", "3"))
+        self.assertTrue(item(results={"f2b-ping": secproc.Result(None, "", "", timeout=True)})[2].startswith(
+            "not checked completely: no answer to ping"))
+        jail = {"f2b-status-sshd": fakesys.failing("ERROR", 255)}
+        self.assertEqual(item(results=jail), ("none", "3", "not checked completely: jail sshd; 1 jail, 3 bans"))
+        self.assertEqual(item(results=jail, meta={"db_error": "locked"}),
+                         ("none", None, "not checked completely: jail sshd; 1 jail; history of bans not readable"))
+        self.assertEqual(item(meta={"db_error": "locked"}), ("ok", "1", "1 jail, 1 ban; history of bans not readable"))
+        self.assertEqual(item("de", meta={"db_error": "locked"}),
+                         ("ok", "1", "1 Jail, 1 Sperre; Verlauf der Sperren nicht lesbar"))
+        stopped = {"f2b-status": "Status\n|- Number of jail:\t0\n`- Jail list:\t\n",
+                   "iptables-save": "\n".join(x for x in fakesys._fixture("fail2ban", "commands", "iptables-save.txt")
+                                              .splitlines() if "f2b-" not in x) + "\n"}
+        self.assertEqual(item(results=stopped), ("warning", "3", "sshd: configured, but not running"))
+        self.assertEqual(item("de", stopped), ("warning", "3", "sshd: eingerichtet, läuft aber nicht"))
 
     def test_old_state(self):
         st = status("ufw-docker")

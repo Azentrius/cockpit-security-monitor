@@ -38,7 +38,9 @@ t("the same placeholders and plural shape", () => {
 });
 
 t("every key the page asks for exists", () => {
+    // Keys as the first argument, and keys picked in a choice (t(x ? "a.b" : "c.d")).
     const used = new Set([...js.matchAll(/\bt\("([a-zA-Z0-9.-]+)"/g), ...js.matchAll(/\btr\("([a-zA-Z0-9.-]+)"/g),
+                          ...js.matchAll(/[?:] "([a-z][a-zA-Z0-9]*\.[a-zA-Z0-9.-]+)"/g),
                           ...html.matchAll(/data-i18n(?:-aria|-placeholder)?="([^"]+)"/g)].map((m) => m[1]));
     used.forEach((k) => assert.ok(k.endsWith(".") || k in en, "missing: " + k));
     const families = {
@@ -49,7 +51,7 @@ t("every key the page asks for exists", () => {
         "det.res.": ["open", "restricted", "closed", "unknown"],
         "det.class.": ["internet", "vpn", "private", "local"],
         "det.owner.": ["ufw", "docker", "fail2ban", "crowdsec"],
-        "det.hz.": ["blocks", "allows", "restricted"],
+        "det.hz.": ["blocks", "allows", "restricted", "unknown"],
         "ov.filter.": ["on", "off", "unknown", "noaddr"],
         "ck.": ["docker-socket", "privileged", "pid-host", "cap-add", "host-mount", "network-host", "root-user",
                 "no-new-privileges", "apparmor-unconfined"],
@@ -67,7 +69,8 @@ t("every key the page asks for exists", () => {
         "svc.": ["ssh", "cockpit"],
         "tab.": ["exposure", "ssh", "logins", "containers", "crowdsec", "fail2ban"],
         "f2b.": ["not-running", "unmanaged-bans", "persisted-chains", "input-only", "allports-input", "udp-open",
-                 "log-missing", "log-idle", "no-match"],
+                 "log-missing", "log-idle", "no-match", "jail-not-running"],
+        "f2b.part.": ["ping", "config", "status", "jails"],
     };
     Object.entries(families).forEach(([prefix, keys]) => keys.forEach((k) => assert.ok(prefix + k in en, "missing: " + prefix + k)));
 });
