@@ -181,16 +181,19 @@ def scan(system=None):
     f2b = collect_fail2ban(system, src, root, now)
 
     net = network(ifaces)
+    # Without the addresses nothing says which classes a socket receives from: no public address
+    # is then "not known" (null), never "none".
+    addrs_ok = src.items.get("ip", {}).get("state") == "ok"
     fw["input_filter"] = {f: input_filter(rs, net, f) if src.items.get("rules", {}).get("state") == "ok" else
                           "unknown" for f in (4, 6)}
     fw["ufw"] = ufw
     fw["docker"] = docker["summary"] if docker else None
     fw["hetzner"] = hetzner
     doc["network"] = {"interfaces": [i for i in ifaces if i["kind"] != "container"] if ifaces else [],
-                      "public": {str(f): bool(net[f]["internet"]) for f in (4, 6)}}
+                      "public": {str(f): bool(net[f]["internet"]) if addrs_ok else None for f in (4, 6)}}
     doc["firewall"] = fw
     rules_ok = src.items.get("rules", {}).get("state") == "ok"
-    doc["ports"] = assess_ports(rs if rules_ok else None, net, sockets or [], docker, hetzner, fw)
+    doc["ports"] = assess_ports(rs if rules_ok else None, net, sockets or [], docker, hetzner, fw, addrs_ok)
     doc["ssh"] = assess_ssh(sshd, keys)
     doc["logins"] = logins
     doc["containers"] = assess_containers(docker)
@@ -470,7 +473,13 @@ def collect_hetzner(system, src, now):
         out["state"] = "not-matched"
     else:
         out["state"] = "ok"
-    src.note("hetzner", "ok" if out["state"] == "ok" else "error", t0, error=out.get("error"))
+    # A firewall applied to the server but missing from the API's answer: its rules are not known.
+    unknown = [f for f in out["firewalls"] if isinstance(f, dict) and f.get("status", "applied") == "applied"
+               and not isinstance(f.get("rules"), list)]
+    if out["state"] == "ok" and unknown:
+        src.note("hetzner", "partial", t0, missing="rules")
+    else:
+        src.note("hetzner", "ok" if out["state"] == "ok" else "error", t0, error=out.get("error"))
     return out
 
 
@@ -478,18 +487,34 @@ def hetzner_known(h):
     return bool(h and h.get("configured") and h.get("server") and h.get("ok_at"))
 
 
+def _hz_ref(f):
+    return {"firewall": seclib.clean(f.get("name"), 80), "id": f.get("id")}
+
+
 def hetzner_reach(h, fam, proto, port):
     """What the Hetzner Cloud Firewall lets through to this server:
     (result, firewall/rule refs, sources); result none (no firewall applied),
-    allows, restricted, blocks."""
-    fws = [f for f in (h.get("firewalls") or []) if f.get("status", "applied") == "applied"]
+    allows, restricted, blocks or unknown.
+
+    Hetzner joins the incoming rules of every firewall applied: a connection
+    passes when one rule of one of them lets it in, and a firewall without
+    incoming rules ([]) lets nothing in. A firewall whose rules are not known
+    (`rules` null: missing from the API's answer) may hold such a rule, so it
+    never counts as protection: the answer is then unknown, its refs those
+    firewalls. Only a known rule that lets the whole internet in still
+    decides (allows), as it claims no protection."""
+    fws = [f for f in (h.get("firewalls") or []) if isinstance(f, dict) and f.get("status", "applied") == "applied"]
     if not fws:
         return "none", [], []
     narrow = []
     refs = []
+    unknown = []
     for f in fws:
-        for r in f.get("rules") or []:
-            if r.get("direction") != "in" or r.get("protocol") != proto:
+        if not isinstance(f.get("rules"), list):
+            unknown.append(_hz_ref(f))
+            continue
+        for r in f["rules"]:
+            if not isinstance(r, dict) or r.get("direction") != "in" or r.get("protocol") != proto:
                 continue
             if not _hz_port(r.get("port"), port):
                 continue
@@ -509,9 +534,11 @@ def hetzner_reach(h, fam, proto, port):
             if pub:
                 narrow.extend(pub)
                 refs.append(ref)
+    if unknown:
+        return "unknown", unknown, []
     if narrow:
         return "restricted", refs, sorted(set(narrow))
-    return "blocks", [{"firewall": seclib.clean(f.get("name"), 80), "id": f.get("id")} for f in fws], []
+    return "blocks", [_hz_ref(f) for f in fws], []
 
 
 def _hz_port(spec, port):
@@ -527,7 +554,10 @@ def _hz_port(spec, port):
 # ---------------------------------------------------------------------------
 # Ports: reach from each class and the assessment (spec 4.2)
 
-def assess_ports(rs, net, sockets, docker, hetzner, fw):
+def assess_ports(rs, net, sockets, docker, hetzner, fw, addrs=True):
+    """Every listening socket and published port with its reach and state.
+    `addrs` False: `ip -j addr` failed, so the classes other than this host
+    are unknown for every socket not on the loopback."""
     maps = docker_mappings(docker)
     keys = sorted({(s["proto"], s["port"]) for s in sockets} | {(m["proto"], m["host_port"]) for m in maps},
                   key=lambda k: (k[1], k[0]))
@@ -553,7 +583,7 @@ def assess_ports(rs, net, sockets, docker, hetzner, fw):
         binds = sorted({_bind_label(s) for s in socks} | {_map_label(m) for m in pm})
         reach = {}
         for fam in (4, 6):
-            reach[str(fam)] = port_reach(rs, net, fam, proto, port, socks, pm, hetzner)
+            reach[str(fam)] = port_reach(rs, net, fam, proto, port, socks, pm, hetzner, addrs)
         p = {"id": f"{proto}-{port}", "proto": proto, "port": port, "name": name, "weight": weight,
              "service": service, "binds": binds, "reach": reach}
         p["state"], p["why"] = port_state(p, fw, hetzner)
@@ -602,9 +632,19 @@ def _bind_classes(addr, iface, fam, net):
     return out
 
 
-def port_reach(rs, net, fam, proto, port, socks, maps, hetzner):
+def _loopback(addr):
+    try:
+        return ipaddress.ip_address(addr).is_loopback
+    except ValueError:
+        return False
+
+
+def port_reach(rs, net, fam, proto, port, socks, maps, hetzner, addrs=True):
     """Per class: result, path (input or forward) and the decisive steps;
-    for restricted also the step that stops the rest of the class."""
+    for restricted also the step that stops the rest of the class. Without
+    the addresses (`addrs` False) the internet, the VPN and the private
+    network are unknown (reason no-addresses), except for a socket on the
+    loopback, which they never reach."""
     entries = []
     fam_maps = [m for m in maps if seclib.family(m["host_ip"]) == fam] if maps else []
     if maps:
@@ -630,9 +670,13 @@ def port_reach(rs, net, fam, proto, port, socks, maps, hetzner):
         for e in entries:
             classes = _bind_classes(e["addr"], e["iface"], fam, net)
             ifaces = classes.get(c) or []
-            if not ifaces:
+            if not addrs and c != "local":
+                if _loopback(e["addr"]):
+                    continue
+                r = {"result": "unknown", "steps": [], "sources": [], "reason": "no-addresses"}
+            elif not ifaces:
                 continue
-            if rs is None:
+            elif rs is None:
                 r = {"result": "unknown", "steps": [], "sources": [], "reason": "no-rules"}
             elif c == "local" and e["path"] == "forward":
                 r = {"result": "open", "steps": [], "sources": [], "reason": "local-published"}
@@ -660,6 +704,7 @@ def port_reach(rs, net, fam, proto, port, socks, maps, hetzner):
             if inet["result"] != "unknown":
                 inet["result"] = "restricted"
                 inet["sources"] = sorted(set(inet.get("sources") or []) | set(srcs))
+        # unknown (a firewall's rules missing): the host's result stands, as without an answer.
     for c in CLASSES:
         _trim(out[c])
     return out
@@ -695,12 +740,19 @@ def _maker(e, fam, proto, port, addr_of):
     return make
 
 
+def _hetzner_answer(p, f, hetzner):
+    """Whether the Hetzner Cloud Firewall answered for this port and family:
+    not without a known answer, nor when the rules of a firewall are missing."""
+    hz = p["reach"][f]["internet"].get("hetzner") or {}
+    return hetzner_known(hetzner) and hz.get("result") != "unknown"
+
+
 def port_state(p, fw, hetzner):
     """The state of a port before marks (spec 4.2) and why."""
     results = {f: p["reach"][f]["internet"]["result"] for f in ("4", "6")}
     if "open" in results.values():
         fams = [f for f, r in results.items() if r == "open"]
-        if not hetzner_known(hetzner) and all(fw.get("input_filter", {}).get(int(f)) == "off" for f in fams):
+        if all(fw.get("input_filter", {}).get(int(f)) == "off" and not _hetzner_answer(p, f, hetzner) for f in fams):
             return "warning", "outside-only"
         return p["weight"], "public-" + {"danger": "danger", "info": "expected", "warning": "other"}[p["weight"]]
     if "restricted" in results.values():
@@ -1025,6 +1077,10 @@ F2B_PERSIST_RE = re.compile(r"(?m)^(:f2b-|-A f2b-|-A \S+ .*-j f2b-)")
 F2B_MAX_JAILS = 30
 F2B_HISTORY_DAYS = 14
 F2B_IDLE_DAYS = 3
+# What the assessment needs (a part missing leaves it "not checked", never OK), in this order;
+# "jails" stands for `status JAIL` failing for a jail. The database is optional: without it only
+# the history of bans is missing.
+F2B_ESSENTIAL = ("ping", "config", "status")
 
 
 def parse_systemd_time(text):
@@ -1047,24 +1103,32 @@ def collect_fail2ban(system, src, root, now):
     out["since"] = parse_systemd_time(kv.get("ActiveEnterTimestamp")) if out["active"] == "active" else None
     ver = system.run([F2B_CLIENT, "--version"], 15)
     out["version"] = ".".join(map(str, seclib.version_tuple(ver.out + ver.err) or ())) or None
+    errors = {}
     ping = system.run([F2B_CLIENT, "ping"], 15)
     out["running"] = bool(ping.ok and "pong" in ping.out)
+    # No answer while systemd says the unit is active (or a call that hangs): whether fail2ban
+    # runs is not known, which is not the same as "not running".
+    if not out["running"] and (out["active"] == "active" or ping.timeout):
+        errors["ping"] = _f2b_error(ping)
     dump = system.run([F2B_CLIENT, "-d"], 30)
     out["config"] = seclib.parse_f2b_dump(dump.out) if dump.ok else None
-    errors = {}
     if not dump.ok:
-        msg = (dump.err or dump.out or "").strip().splitlines()
-        errors["config"] = seclib.clean(msg[-1] if msg else f"exit {dump.rc}", 160)
+        errors["config"] = _f2b_error(dump)
+    out["names"] = None          # the jails fail2ban runs, from `status`; None when not known
+    out["jail_errors"] = {}      # jail -> why `status JAIL` failed
     if out["running"]:
         st = system.run([F2B_CLIENT, "status"], 15)
         names = seclib.parse_f2b_status(st.out) if st.ok else None
         if names is None:
-            errors["status"] = seclib.clean((st.err or st.out or f"exit {st.rc}").strip().splitlines()[-1]
-                                            if (st.err or st.out).strip() else f"exit {st.rc}", 160)
+            errors["status"] = _f2b_error(st)
+        out["names"] = names
         for name in (names or [])[:F2B_MAX_JAILS]:
             r = system.run([F2B_CLIENT, "status", name], 15)
-            if r.ok:
-                out["jails"][name] = seclib.parse_f2b_jail_status(r.out)
+            js = seclib.parse_f2b_jail_status(r.out) if r.ok else None
+            if js:
+                out["jails"][name] = js
+            else:
+                out["jail_errors"][name] = _f2b_error(r)
     # The log files the jails read: there, size and age (journal-backed jails have none).
     paths = set()
     for j in ((out["config"] or {}).get("jails") or {}).values():
@@ -1092,11 +1156,26 @@ def collect_fail2ban(system, src, root, now):
     out["persisted"] = [p for p in F2B_PERSIST if F2B_PERSIST_RE.search(system.read(p, 4 << 20) or "")]
     out["services"] = seclib.parse_services(system.read("/etc/services", 1 << 20))
     out["errors"] = errors
+    missing = [k for k in F2B_ESSENTIAL if k in errors] + (["jails"] if out["jail_errors"] else []) + \
+        (["db"] if "db" in errors else [])
     if not root and not out["running"]:
         src.note("fail2ban", "needs-root", t0)
     else:
-        src.note("fail2ban", "partial" if errors else "ok", t0, error=next(iter(errors.values()), None))
+        src.note("fail2ban", "partial" if missing else "ok", t0, missing=",".join(missing) or None,
+                 error=next(iter(list(errors.values()) + list(out["jail_errors"].values())), None))
     return out
+
+
+def _f2b_error(res):
+    """Why a call of fail2ban-client gave no usable answer, in short."""
+    if res.missing:
+        return "fail2ban-client not found"
+    if res.timeout:
+        return "timed out"
+    if res.ok:
+        return "unexpected answer"
+    msg = (res.err or res.out or "").strip().splitlines()
+    return seclib.clean(msg[-1] if msg else f"exit {res.rc}", 160)
 
 
 def _f2b_addr(e):
@@ -1182,9 +1261,16 @@ def _in_ranges(port, ranges):
 def assess_fail2ban(f2b, docker, rs, ports, now):
     if not f2b:
         return {"installed": False}
+    errors = f2b.get("errors") or {}
+    jail_errors = f2b.get("jail_errors") or {}
+    names = f2b.get("names")          # the jails fail2ban runs; None when not known
     findings = []
-    if f2b.get("active") != "active" or not f2b.get("running"):
+    # Not running: no answer to ping, and not because the call failed while the unit is active.
+    down = not f2b.get("running") and "ping" not in errors
+    if down:
         findings.append({"code": "not-running", "state": "warning", "value": f2b.get("active")})
+    # The essential parts that could not be read: what depends on them is "not checked".
+    incomplete = [k for k in F2B_ESSENTIAL if k in errors] + (["jails"] if jail_errors else [])
     cfg = f2b.get("config") or {"global": {}, "jails": {}}
     fwinfo = f2b_firewall(rs)
     internet = {(p.get("proto"), p.get("port")) for p in ports or [] if any(
@@ -1194,8 +1280,11 @@ def assess_fail2ban(f2b, docker, rs, ports, now):
     published = sorted({(m["proto"], m["host_port"]) for m in docker_mappings(docker)} & internet)
     udp_open = sorted(port for proto, port in internet if proto == "udp")
     services = f2b.get("services") or {}
-    status = f2b.get("jails") or {}
+    status = f2b.get("jails") or {}   # the answer of `status JAIL` for each jail that gave one
     db = f2b.get("db") or {}
+    db_ok = f2b.get("db") is not None
+    # Every running jail answered: its lists say whom fail2ban holds as banned.
+    runtime = names is not None and not jail_errors and len(names) <= F2B_MAX_JAILS
     now_ts = int(now.timestamp())
     known = set()
     for js in status.values():
@@ -1211,7 +1300,7 @@ def assess_fail2ban(f2b, docker, rs, ports, now):
         a = _norm_addr(ip)
         if not a:
             continue
-        if not status:
+        if not runtime:
             known.add(a)
         bans.append({"ip": a, "class": seclib.source_class(a), "jail": seclib.clean(jail, 64),
                      "since": iso_ts(tob), "until": iso_ts(until) if until else None, "count": cnt})
@@ -1226,8 +1315,9 @@ def assess_fail2ban(f2b, docker, rs, ports, now):
     for row in db.get("history") or []:
         if len(row) >= 2 and isinstance(row[1], int):
             history[seclib.clean(row[0], 64)] = row[1]
-    # Addresses the packet filter blocks for fail2ban that fail2ban does not hold as banned.
-    if f2b.get("running") and status is not None:
+    # Addresses the packet filter blocks for fail2ban that fail2ban does not hold as banned: only
+    # when that is known, from every running jail or from the database.
+    if f2b.get("running") and (runtime or db_ok):
         stray = {}
         for cname, c in fwinfo["chains"].items():
             extra = sorted(c["addrs"] - known)
@@ -1251,8 +1341,11 @@ def assess_fail2ban(f2b, docker, rs, ports, now):
         except ValueError:
             running_for = None
     jails = []
-    for name in sorted(set(cfg.get("jails") or {}) | set(status)):
-        jc, js = (cfg.get("jails") or {}).get(name) or {}, status.get(name) or {}
+    cfg_jails = cfg.get("jails") or {}
+    for name in sorted(set(cfg_jails) | set(names or []) | set(status) | set(jail_errors)):
+        jc, js = cfg_jails.get(name) or {}, status.get(name) or {}
+        # Whether fail2ban runs the jail: from `status`; with fail2ban down, no; else not known.
+        running = (name in names) if names is not None else (False if down else None)
         backend = jc.get("backend") or ("systemd" if js.get("journal") else None)
         file_backend = backend is not None and not str(backend).startswith("systemd")
         logs = (jc.get("logpaths") or js.get("files") or []) if file_backend else []
@@ -1284,23 +1377,35 @@ def assess_fail2ban(f2b, docker, rs, ports, now):
         if (file_backend and js.get("failed_total") == 0 and running_for is not None and running_for > 86400
                 and any((li.get("size") or 0) > 0 for li in log_info)):
             jf.append({"code": "no-match", "state": "warning", "value": since})
-        jails.append({"name": name, "backend": backend, "logs": log_info,
-                      "journal": js.get("journal") or " + ".join(jc.get("journalmatch") or []) or None,
-                      "maxretry": jc.get("maxretry"), "findtime": jc.get("findtime"), "bantime": jc.get("bantime"),
-                      "failregex": jc.get("failregex"),
-                      "actions": [{k: v for k, v in a.items() if k != "ranges"} for a in actions],
-                      "running": name in status,
-                      "failed_now": js.get("failed_now"), "failed_total": js.get("failed_total"),
-                      "banned_now": js.get("banned_now"), "banned_total": js.get("banned_total"),
-                      "history": history.get(name), "findings": jf,
-                      "state": max((f["state"] for f in jf), key=ORDER.get, default="ok")})
+        # Configured, fail2ban answers, and its list of running jails lacks this one: it bans nothing.
+        if names is not None and name not in names and name in cfg_jails:
+            jf.insert(0, {"code": "jail-not-running", "state": "warning"})
+        state = max((f["state"] for f in jf), key=ORDER.get, default="ok")
+        # OK only when it runs, answered, and its configuration was read; else not checked (a jail
+        # of a fail2ban that does not run has no finding of its own: the whole has one).
+        if (running is not True or name in jail_errors or f2b.get("config") is None) and ORDER[state] < ORDER["info"]:
+            state = "none"
+        jail = {"name": name, "backend": backend, "logs": log_info,
+                "journal": js.get("journal") or " + ".join(jc.get("journalmatch") or []) or None,
+                "maxretry": jc.get("maxretry"), "findtime": jc.get("findtime"), "bantime": jc.get("bantime"),
+                "failregex": jc.get("failregex"),
+                "actions": [{k: v for k, v in a.items() if k != "ranges"} for a in actions],
+                "running": running,
+                "failed_now": js.get("failed_now"), "failed_total": js.get("failed_total"),
+                "banned_now": js.get("banned_now"), "banned_total": js.get("banned_total"),
+                "history": history.get(name), "findings": jf, "state": state}
+        if name in jail_errors:
+            jail["error"] = jail_errors[name]
+        jails.append(jail)
     out = {"installed": True, "version": f2b.get("version"), "active": f2b.get("active"),
            "running": f2b.get("running"), "since": since, "unit_file": f2b.get("unit_file"),
            "dbpurgeage": (cfg.get("global") or {}).get("dbpurgeage"), "jails": jails, "bans": bans[:100],
-           "bans_total": len(bans), "history_total": sum(history.values()) if db.get("history") is not None
-           else None, "history_days": F2B_HISTORY_DAYS, "findings": findings,
-           "errors": f2b.get("errors") or {}}
+           "bans_total": len(bans) if (db_ok or runtime) else None,
+           "history_total": sum(history.values()) if db.get("history") is not None else None,
+           "history_days": F2B_HISTORY_DAYS, "findings": findings, "incomplete": incomplete, "errors": errors}
     out["state"] = max([f["state"] for f in findings] + [j["state"] for j in jails], key=ORDER.get, default="ok")
+    if incomplete and ORDER[out["state"]] < ORDER["info"]:
+        out["state"] = "none"
     return out
 
 

@@ -46,6 +46,8 @@ T = {
         "exposure.unknown": {"one": "{n} port not assessable", "other": "{n} ports not assessable"},
         "exposure.nopublic": "no public address",
         "exposure.norules": "the packet filter could not be read",
+        "exposure.noaddrs": "the addresses could not be read",
+        "exposure.nosockets": "the listening sockets could not be read",
         "ssh.title": "SSH",
         "ssh.locked-keys": {"one": "{n} locked account can still log in with keys",
                             "other": "{n} locked accounts can still log in with keys"},
@@ -98,8 +100,15 @@ T = {
         "fail2ban.log-missing": "{jail}: log missing",
         "fail2ban.log-idle": "{jail}: log unchanged for {days} days",
         "fail2ban.no-match": "{jail}: not one hit since {date}",
+        "fail2ban.jail-not-running": "{jail}: configured, but not running",
         "fail2ban.jails": {"one": "{n} jail", "other": "{n} jails"},
         "fail2ban.bans": {"one": "{n} ban", "other": "{n} bans"},
+        "fail2ban.incomplete": "not checked completely: {list}",
+        "fail2ban.part.ping": "no answer to ping",
+        "fail2ban.part.config": "the configuration",
+        "fail2ban.part.status": "the running jails",
+        "fail2ban.part.jails": {"one": "jail {names}", "other": "jails {names}"},
+        "fail2ban.nohistory": "history of bans not readable",
         "scan.title": "Check",
         "scan.ok": "checked every 15 minutes when set up",
         "scan.old": "the last check is older than an hour",
@@ -123,6 +132,8 @@ T = {
         "exposure.unknown": {"one": "{n} Port nicht beurteilbar", "other": "{n} Ports nicht beurteilbar"},
         "exposure.nopublic": "keine öffentliche Adresse",
         "exposure.norules": "der Paketfilter ließ sich nicht lesen",
+        "exposure.noaddrs": "die Adressen ließen sich nicht lesen",
+        "exposure.nosockets": "die lauschenden Sockets ließen sich nicht lesen",
         "ssh.title": "SSH",
         "ssh.locked-keys": {"one": "{n} gesperrtes Konto kann sich per Schlüssel anmelden",
                             "other": "{n} gesperrte Konten können sich per Schlüssel anmelden"},
@@ -176,8 +187,15 @@ T = {
         "fail2ban.log-missing": "{jail}: Log fehlt",
         "fail2ban.log-idle": "{jail}: Log seit {days} Tagen unverändert",
         "fail2ban.no-match": "{jail}: kein einziger Treffer seit {date}",
+        "fail2ban.jail-not-running": "{jail}: eingerichtet, läuft aber nicht",
         "fail2ban.jails": {"one": "{n} Jail", "other": "{n} Jails"},
         "fail2ban.bans": {"one": "{n} Sperre", "other": "{n} Sperren"},
+        "fail2ban.incomplete": "nicht vollständig geprüft: {list}",
+        "fail2ban.part.ping": "keine Antwort auf ping",
+        "fail2ban.part.config": "die Konfiguration",
+        "fail2ban.part.status": "die laufenden Jails",
+        "fail2ban.part.jails": {"one": "Jail {names}", "other": "Jails {names}"},
+        "fail2ban.nohistory": "Verlauf der Sperren nicht lesbar",
         "scan.title": "Prüfung",
         "scan.ok": "alle 15 Minuten, wenn eingerichtet",
         "scan.old": "die letzte Prüfung ist älter als eine Stunde",
@@ -289,29 +307,39 @@ def items_of(doc, lang):
         def reached(p, result):
             return any(p["reach"][f]["internet"]["result"] == result for f in ("4", "6"))
 
+        # Without the addresses (which classes a socket receives from) or the sockets (which ports
+        # there are) the exposure is not assessable: never OK, and no "nothing reachable".
+        missing = []
+        if (src.get("ip") or {}).get("state") != "ok":
+            missing.append(t(lang, "exposure.noaddrs"))
+        if (src.get("ss") or {}).get("state") not in ("ok", "partial"):
+            missing.append(t(lang, "exposure.nosockets"))
         # The figure counts what the whole internet reaches; ports only some addresses reach
         # (a country list, an allowed network) are named apart, so that they do not look as open.
         public = [p for p in ports if reached(p, "open")]
         limited = [p for p in ports if not reached(p, "open") and reached(p, "restricted")]
         unknown = [p for p in ports if p["state"] == "none"]
         state = worst([p["state"] for p in ports if p["state"] != "none"], "ok")
-        if unknown and ORDER[state] < ORDER["info"]:
+        if missing:
+            # What was found still counts; nothing found is "not checked", not OK.
+            state = state if ORDER[state] >= ORDER["info"] else "none"
+        elif unknown and ORDER[state] < ORDER["info"]:
             state = "info"
         public.sort(key=lambda p: (-ORDER.get(p["state"], 0), p["port"]))
         limited.sort(key=lambda p: (-ORDER.get(p["state"], 0), p["port"]))
-        parts = []
+        parts = list(missing)
         if public:
             parts.append(t(lang, "exposure.public", list=_names([_port_label(p) for p in public])))
         if limited:
             parts.append(t(lang, "exposure.limited", list=_names([_port_label(p) for p in limited], 3)))
-        if not public and not limited:
+        if not public and not limited and not missing:
             if not any((doc.get("network") or {}).get("public", {}).values()):
                 parts.append(t(lang, "exposure.nopublic"))
             else:
                 parts.append(t(lang, "exposure.none"))
         if unknown:
             parts.append(t(lang, "exposure.unknown", n=len(unknown)))
-        out.append(item("exposure", state, len(public), "; ".join(parts)))
+        out.append(item("exposure", state, len(public) if public or not missing else None, "; ".join(parts)))
 
     # ssh
     ssh = doc.get("ssh") or {}
@@ -392,9 +420,17 @@ def items_of(doc, lang):
         parts.append(t(lang, "crowdsec.decisions", n=cr.get("decisions_total", 0)))
         out.append(item("crowdsec", cr.get("state") or "ok", cr.get("decisions_total", 0), "; ".join(parts)))
 
-    # fail2ban (only when installed): the warnings, then jails and bans; no addresses
+    # fail2ban (only when installed): what could not be read, the warnings, then jails and bans;
+    # no addresses, no paths, no error messages
     fb = doc.get("fail2ban") or {}
     if fb.get("installed"):
+        unread = []
+        for k in fb.get("incomplete") or []:
+            if k == "jails":
+                bad = [str(j.get("name")) for j in fb.get("jails") or [] if j.get("error")]
+                unread.append(t(lang, "fail2ban.part.jails", n=len(bad), names=_names(bad, 3)))
+            elif "fail2ban.part." + str(k) in T[lang]:
+                unread.append(t(lang, "fail2ban.part." + k))
         parts = []
         for jail, f in [(None, f) for f in fb.get("findings") or []] + [
                 (j.get("name"), f) for j in fb.get("jails") or [] for f in j.get("findings") or []]:
@@ -406,10 +442,16 @@ def items_of(doc, lang):
             parts.append(t(lang, "fail2ban." + f["code"], jail=jail or "", value=f.get("value", ""),
                            n=f.get("value") if isinstance(f.get("value"), int) else 0, days=f.get("days", ""),
                            date=date))
-        # The warnings first; the number of bans is the value anyway.
-        parts = list(dict.fromkeys(parts)) or [t(lang, "fail2ban.jails", n=len(fb.get("jails") or [])) + ", " +
-                                               t(lang, "fail2ban.bans", n=fb.get("bans_total", 0))]
-        out.append(item("fail2ban", fb.get("state") or "ok", fb.get("bans_total", 0), "; ".join(parts)))
+        # The warnings first; the number of bans is the value anyway (left out when not known).
+        bans = fb.get("bans_total", 0)
+        parts = list(dict.fromkeys(parts)) or [t(lang, "fail2ban.jails", n=len(fb.get("jails") or [])) + (
+            ", " + t(lang, "fail2ban.bans", n=bans) if bans is not None else "")]
+        if unread:
+            parts.insert(0, t(lang, "fail2ban.incomplete", list=", ".join(unread)))
+        # The database is optional: without it only the history is missing, the state stands.
+        if (fb.get("errors") or {}).get("db"):
+            parts.append(t(lang, "fail2ban.nohistory"))
+        out.append(item("fail2ban", fb.get("state") or "ok", bans, "; ".join(parts)))
 
     out.append(item("scan", "ok", detail=t(lang, "scan.ok"), link=False))
     return out

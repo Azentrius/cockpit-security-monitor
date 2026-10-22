@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Every check of seccheck.py against the scenarios in test/fixtures/ (through
 test/fakesys.py): reach of each port from each class with the reason, the
-assessment of spec 4.2, SSH, logins, containers, CrowdSec; variants of the
-scenarios (a DOCKER-USER rule, no Hetzner token, a stale Hetzner answer, no
-root, Docker failing, iptables-legacy rules); the marks; and that the
-state-*.json and status-*.json fixtures are current. Offline."""
+assessment of spec 4.2, SSH, logins, containers, CrowdSec, fail2ban; variants
+of the scenarios (a DOCKER-USER rule, no Hetzner token, a stale Hetzner answer,
+Hetzner rules not known, no root, Docker failing, iptables-legacy rules, the
+addresses or the sockets not read, fail2ban not read completely); the marks;
+and that the state-*.json and status-*.json fixtures are current. Offline."""
 
 import json
 import os
@@ -221,6 +222,56 @@ class HetznerOpen(unittest.TestCase):
         self.assertEqual(doc["firewall"]["hetzner"]["state"], "unreadable")
         doc = scan("hetzner-open", files={seccheck.HETZNER_FILE: None})
         self.assertEqual(doc["firewall"]["hetzner"]["state"], "pending")
+
+    def test_unknown_rules_never_protect(self):
+        """A firewall applied to the server but missing from the API's answer (rules null, as
+        security-hetzner.py writes it) may let anything in: it counts as no answer, so with the
+        host's filter off the ports are "only rules outside could protect it", never blocked."""
+        def unknown(h):
+            h["firewalls"][0]["rules"] = None
+        doc = scan("hetzner-open", **fakesys.hetzner_firewalls(unknown))
+        p = ports(doc)
+        pg = p["5432/tcp"]["reach"]["4"]["internet"]
+        self.assertEqual((p["5432/tcp"]["state"], p["5432/tcp"]["why"]), ("warning", "outside-only"))
+        self.assertEqual((pg["result"], pg["hetzner"]["result"], pg["hetzner"]["refs"]),
+                         ("open", "unknown", [{"firewall": "web", "id": 38}]))
+        self.assertNotIn("host_result", pg)
+        got = {k: (x["state"], x["why"]) for k, x in p.items() if x["why"] != "local"}
+        self.assertEqual(set(got.values()), {("warning", "outside-only")}, "80 and 443 are not known as allowed either")
+        self.assertEqual((doc["sources"]["hetzner"]["state"], doc["sources"]["hetzner"]["missing"]), ("partial", "rules"))
+
+        def unnamed(h):
+            h["firewalls"][0].update(name=None, rules=None)
+        pg = ports(scan("hetzner-open", **fakesys.hetzner_firewalls(unnamed)))["5432/tcp"]
+        self.assertEqual((pg["why"], pg["reach"]["4"]["internet"]["hetzner"]["refs"]),
+                         ("outside-only", [{"firewall": "", "id": 38}]))
+
+    def test_empty_rule_list_blocks_everything(self):
+        """[] is known: a firewall without incoming rules lets nothing in."""
+        doc = scan("hetzner-open", **fakesys.hetzner_firewalls(lambda h: h["firewalls"][0].update(rules=[])))
+        got = {k: (x["state"], x["why"]) for k, x in ports(doc).items() if x["why"] != "local"}
+        self.assertEqual(set(got.values()), {("ok", "hetzner")})
+        self.assertEqual(doc["sources"]["hetzner"]["state"], "ok")
+
+    def test_several_firewalls(self):
+        """Hetzner joins the rules of every firewall applied. One whose rules are not known makes a
+        port unknown unless a known rule lets the whole internet in anyway."""
+        def add(second):
+            return fakesys.hetzner_firewalls(
+                lambda h: h["firewalls"].append(dict({"id": 39, "status": "applied"}, **second)))
+        p = ports(scan("hetzner-open", **add({"name": "lost", "rules": None})))
+        self.assertEqual((p["80/tcp"]["state"], p["80/tcp"]["why"]), ("info", "public-expected"), "web allows 80 to all")
+        self.assertEqual(p["80/tcp"]["reach"]["4"]["internet"]["hetzner"]["result"], "allows")
+        self.assertEqual(p["5432/tcp"]["why"], "outside-only")
+        self.assertEqual(p["5432/tcp"]["reach"]["4"]["internet"]["hetzner"]["refs"], [{"firewall": "lost", "id": 39}])
+        self.assertEqual(p["8443/tcp"]["why"], "outside-only", "restricted by web, but lost may let everyone in")
+        p = ports(scan("hetzner-open", **add({"name": "db", "rules": [
+            {"direction": "in", "protocol": "tcp", "port": "5432", "source_ips": ["0.0.0.0/0"], "description": "PG"}]})))
+        self.assertEqual((p["5432/tcp"]["state"], p["5432/tcp"]["why"]), ("danger", "public-danger"),
+                         "the union of the rules")
+        self.assertEqual(p["22/tcp"]["why"], "hetzner", "neither lets 22 in")
+        p = ports(scan("hetzner-open", **add({"name": "empty", "rules": []})))
+        self.assertEqual((p["5432/tcp"]["why"], p["8443/tcp"]["why"]), ("hetzner", "restricted"), "[] adds no rule")
 
     def test_logins_from_outside(self):
         lg = self.doc["logins"]
@@ -465,6 +516,53 @@ class Variants(unittest.TestCase):
         self.assertEqual(p["reach"]["6"]["internet"]["result"], "closed", "ip6tables names no set")
 
 
+LO_ONLY = json.dumps([{"ifindex": 1, "ifname": "lo", "flags": ["LOOPBACK", "UP", "LOWER_UP"], "operstate": "UP",
+                       "addr_info": [{"family": "inet", "local": "127.0.0.1", "prefixlen": 8, "scope": "host"},
+                                     {"family": "inet6", "local": "::1", "prefixlen": 128, "scope": "host"}]}])
+
+
+class NetworkData(unittest.TestCase):
+    """The exposure rests on the addresses (`ip -j addr`) and the sockets (`ss`): when they cannot
+    be read, nothing may look closed or "only this host"; a host that really has no public
+    address or no listening socket stays OK."""
+
+    LOOPBACK_ONLY = {"53/tcp", "53/udp", "323/udp", "5432/tcp"}
+
+    def test_addresses_not_read(self):
+        for broken in (fakesys.failing("Cannot open netlink socket: Permission denied"), "not json"):
+            doc = scan("ufw-docker", results={"ip-addr": broken})
+            self.assertEqual(doc["sources"]["ip"]["state"], "error")
+            self.assertEqual(doc["network"]["public"], {"4": None, "6": None}, "not known, not false")
+            self.assertEqual(doc["firewall"]["input_filter"], {4: "unknown", 6: "unknown"})
+            got = {k: (p["state"], p["why"]) for k, p in ports(doc).items()}
+            self.assertEqual({k for k, v in got.items() if v == ("ok", "local")}, self.LOOPBACK_ONLY,
+                             "only a socket on the loopback is out of reach without the addresses")
+            self.assertEqual({v for k, v in got.items() if k not in self.LOOPBACK_ONLY}, {("none", "unknown")})
+            p = ports(doc)["6379/tcp"]
+            for c in ("internet", "vpn", "private"):
+                self.assertEqual((p["reach"]["4"][c]["result"], p["reach"]["4"][c]["reason"]), ("unknown", "no-addresses"))
+            self.assertEqual(reach(ports(doc)["8080/tcp"])["local"], "open", "the host itself still reaches it")
+
+    def test_no_public_address_is_ok(self):
+        """Read, and only the loopback: a real "no public address"."""
+        doc = scan("ufw-docker", results={"ip-addr": LO_ONLY})
+        self.assertEqual((doc["sources"]["ip"]["state"], doc["network"]["public"]), ("ok", {"4": False, "6": False}))
+        self.assertEqual({(p["state"], p["why"]) for p in doc["ports"]}, {("ok", "local")})
+
+    def test_sockets_not_read(self):
+        doc = scan("ufw-docker", results={"ss": fakesys.failing("ss: cannot open netlink socket")})
+        self.assertEqual(doc["sources"]["ss"]["state"], "error")
+        self.assertEqual({k: (p["state"], p["why"]) for k, p in ports(doc).items()}, {
+            "5432/tcp": ("ok", "local"), "6379/tcp": ("ok", "only-vpn"), "8080/tcp": ("warning", "public-other")},
+            "only what Docker publishes is known")
+        doc = scan("ufw-docker", meta={"exists": []}, results={"ss": fakesys.failing("ss: failed")})
+        self.assertEqual((doc["sources"]["ss"]["state"], doc["ports"]), ("error", []))
+
+    def test_no_listening_socket_is_ok(self):
+        doc = scan("ufw-docker", meta={"exists": []}, results={"ss": ""})
+        self.assertEqual((doc["sources"]["ss"]["state"], doc["ports"]), ("ok", []))
+
+
 class Fail2ban(unittest.TestCase):
     """fail2ban (spec 5.3): jails, bans, where a ban takes effect, and what makes one fail."""
 
@@ -568,6 +666,95 @@ class Fail2ban(unittest.TestCase):
 
     def test_not_installed(self):
         self.assertEqual(scan("ufw-docker")["fail2ban"], {"installed": False})
+
+    def test_complete(self):
+        self.assertEqual((self.f["incomplete"], self.f["errors"]), ([], {}))
+        self.assertEqual({j["name"]: j["running"] for j in self.f["jails"]}, dict.fromkeys(self.j, True))
+        self.assertNotIn("error", self.j["sshd"])
+
+
+class Fail2banRead(unittest.TestCase):
+    """What fail2ban-client and the database could not answer (findings 3 and 4 of the review):
+    a part the assessment needs missing leaves it "not checked" (none), never OK; a jail that is
+    configured but not running is a warning; the database only feeds the history. On the
+    scenario cut down to the jail sshd, which has no finding (fakesys.fail2ban_quiet)."""
+
+    def quiet(self, results=None, files=None, meta=None):
+        doc = scan("fail2ban", meta=meta, **fakesys.fail2ban_quiet(results, files))
+        return doc, doc["fail2ban"], {j["name"]: j for j in doc["fail2ban"]["jails"]}
+
+    def test_quiet_is_ok(self):
+        doc, f, j = self.quiet()
+        self.assertEqual((f["state"], f["findings"], f["incomplete"], f["errors"]), ("ok", [], [], {}))
+        self.assertEqual((list(j), j["sshd"]["running"], j["sshd"]["state"], j["sshd"]["findings"]),
+                         (["sshd"], True, "ok", []))
+        self.assertEqual((f["bans_total"], doc["sources"]["fail2ban"]["state"]), (3, "ok"))
+
+    def test_config_and_status_failing(self):
+        """The review's case: ping answers, `-d` and `status` fail; without other findings this
+        was OK with an empty list of jails."""
+        doc, f, j = self.quiet({"f2b-dump": fakesys.failing("ERROR  Failed to read the configuration", 255),
+                                "f2b-status": fakesys.failing("ERROR  NOK: ('status',)", 255)})
+        self.assertEqual((f["state"], f["incomplete"], f["findings"], j), ("none", ["config", "status"], [], {}))
+        self.assertEqual(f["errors"], {"config": "ERROR  Failed to read the configuration",
+                                       "status": "ERROR  NOK: ('status',)"})
+        self.assertEqual(f["bans_total"], 3, "the database still says who is banned")
+        self.assertEqual((doc["sources"]["fail2ban"]["state"], doc["sources"]["fail2ban"]["missing"]),
+                         ("partial", "config,status"))
+
+    def test_status_failing(self):
+        doc, f, j = self.quiet({"f2b-status": fakesys.failing("ERROR  timed out", 255)})
+        self.assertEqual((f["state"], f["incomplete"]), ("none", ["status"]))
+        self.assertEqual((j["sshd"]["running"], j["sshd"]["state"], j["sshd"]["findings"]), (None, "none", []),
+                         "not known whether it runs: no warning, and no OK")
+        doc, f, j = self.quiet({"f2b-status": "Status\nnothing to read here\n"})
+        self.assertEqual((f["state"], f["errors"]["status"]), ("none", "unexpected answer"))
+
+    def test_config_failing(self):
+        doc, f, j = self.quiet({"f2b-dump": fakesys.failing("ERROR  bad jail.local", 255)})
+        self.assertEqual((f["state"], f["incomplete"], j["sshd"]["running"], j["sshd"]["state"]),
+                         ("none", ["config"], True, "none"), "where its ban takes effect is not known")
+
+    def test_no_answer_while_active(self):
+        """systemd says active, ping gets no answer: not known, which is not "not running"."""
+        doc, f, j = self.quiet({"f2b-ping": secproc.Result(None, "", "", timeout=True)})
+        self.assertEqual((f["state"], f["running"], f["incomplete"], f["findings"]), ("none", False, ["ping"], []))
+        self.assertEqual((f["errors"]["ping"], j["sshd"]["running"], j["sshd"]["state"]), ("timed out", None, "none"))
+
+    def test_jail_status_failing(self):
+        doc, f, j = self.quiet({"f2b-status-sshd": fakesys.failing("ERROR  NOK: ('sshd',)", 255)})
+        self.assertEqual((f["state"], f["incomplete"]), ("none", ["jails"]))
+        self.assertEqual((j["sshd"]["running"], j["sshd"]["state"], j["sshd"]["error"], j["sshd"]["failed_total"]),
+                         (True, "none", "ERROR  NOK: ('sshd',)", None))
+        self.assertEqual(f["bans_total"], 3, "from the database")
+        both = self.quiet({"f2b-status-sshd": fakesys.failing("ERROR", 255)}, meta={"db_error": "disk I/O error"})[1]
+        self.assertIsNone(both["bans_total"], "neither every jail nor the database: not known")
+
+    def test_only_the_history_missing(self):
+        """The database is optional: without it the history is missing, the state stands."""
+        doc, f, j = self.quiet(meta={"db_error": "unable to open database file"})
+        self.assertEqual((f["state"], f["incomplete"], f["errors"]), ("ok", [], {"db": "unable to open database file"}))
+        self.assertEqual((f["history_total"], f["bans_total"], j["sshd"]["state"]), (None, 1, "ok"), "the bans from status")
+        self.assertEqual((doc["sources"]["fail2ban"]["state"], doc["sources"]["fail2ban"]["missing"]), ("partial", "db"))
+
+    def test_configured_jail_not_running(self):
+        """The review's case: sshd configured, fail2ban answers, its list of running jails is empty
+        (and, as fail2ban removes the chain of a jail it stops, no f2b- chain is left)."""
+        ipt = "\n".join(line for line in fixture("fail2ban", "commands", "iptables-save.txt").splitlines()
+                        if "f2b-" not in line) + "\n"
+        doc, f, j = self.quiet({"f2b-status": "Status\n|- Number of jail:\t0\n`- Jail list:\t\n", "iptables-save": ipt})
+        self.assertEqual((j["sshd"]["running"], j["sshd"]["findings"], j["sshd"]["state"]),
+                         (False, [{"code": "jail-not-running", "state": "warning"}], "warning"))
+        self.assertEqual((f["state"], f["incomplete"], f["findings"]), ("warning", [], []))
+
+    def test_service_down_is_one_finding(self):
+        """fail2ban not running: one finding for the whole, its jails simply do not run."""
+        doc, f, j = self.quiet({"f2b-ping": fakesys.failing("ERROR   Failed to access socket path", 255),
+                                "systemctl-show-fail2ban": "ActiveState=failed\nUnitFileState=enabled\n"})
+        self.assertEqual(([x["code"] for x in f["findings"]], f["incomplete"], f["state"]),
+                         (["not-running"], [], "warning"))
+        self.assertEqual((j["sshd"]["running"], j["sshd"]["findings"], j["sshd"]["state"]), (False, [], "none"),
+                         "no warning of its own, and not OK either")
 
 
 class Marks(unittest.TestCase):

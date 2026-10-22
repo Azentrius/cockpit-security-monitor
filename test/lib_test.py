@@ -379,6 +379,25 @@ class PageTexts(unittest.TestCase):
         for code in sorted(codes):
             self.assertEqual(page.count('"' + code + '"'), 2, code + " in English and German")
 
+    def test_fail2ban_codes(self):
+        """Every finding of fail2ban has its text on the page, a warning also in the status; every
+        essential part that can be missing has both too."""
+        import seccheck
+        import secstatus
+        with open(os.path.join(HERE, "..", "plugin", "i18n.js"), encoding="utf-8") as f:
+            page = f.read()
+        warnings = ("not-running", "unmanaged-bans", "input-only", "udp-open", "log-missing", "log-idle", "no-match",
+                    "jail-not-running")
+        for code in warnings + ("persisted-chains", "allports-input"):
+            self.assertEqual(page.count('"f2b.' + code + '"'), 2, code)
+        for code in warnings:
+            for lang in ("en", "de"):
+                self.assertIn("fail2ban." + code, secstatus.T[lang], code)
+        for part in seccheck.F2B_ESSENTIAL + ("jails",):
+            self.assertEqual(page.count('"f2b.part.' + part + '"'), 2, part)
+            for lang in ("en", "de"):
+                self.assertIn("fail2ban.part." + part, secstatus.T[lang], part)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

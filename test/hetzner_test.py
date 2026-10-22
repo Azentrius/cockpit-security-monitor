@@ -125,6 +125,16 @@ class Fetch(unittest.TestCase):
         rc, doc, _ = self.run_main(api, ["203.0.113.20"])
         self.assertEqual(doc["error"], "unexpected answer for /servers")
 
+    def test_firewall_missing_from_the_answer(self):
+        """The server names a firewall /v1/firewalls does not list: its rules are not known (null,
+        not []), and the scan never counts it as protection."""
+        fws = answer("firewalls")
+        fws["firewalls"] = [f for f in fws["firewalls"] if f["id"] != 38]
+        rc, doc, _ = self.run_main(Api(pages={"firewalls": [fws]}), ["203.0.113.20"])
+        self.assertEqual(doc["firewalls"], [{"id": 38, "name": None, "status": "applied", "rules": None}])
+        known = dict(doc, configured=True)
+        self.assertEqual(seccheck.hetzner_reach(known, 4, "tcp", 5432), ("unknown", [{"firewall": "", "id": 38}], []))
+
 
 class Reach(unittest.TestCase):
     def fw(self, rules, status="applied"):
@@ -146,6 +156,30 @@ class Reach(unittest.TestCase):
         self.assertEqual(r(web, 4, "tcp", 8080)[0], "blocks")
         self.assertEqual(r(self.fw([], status="pending"), 4, "tcp", 22)[0], "none", "not applied yet")
         self.assertEqual(r({"firewalls": []}, 4, "tcp", 22)[0], "none", "no firewall: nothing filtered")
+
+    def test_rules_not_known(self):
+        """null (the firewall missing from the API's answer) is not [] (no incoming rule: all
+        blocked): it never claims protection, alone or next to others."""
+        r = seccheck.hetzner_reach
+        self.assertEqual(r(self.fw([]), 4, "tcp", 5432)[0], "blocks")
+        self.assertEqual(r(self.fw(None), 4, "tcp", 5432), ("unknown", [{"firewall": "fw", "id": 1}], []))
+        self.assertEqual(r(self.fw("garbage"), 6, "udp", 53)[0], "unknown")
+        self.assertEqual(r(self.fw(None, status="pending"), 4, "tcp", 22)[0], "none", "not applied: not counted")
+        everyone = {"direction": "in", "protocol": "tcp", "port": "443", "source_ips": ["0.0.0.0/0", "::/0"]}
+        office = {"direction": "in", "protocol": "tcp", "port": "8443", "source_ips": ["198.51.100.0/24"]}
+
+        def two(first, second):
+            return {"firewalls": [{"id": 1, "name": "a", "status": "applied", "rules": first},
+                                  {"id": 2, "name": "b", "status": "applied", "rules": second}]}
+        for rules in (two([everyone, office], None), two(None, [everyone, office])):
+            self.assertEqual(r(rules, 4, "tcp", 443)[0], "allows", "a known rule lets everyone in: safe to say")
+            self.assertEqual(r(rules, 4, "tcp", 8443)[0], "unknown", "the other one may let everyone in")
+            self.assertEqual(r(rules, 4, "tcp", 22)[0], "unknown")
+        self.assertEqual(r(two([office, "not a rule"], [everyone]), 4, "tcp", 8443)[::2],
+                         ("restricted", ["198.51.100.0/24"]))
+        self.assertEqual(r(two([office], [dict(office, port="8443", source_ips=["0.0.0.0/0"])]), 4, "tcp", 8443)[0],
+                         "allows", "the union of the rules of both")
+        self.assertEqual(r(two([], []), 4, "tcp", 443)[0], "blocks")
 
 
 if __name__ == "__main__":

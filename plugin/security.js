@@ -90,7 +90,10 @@
     }
     function tr(key, vars) {
         const v = {};
-        Object.keys(vars || {}).forEach((k) => { v[k] = String(vars[k] == null ? "" : vars[k]).replace(/`/g, "'"); });
+        // A number stays one (it picks the plural, and holds no backtick).
+        Object.keys(vars || {}).forEach((k) => {
+            v[k] = typeof vars[k] === "number" ? vars[k] : String(vars[k] == null ? "" : vars[k]).replace(/`/g, "'");
+        });
         return rich(t(key, v));
     }
     const SVG = "http://www.w3.org/2000/svg";
@@ -324,17 +327,28 @@
         return t("det.where", { chain: ref.chain, family: ref.family, table: ref.table }) +
             (ref.owner ? " (" + t("det.owner." + ref.owner) + ")" : "");
     }
+    // The Hetzner Cloud Firewalls of an answer, by name, else by number (rules missing from the API's answer).
+    function hzNames(refs) {
+        return (refs || []).map((x) => x.firewall || (x.id != null ? "#" + x.id : "")).filter(Boolean).join(", ");
+    }
+    // The rules of a Hetzner Cloud Firewall applied to the server are not known: it counts as no protection.
+    function hzUnknown(p) {
+        return ["4", "6"].some((f) => (p.reach[f].internet.hetzner || {}).result === "unknown");
+    }
     function shortReason(p, st) {
         const inet = ["4", "6"].map((f) => p.reach[f].internet);
         const open = inet.find((r) => r.result === "open");
-        if (p.why === "outside-only") return t("sub.outside");
+        if (p.why === "outside-only") return t(hzUnknown(p) ? "sub.outsideHz" : "sub.outside");
         if (p.why === "restricted") {
             return t("sub.restricted", { list: [...new Set(inet.flatMap((r) => r.sources || []))].join(", ") });
         }
-        if (p.why === "unknown") return t("sub.unknown");
+        if (p.why === "unknown") {
+            const reasons = inet.map((r) => r.reason);
+            return t(reasons.indexOf("no-addresses") >= 0 ? "sub.noAddresses" : reasons.indexOf("no-rules") >= 0 ? "sub.noRules" : "sub.unknown");
+        }
         if (p.why === "hetzner") {
             const hz = inet.map((r) => r.hetzner).find(Boolean);
-            const names = hz ? hz.refs.map((x) => x.firewall).join(", ") : "";
+            const names = hz ? hzNames(hz.refs) : "";
             return t("sub.hetzner", { firewall: t("ov.hetzner") + (names ? " " + names : "") });
         }
         if (open && open.path === "forward") {
@@ -359,6 +373,7 @@
         const why = [];
         if (r.reason === "local-published") why.push(rich(t("det.localPublished")));
         else if (r.reason === "no-rules") why.push(rich(t("det.noRules")));
+        else if (r.reason === "no-addresses") why.push(rich(t("det.noAddresses")));
         if (r.limited_by) why.push(limitText(r.limited_by));
         const steps = r.steps || [];
         const decisive = r.result === "unknown" ? steps.filter((s) => s.result === "unknown") :
@@ -387,12 +402,12 @@
             lines.push(h("ul", { class: "sm-plain-list" }, CLASSES.filter((c) => r[c].result !== "absent").map((c) => classLine(c, r[c]))));
             const hz = r.internet.hetzner;
             if (hz && hz.result !== "none") {
-                const names = (hz.refs || []).map((x) => x.firewall).filter(Boolean).join(", ") || "?";
+                const names = hzNames(hz.refs) || "?";
                 lines.push(h("p", null, tr("det.hz." + hz.result, { names, list: (hz.sources || []).join(", ") })));
             }
             blocks.push(h("div", { class: "sm-detail-fam" }, h("p", { class: "sm-sub-title", text: t("det.fam", { fam }) }), lines));
         });
-        if (p.why === "outside-only") blocks.push(h("p", null, rich(t("det.outside"))));
+        if (p.why === "outside-only") blocks.push(h("p", null, rich(t(hzUnknown(p) ? "det.outsideHz" : "det.outside"))));
         const todo = todoList(p, st);
         if (todo.length) blocks.push(h("div", { class: "sm-todo" }, h("p", { class: "sm-sub-title", text: t("todo.title") }),
                                        h("ul", { class: "sm-plain-list" }, todo.map((x) => h("li", null, x)))));
@@ -456,10 +471,10 @@
     }
 
     function filterText(st, fam) {
-        if (!(st.network && st.network.public && st.network.public[fam]) && (st.firewall.input_filter || {})[fam] === "unknown") {
-            return t("ov.filter.noaddr");
-        }
-        return t("ov.filter." + (((st.firewall || {}).input_filter || {})[fam] || "unknown"));
+        // public: true, false, or null when the addresses could not be read
+        const pub = ((st.network || {}).public || {})[fam];
+        const filter = ((st.firewall || {}).input_filter || {})[fam] || "unknown";
+        return t(pub === false && filter === "unknown" ? "ov.filter.noaddr" : "ov.filter." + filter);
     }
     function ufwText(u) {
         if (!u || !u.installed) return t("ov.ufw.missing");
@@ -477,11 +492,15 @@
     function hetznerText(hz) {
         if (!hz || !hz.configured) return rich(t("ov.hetzner.none"));
         const names = (hz.firewalls || []).map((f) => f.name || "#" + f.id).join(", ");
+        // Applied, but missing from the API's answer: its rules are not known.
+        const unknown = (hz.firewalls || []).filter((f) => (f.status || "applied") === "applied" && !Array.isArray(f.rules))
+            .map((f) => f.name || "#" + f.id).join(", ");
+        const note = unknown ? h("span", { class: "sm-sub", text: t("ov.hetzner.rulesUnknown", { names: unknown }) }) : null;
         if (hz.state === "ok") {
-            return names ? t("ov.hetzner.ok", { names, when: fmtDate(hz.ok_at) })
+            return names ? [t("ov.hetzner.ok", { names, when: fmtDate(hz.ok_at) }), note]
                 : t("ov.hetzner.noFirewall", { server: (hz.server && hz.server.name) || "?" });
         }
-        if (hz.state === "stale") return t("ov.hetzner.stale", { when: fmtDate(hz.ok_at), error: hz.error || "?" });
+        if (hz.state === "stale") return [t("ov.hetzner.stale", { when: fmtDate(hz.ok_at), error: hz.error || "?" }), note];
         if (hz.state === "error") return t("ov.hetzner.error", { error: hz.error || "?" });
         return t("ov.hetzner." + ({ pending: "pending", "not-matched": "notMatched", unreadable: "unreadable" }[hz.state] || "pending"));
     }
@@ -522,11 +541,19 @@
         const limited = pub.length - open.length;
         const attention = pub.filter((p) => ORDER[p.state] >= ORDER.warning);
         const unknown = ports.filter((p) => p.state === "none");
+        // What the exposure rests on: without it nothing here may read as "nothing reachable".
+        const read = (k, partial) => { const s = (((st.sources || {})[k]) || {}).state; return s === "ok" || (partial && s === "partial"); };
+        const addrsRead = read("ip");
+        const socketsRead = read("ss", true);
+        const rulesRead = read("rules");
         const intro = [];
-        if (!Object.values((st.network || {}).public || {}).some(Boolean)) intro.push(h("p", { text: t("ov.noPublic") }));
+        if (!addrsRead) intro.push(h("p", { text: t("ov.noAddresses") }));
+        if (!socketsRead) intro.push(h("p", { text: t("ov.noSockets") }));
+        if (!rulesRead) intro.push(h("p", { text: t("ov.noRules") }));
+        if (addrsRead && !Object.values((st.network || {}).public || {}).some(Boolean)) intro.push(h("p", { text: t("ov.noPublic") }));
         if (open.length) intro.push(h("p", { text: t("ov.public", { n: open.length }) }));
         if (limited) intro.push(h("p", { text: t("ov.limited", { n: limited }) }));
-        if (!pub.length) intro.push(h("p", { text: t("ov.publicNone") }));
+        if (!pub.length && addrsRead && socketsRead && rulesRead) intro.push(h("p", { text: t("ov.publicNone") }));
         if (attention.length) {
             intro.push(h("p", { text: t("ov.attention", { n: attention.length }) },
                 h("span", { class: "sm-chips" }, attention.map((p) => label(p.state, p.port + "/" + p.proto + (p.name ? " " + p.name : ""))))));
@@ -549,7 +576,7 @@
             reachCell(p, "internet"), reachCell(p, "vpn"), reachCell(p, "private"), reachCell(p, "local"),
             assessCell(p, st), portActions(p)] }));
         const portsCard = card("sm-ports", t("ports.title"), null, [h("p", { class: "sm-intro", text: t("ports.intro") }),
-            rows.length ? table(cols, rows, "sm-ports-table") : h("p", { text: t("ports.empty") })]);
+            rows.length ? table(cols, rows, "sm-ports-table") : h("p", { text: t(socketsRead ? "ports.empty" : "ports.noSockets") })]);
         const un = uncheckedCard("sm-unchecked-exposure", [rich(t("unchecked.exposure.rules")), rich(t("unchecked.exposure.outside")),
             rich(t("unchecked.exposure.out")), rich(t("unchecked.exposure.weak"))], ["ip", "ss", "rules", "docker", "ufw", "hetzner"]);
         fill(box, overview, portsCard, un);
@@ -734,6 +761,17 @@
             h("span", { class: "sm-sub", text: t("f2b.ports", { ports, protocols: (a.protocols || []).join(", ") }) +
                 (a.observed ? " · " + t("f2b.observed") : "") }));
     }
+    // A jail's findings, why its own state could not be read, or no finding (OK only when checked).
+    function f2bJailFindings(j) {
+        const items = (j.findings || []).map((f) => h("li", { "data-code": f.code, "data-state": f.state },
+            label(f.state, null), " ", f2bText(j.name, f)));
+        if (j.error) {
+            items.push(h("li", { "data-code": "error", "data-state": "none" }, label("none", null), " ",
+                tr("f2b.jail.error", { jail: j.name, error: j.error })));
+        }
+        if (items.length) return h("ul", { class: "sm-plain-list sm-findings-list" }, items);
+        return j.state === "none" ? label("none", t("f2b.jail.notChecked")) : label("ok", t("ck.none"));
+    }
     function renderFail2ban() {
         const box = $("sm-tab-fail2ban");
         const st = state();
@@ -742,21 +780,33 @@
         const num = (v) => (v == null ? "–" : String(v));
         // A count as a number, so that t() takes the singular for 1 (the dump may give "1").
         const count = (v) => (v == null ? "–" : /^\d+$/.test(String(v)) ? Number(v) : String(v));
+        const errors = fb.errors || {};
+        // The essential parts that could not be read (the state is then "not checked", never OK),
+        // and apart from them fail2ban's database, which only the history needs.
+        const failedJails = (fb.jails || []).filter((j) => j.error).map((j) => j.name);
+        const unread = (fb.incomplete || []).map((k) => (k === "jails"
+            ? tr("f2b.part.jails", { n: failedJails.length, names: failedJails.join(", ") })
+            : tr("f2b.part." + k, { error: errors[k] || "?" })));
+        const unreadBox = unread.length ? alertBox("warning", t("f2b.incompleteTitle"),
+            [unread.reduce((acc, x, i) => acc.concat(i ? [" ", x] : [x]), []), " ", t("f2b.incompleteNote")]) : null;
+        const service = fb.running ? t("f2b.running", { since: fb.since ? fmtDate(fb.since) : "?" })
+            : errors.ping ? tr("f2b.noAnswer", { state: fb.active || "?" }) : t("f2b.stopped", { state: fb.active || "?" });
         const top = card("sm-fail2ban", t("f2b.title"), label(fb.state), [h("p", { class: "sm-intro", text: t("f2b.intro") }), kv([
-            [t("f2b.service"), fb.running ? t("f2b.running", { since: fb.since ? fmtDate(fb.since) : "?" }) : t("f2b.stopped", { state: fb.active || "?" })],
+            [t("f2b.service"), service],
             [t("f2b.version"), fb.version || "?"],
-            [t("f2b.bansNow"), String(fb.bans_total || 0)],
+            [t("f2b.bansNow"), num(fb.bans_total)],
             fb.history_total == null ? null : [t("f2b.history", { days: fb.history_days }), String(fb.history_total)],
             [t("f2b.purge"), h("span", { class: "az-mono", text: fb.dbpurgeage || "?" })],
-        ]), (fb.findings || []).map((f) => alertBox(f.state === "danger" ? "danger" : f.state === "info" ? "info" : "warning",
+        ]), unreadBox, (fb.findings || []).map((f) => alertBox(f.state === "danger" ? "danger" : f.state === "info" ? "info" : "warning",
             t("label." + f.state), f2bText(null, f))),
-            Object.keys(fb.errors || {}).length ? h("p", { class: "sm-note", text: t("f2b.errors", { list: Object.keys(fb.errors).join(", ") }) }) : null]);
+            errors.db ? h("p", { class: "sm-note", id: "sm-f2b-history-unread" }, tr("f2b.historyUnread", { error: errors.db })) : null]);
         const jails = (fb.jails || []).slice().sort((a, b) => (ORDER[b.state] - ORDER[a.state]) || (a.name < b.name ? -1 : 1));
         const jailCard = card("sm-f2b-jails", t("f2b.jailsTitle"), null, [h("p", { class: "sm-intro", text: t("f2b.jailsIntro") }), jails.length
             ? table([{ label: t("col.jail") }, { label: t("col.reads") }, { label: t("col.bansIn") }, { label: t("col.counts") },
                      { label: t("col.findings"), cls: "sm-findings" }],
-                jails.map((j) => ({ attrs: { id: "sm-f2b-jail-" + j.name.replace(/[^A-Za-z0-9_-]/g, "_") }, cells: [
-                    [h("strong", { text: j.name }), j.running ? null : h("span", { class: "sm-sub", text: t("f2b.jail.notRunning") })],
+                jails.map((j) => ({ attrs: { id: "sm-f2b-jail-" + j.name.replace(/[^A-Za-z0-9_-]/g, "_"), "data-state": j.state }, cells: [
+                    [h("strong", { text: j.name }), j.running === false ? h("span", { class: "sm-sub", text: t("f2b.jail.notRunning") })
+                        : j.running == null ? h("span", { class: "sm-sub", text: t("f2b.jail.unknown") }) : null],
                     String(j.backend || "").indexOf("systemd") === 0
                         ? h("div", null, t("f2b.journal"), h("span", { class: "sm-sub az-mono", text: j.journal || "" }))
                         : (j.logs || []).map(f2bLog),
@@ -764,17 +814,14 @@
                     [t("f2b.counts", { hits: t("f2b.counts.hits", { n: count(j.failed_total) }), now: num(j.banned_now),
                                        bans: t("f2b.counts.bans", { n: count(j.banned_total) }) }),
                      h("span", { class: "sm-sub", text: t("f2b.rules", { n: count(j.maxretry), findtime: num(j.findtime), bantime: num(j.bantime) }) })],
-                    (j.findings || []).length
-                        ? h("ul", { class: "sm-plain-list sm-findings-list" }, j.findings.map((f) => h("li", { "data-code": f.code, "data-state": f.state },
-                            label(f.state, null), " ", f2bText(j.name, f))))
-                        : label("ok", t("ck.none"))] })))
+                    f2bJailFindings(j)] })))
             : h("p", { text: t("f2b.jails.none") })]);
         const bans = fb.bans || [];
         const banCard = card("sm-f2b-bans", t("f2b.bansTitle"), null, bans.length
             ? table([{ label: t("col.source") }, { label: t("col.jail") }, { label: t("col.since") }, { label: t("col.until") }],
                 bans.map((b) => [[h("span", { class: "az-mono", text: b.ip + " " }), classLabel(b.class)], b.jail,
                                  b.since ? fmtDate(b.since) : "–", b.until ? fmtDate(b.until) : (b.since ? t("f2b.permanent") : "–")]))
-            : h("p", { text: t("f2b.bans.none") }));
+            : h("p", { text: t(fb.bans_total == null ? "f2b.bans.unknown" : "f2b.bans.none") }));
         fill(box, top, jailCard, banCard, uncheckedCard("sm-unchecked-fail2ban", [rich(t("unchecked.f2b.regex")),
             rich(t("unchecked.f2b.actions"))], ["fail2ban"]));
     }

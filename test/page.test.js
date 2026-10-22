@@ -2,8 +2,9 @@
 // The page against the state the helper writes for the scenarios (test/fixtures/state-*.json):
 // tabs and links, the ports and their reasons, SSH, logins, containers, CrowdSec, the summary
 // without administrative access, the first check by itself, Refresh, the timer and the marks,
-// escaping, both languages; the status icon in Cockpit's menu and the start once the page is
-// shown. Run: node test/page.test.js (jsdom: cd test && npm ci, or NODE_PATH).
+// escaping, both languages; what could not be read (never OK); the status icon in Cockpit's menu
+// and the start once the page is shown. Run: node test/page.test.js (jsdom: cd test && npm ci, or
+// NODE_PATH).
 "use strict";
 const assert = require("assert");
 const fs = require("fs");
@@ -371,6 +372,78 @@ test("values from the system are text, never markup", async () => {
     assert.ok(!d.querySelector("[data-expect-container^='<img']"), "no mark for a name that is no container name");
 });
 
+test("addresses or sockets not read: not assessable, never \"nothing reachable\"", async () => {
+    // As the scan writes it when `ip -j addr` fails: public not known, ports on all addresses unknown.
+    const st = state("ufw-docker");
+    st.sources.ip = { state: "error", error: "Cannot open netlink socket" };
+    st.network = { interfaces: [], public: { 4: null, 6: null } };
+    st.firewall.input_filter = { 4: "unknown", 6: "unknown" };
+    const unknown = { result: "unknown", steps: [], sources: [], reason: "no-addresses", path: "input" };
+    st.ports.filter((p) => p.state !== "ok" || p.why !== "local").forEach((p) => {
+        ["4", "6"].forEach((f) => ["internet", "vpn", "private"].forEach((c) => { p.reach[f][c] = Object.assign({}, unknown); }));
+        p.state = "none";
+        p.why = "unknown";
+    });
+    const { d } = boot({ view: show(st) });
+    await settle();
+    const ov = text(d.getElementById("sm-ov"));
+    assert.match(ov, /The addresses of this server could not be read, so from where its ports can be reached is not known\./);
+    assert.ok(!/No port is reachable|has no public address/.test(ov), ov);
+    assert.match(ov, /Packet filter, IPv4 not known Packet filter, IPv6 not known/, "not known, not \"no public address\"");
+    const r = row(d, "tcp", 22);
+    assert.strictEqual(r.dataset.state, "none");
+    assert.match(text(r), /Not assessable The addresses of this server could not be read\./);
+    assert.match(text(r.querySelector("details")), /From the internet: not assessable: the addresses of this server could not be read/);
+    assert.strictEqual(row(d, "tcp", 5432).dataset.state, "ok", "a socket on the loopback stays this host's");
+    assert.match(text(d.getElementById("sm-unchecked-exposure")), /Addresses: failed: Cannot open netlink socket\./);
+    // `ss` failing on a host without Docker: no port at all, and that is not "none found".
+    const empty = state("ufw-docker");
+    empty.sources.ss = { state: "error", error: "ss: failed" };
+    empty.ports = [];
+    const { d: d2 } = boot({ view: show(empty), language: "de" });
+    await settle();
+    assert.match(text(d2.getElementById("sm-ports")), /Kein Port aufgeführt: Die lauschenden Sockets ließen sich nicht lesen\./);
+    assert.match(text(d2.getElementById("sm-ov")), /Aufgeführt sind nur die Ports, die Docker veröffentlicht\./);
+    assert.ok(!/Kein Port ist aus dem Internet erreichbar/.test(text(d2.getElementById("sm-ov"))));
+    // Read, and really empty: the usual words.
+    const none = state("ufw-docker");
+    none.ports = [];
+    const { d: d3 } = boot({ view: show(none) });
+    await settle();
+    assert.match(text(d3.getElementById("sm-ports")), /No listening ports were found\./);
+    assert.match(text(d3.getElementById("sm-ov")), /No port is reachable from the internet\./);
+    assert.ok(!/could not be read/.test(text(d3.getElementById("sm-ov"))));
+});
+
+test("Hetzner Cloud Firewall whose rules are not known: no protection", async () => {
+    const st = state("hetzner-open");
+    st.firewall.hetzner.firewalls[0].rules = null;
+    st.sources.hetzner = { state: "partial", missing: "rules" };
+    const p = st.ports.find((x) => x.port === 5432);
+    p.reach["4"].internet = { result: "open", steps: [], sources: [], path: "forward", iface: "eth0",
+                              to: p.reach["4"].internet.to, hetzner: { result: "unknown", refs: [{ firewall: "web", id: 38 }], sources: [] } };
+    p.state = "warning";
+    p.why = "outside-only";
+    const { d } = boot({ view: show(st) });
+    await settle();
+    const r = row(d, "tcp", 5432);
+    assert.strictEqual(r.dataset.state, "warning");
+    assert.match(text(r), /Only rules outside this host could protect it This host lets new connections in; the rules of the Hetzner Cloud Firewall are not known\./);
+    const det = text(r.querySelector("details"));
+    assert.match(det, /The Hetzner Cloud Firewall web is applied, but its rules are not known \(missing from the API's answer\), so it counts as no protection\./);
+    assert.match(det, /the rules of the Hetzner Cloud Firewall are not known: not checkable\./);
+    assert.ok(!/no Hetzner token/.test(det), "there is a token");
+    assert.match(text(d.getElementById("sm-ov")), /the rules of web are not known \(missing from the API's answer\) and count as no protection/);
+    assert.match(text(d.getElementById("sm-unchecked-exposure")), /Hetzner Cloud Firewall: partly read\./);
+    // A firewall the API did not list at all has no name: its number.
+    st.firewall.hetzner.firewalls[0].name = null;
+    p.reach["4"].internet.hetzner.refs = [{ firewall: "", id: 38 }];
+    const { d: de } = boot({ view: show(st), language: "de" });
+    await settle();
+    assert.match(text(row(de, "tcp", 5432).querySelector("details")), /Die Hetzner Cloud Firewall #38 ist zugewiesen, ihre Regeln sind aber nicht bekannt/);
+    assert.match(text(de.getElementById("sm-ov")), /die Regeln von #38 sind nicht bekannt/);
+});
+
 test("unknown sources are named under Not checked", async () => {
     const st = state("ufw-docker");
     st.sources.rules = { state: "needs-root" };
@@ -437,6 +510,65 @@ test("fail2ban: the tab only when installed, where each ban takes effect, the ba
     const webOne = text(single.d.getElementById("sm-f2b-jail-web"));
     assert.match(webOne, /1 hit, 1 banned now, 1 ban(?!s)/);
     assert.match(webOne, /1 hit within 10m, banned for 10m/);
+});
+
+test("fail2ban not read completely: not checked, never OK; a jail that does not run; only the history missing", async () => {
+    const jailsOf = (d) => Object.fromEntries([...d.querySelectorAll("#sm-f2b-jails tbody tr")].map((r) => [r.id.replace("sm-f2b-jail-", ""), r]));
+    // `status` failed: whether a jail runs is not known.
+    const st = state("fail2ban");
+    const fb = st.fail2ban;
+    Object.assign(fb, { findings: [], state: "none", incomplete: ["status"], errors: { status: "ERROR  NOK: ('status',)" } });
+    fb.jails.forEach((j) => Object.assign(j, { running: null, findings: [], state: "none", failed_now: null, failed_total: null,
+                                               banned_now: null, banned_total: null }));
+    const { d } = boot({ view: show(st), location: ["fail2ban"] });
+    await settle();
+    const top = d.getElementById("sm-fail2ban");
+    assert.strictEqual(top.querySelector(".az-card__header .az-label").dataset.state, "none");
+    assert.match(text(top), /fail2ban could not be read completely The running jails could not be read: fail2ban-client status failed \(ERROR NOK: \('status',\)\)\. What depends on it is shown as not checked, never as OK\./);
+    const sshd = jailsOf(d).sshd;
+    assert.strictEqual(sshd.dataset.state, "none");
+    assert.match(text(sshd), /sshd not known whether it runs/);
+    assert.match(text(sshd), / not checked$/);
+    assert.strictEqual(sshd.querySelector("td:last-child .az-label").dataset.state, "none");
+    assert.ok(!/no finding|OK/.test(text(d.getElementById("sm-f2b-jails"))), "no jail is OK");
+    // A jail fail2ban runs without the jail answering, and the ping without an answer.
+    const st2 = state("fail2ban");
+    Object.assign(st2.fail2ban, { incomplete: ["ping", "jails"], running: false, bans_total: null, bans: [],
+                                  errors: { ping: "timed out" } });
+    const web = st2.fail2ban.jails.find((j) => j.name === "web");
+    Object.assign(web, { error: "ERROR  timed out", running: true, findings: [], state: "none" });
+    const { d: d2 } = boot({ view: show(st2), location: ["fail2ban"] });
+    await settle();
+    const top2 = text(d2.getElementById("sm-fail2ban"));
+    assert.match(top2, /Service active, but fail2ban-client ping gets no answer/);
+    assert.match(top2, /The service is active, but fail2ban-client ping got no answer \(timed out\)\. The state of the jail web could not be read\./);
+    assert.match(top2, /Banned now –/);
+    assert.match(text(jailsOf(d2).web), /Unknown fail2ban-client status web failed: ERROR timed out/);
+    assert.match(text(d2.getElementById("sm-f2b-bans")), /Which addresses are banned right now could not be read\./);
+    // A configured jail that fail2ban does not run: a warning, in both languages.
+    const st3 = state("fail2ban");
+    Object.assign(st3.fail2ban.jails.find((j) => j.name === "sshd"), { running: false, state: "warning",
+        findings: [{ code: "jail-not-running", state: "warning" }] });
+    const { d: d3 } = boot({ view: show(st3), location: ["fail2ban"] });
+    await settle();
+    const s3 = jailsOf(d3).sshd;
+    assert.strictEqual(s3.dataset.state, "warning");
+    assert.match(text(s3), /sshd not running/);
+    assert.match(text(s3), /Warning Configured, but fail2ban does not run this jail: it bans nothing\./);
+    assert.ok(s3.querySelector('[data-code="jail-not-running"][data-state="warning"]'));
+    const { d: de } = boot({ view: show(st3), location: ["fail2ban"], language: "de" });
+    await settle();
+    assert.match(text(jailsOf(de).sshd), /Eingerichtet, aber fail2ban führt dieses Jail nicht aus: Es sperrt nichts\./);
+    // Only the database missing: a note, the state stands, nothing "not checked".
+    const st4 = state("fail2ban");
+    Object.assign(st4.fail2ban, { errors: { db: "unable to open database file" }, history_total: null });
+    const { d: d4 } = boot({ view: show(st4), location: ["fail2ban"] });
+    await settle();
+    const top4 = d4.getElementById("sm-fail2ban");
+    assert.strictEqual(top4.querySelector(".az-card__header .az-label").dataset.state, "warning");
+    assert.match(text(d4.getElementById("sm-f2b-history-unread")), /^fail2ban's database could not be read \(unable to open database file\): the history of bans is missing\.$/);
+    assert.ok(!/could not be read completely|Bans in 14 days/.test(text(top4)));
+    assert.ok(!GERMAN.test(text(d4.body)));
 });
 
 // --- The status icon in Cockpit's menu (menu-status.js) and the hidden start ---

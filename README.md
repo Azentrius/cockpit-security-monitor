@@ -53,15 +53,15 @@ The screenshots show a test scenario with documentation addresses; they come fro
 
 | Area | Source on the server | What the page says |
 |---|---|---|
-| **Exposure** of every listening socket and every port Docker publishes | `ip -j addr`, `ss -tulpn`, Docker's API (GET only), `iptables-save`, `ip6tables-save`, `nft -j list ruleset`, UFW's files | reachable from the internet, the VPN, the private network, this host; per IPv4 and IPv6; the rule or policy that decides; Docker's DNAT to the container and that UFW does not apply to it |
+| **Exposure** of every listening socket and every port Docker publishes | `ip -j addr`, `ss -tulpn`, Docker's API (GET only), `iptables-save`, `ip6tables-save`, `nft -j list ruleset`, UFW's files | reachable from the internet, the VPN, the private network, this host; per IPv4 and IPv6; the rule or policy that decides; Docker's DNAT to the container and that UFW does not apply to it. When the addresses, the listening sockets or the packet filter cannot be read, the page and the status say so: the ports concerned are "Not assessable", and nothing reads as "not reachable" or OK for want of data |
 | **Assessment** of each port | the above | databases, Docker's API, Cockpit and SSH open to the internet: danger; web (80, 443), WireGuard and the DHCP client: a note; everything else: a warning until you mark it as expected; reachable only from some addresses: a note |
-| **Hetzner Cloud Firewall** (optional) | Hetzner's API with a read-only token | a port it blocks is OK, "protected by the Hetzner Cloud Firewall" |
+| **Hetzner Cloud Firewall** (optional) | Hetzner's API with a read-only token | a port it blocks is OK, "protected by the Hetzner Cloud Firewall"; a firewall applied to the server whose rules are not known (missing from the API's answer) counts as no protection |
 | **SSH configuration** | `sshd -T`, Match blocks in `sshd_config` | passwords, keyboard-interactive with PAM, root login, keys, attempts, allow lists, X11 and agent forwarding |
 | **Authorized keys** of every account with a login shell | the authorized_keys files, `/etc/shadow` | type, size, fingerprint, comment, options (`from=`, `restrict`, `command=`); DSA and RSA under 3072 bits; files others can change; an account locked with `passwd -l` whose keys still log in (with `UsePAM yes` sshd does not check the lock) is a warning |
 | **Logins** of the last 14 days | the journal of `sshd`, `sshd-session`, `sudo`, `cockpit-session` | successful logins with source, account and method; failed attempts per source; a login from outside VPN and private networks is a warning; when the journal begins later than 14 days back, the page and the status say since when |
 | **Container hardening** | Docker's API | the Docker socket mounted (danger, also read-only), privileged, host PIDs, extra capabilities, writable host folders (warnings), the host network, root, no-new-privileges, AppArmor (notes) |
 | **CrowdSec**, when installed | `cscli` (JSON), the firewall bouncer's configuration | the service, version, bouncers, active decisions, alerts of 14 days, whether signals are shared; Ubuntu's outdated package and a bouncer that does not protect container ports are warnings |
-| **fail2ban**, when installed (shown only) | `systemctl show fail2ban.service`, `fail2ban-client ping`, `status`, `status JAIL` and `-d` (the configuration it runs), its database opened read-only, the size and age of the jails' log files, the packet filter, `/etc/iptables/rules.v4` and `rules.v6` | the service, every jail with what it reads (files or the journal), where its ban takes effect (the chain or hook, from the packet filter where it is there, else from the action's options), ports and protocols, its counters since the start and its rules, the bans now and the number of bans in 14 days. Warnings: fail2ban installed but not running; a ban only at INPUT or the hook input in front of a port Docker publishes to the internet (Docker forwards past it; for a ban of all ports a note); a ban of TCP only while one of its ports is open for UDP from the internet (HTTP/3); a log missing or unchanged for 3 days; not one hit since fail2ban started more than a day ago while the log is not empty; addresses blocked for fail2ban that fail2ban does not manage. `f2b-` chains saved in `/etc/iptables/rules.v4` or `rules.v6` are a note |
+| **fail2ban**, when installed (shown only) | `systemctl show fail2ban.service`, `fail2ban-client ping`, `status`, `status JAIL` and `-d` (the configuration it runs), its database opened read-only, the size and age of the jails' log files, the packet filter, `/etc/iptables/rules.v4` and `rules.v6` | the service, every jail with what it reads (files or the journal), where its ban takes effect (the chain or hook, from the packet filter where it is there, else from the action's options), ports and protocols, its counters since the start and its rules, the bans now and the number of bans in 14 days. Warnings: fail2ban installed but not running; a jail in the configuration that fail2ban does not run; a ban only at INPUT or the hook input in front of a port Docker publishes to the internet (Docker forwards past it; for a ban of all ports a note); a ban of TCP only while one of its ports is open for UDP from the internet (HTTP/3); a log missing or unchanged for 3 days; not one hit since fail2ban started more than a day ago while the log is not empty; addresses blocked for fail2ban that fail2ban does not manage. `f2b-` chains saved in `/etc/iptables/rules.v4` or `rules.v6` are a note. What `fail2ban-client` cannot answer (ping while the service is active, the configuration, the running jails, the status of a jail) is "not checked", never OK; without the database only the history is missing |
 
 How the packet filter is followed: [docs/INTERNALS.md](docs/INTERNALS.md#the-evaluator-secfwpy).
 In short: every base chain of the hooks a new connection passes, in order; addresses, ports,
@@ -248,8 +248,9 @@ sudo systemctl start cockpit-security-scan.service
 The scan's Hetzner part (`cockpit-security-hetzner.service`) then asks the API for the servers and
 firewalls of the project, finds this server by its public address and keeps the incoming rules of
 its firewalls. Without a token a server without a filter of its own is "only protected by rules
-outside the host, not checkable". A failing API keeps the last good answer; the page says how old
-it is. To remove it, delete the file.
+outside the host, not checkable"; the same holds for a port when a firewall applied to the server
+is missing from the API's answer, since its rules are not known. A failing API keeps the last good
+answer; the page says how old it is. To remove it, delete the file.
 
 ## Marking a finding as expected
 
@@ -322,6 +323,8 @@ UFW, the jail as not reaching it, and the port as VPN only with a DOCKER-USER ru
   it from elsewhere would need a route through this server).
 - Docker's nftables mode (Docker 29, experimental) is followed through its DNAT and forward chains,
   but has not been seen on a host yet.
+- The Hetzner Cloud Firewall: only firewalls the API reports as applied count; one still being
+  applied (`pending`) is left out until it is.
 - Logins come from the journal: a host keeping it shorter shows fewer days.
 - fail2ban: where a ban takes effect is judged for the iptables and nftables actions only. The hits
   and bans of a jail are fail2ban's counters since it started; the bans of 14 days go back only as

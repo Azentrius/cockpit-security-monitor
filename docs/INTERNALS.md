@@ -93,8 +93,16 @@ Commands run through `secproc.run`: a list (never a shell), `PATH=/usr/sbin:/usr
 | `fail2ban` | only when `/usr/bin/fail2ban-client` exists: `systemctl show fail2ban.service -p ActiveState -p UnitFileState -p ActiveEnterTimestamp`, `fail2ban-client --version`, `ping`, `-d` (the configuration it runs, one Python literal per line, read with `ast.literal_eval`), and while it answers `status` and `status JAIL` (at most 30 jails); its SQLite database (`dbfile` from `-d`, default `/var/lib/fail2ban/fail2ban.sqlite3`, only a path below `/var/lib`) opened read-only (`mode=ro`: `bips` for the bans now, `bans` counted per jail for 14 days, never the column `data` with log lines); size and age of the jails' log files (`lstat`, never their content); `/etc/iptables/rules.v4` and `rules.v6` for `f2b-` chains; `/etc/services` for port names | what fail2ban does |
 
 Each source has a `state`: `ok`, `missing` (not installed), `skipped` (`reason`), `needs-root`,
-`partial` (`missing`: what; for fail2ban `error`: the first part it could not read), `error`
-(`error`: a short reason) or `timeout`.
+`partial` (`missing`: what; for `hetzner` `rules`, an applied firewall whose rules are not known;
+for `fail2ban` the parts it could not read, `ping`, `config`, `status`, `jails`, `db`, and
+`error`: the first reason), `error` (`error`: a short reason) or `timeout`.
+
+The exposure rests on `ip`, `ss` and `rules`. Without the addresses (`ip` not `ok`) no socket's
+classes are known: `network.public` is `null` per family, and every port not bound to the loopback
+is unknown from the internet, the VPN and the private network (`reason` `no-addresses`); a socket on
+the loopback stays "this host". Without the sockets (`ss` neither `ok` nor `partial`) `ports` holds
+only what Docker publishes. Without the packet filter every port is unknown (`no-rules`). The page
+and the status then never say "nothing reachable".
 
 ### Why iptables-save and nft's JSON
 
@@ -156,20 +164,25 @@ published port counts as reachable.
 
 **Hetzner Cloud Firewall:** applies to the internet class only (it filters the public interface).
 A server with no firewall applied lets everything through. With firewalls applied, an incoming
-connection needs a rule of its protocol and port; `source_ips` with `0.0.0.0/0` or `::/0` let the
-whole internet in, narrower public networks make it restricted; otherwise it blocks. When it
-blocks, the port's result is closed and `host_result` keeps what the host alone would allow.
+connection needs a rule of its protocol and port in one of them (Hetzner joins their rules);
+`source_ips` with `0.0.0.0/0` or `::/0` let the whole internet in, narrower public networks make it
+restricted; otherwise it blocks. A firewall without incoming rules (`rules: []`) lets nothing in.
+When it blocks, the port's result is closed and `host_result` keeps what the host alone would
+allow. A firewall applied to the server whose rules are not known (`rules: null`: missing from the
+API's answer) may let anything in, so it never counts as protection: the answer for the port is
+`unknown` (its `refs` those firewalls) and the host's result stands, as without an answer. Only a
+known rule that lets the whole internet in still decides (`allows`), as it claims no protection.
 
 ### Assessment of a port (spec 4.2)
 
 | Case | `state` | `why` |
 |---|---|---|
-| reachable from the internet, no filter on the host for that family (`input_filter` off, a probe on tcp/64999) and no Hetzner answer | warning | `outside-only` |
+| reachable from the internet, no filter on the host for that family (`input_filter` off, a probe on tcp/64999) and no Hetzner answer for the port (no token, or the rules of an applied firewall not known) | warning | `outside-only` |
 | reachable from the internet: databases, Docker's API, Cockpit, SSH and the other ports in `seclib.KNOWN_PORTS` with weight danger | danger | `public-danger` |
 | reachable from the internet: 80, 443 (also UDP), 51820/udp, a UDP port of the kernel on a host with a VPN interface, the DHCP client (68/udp, 546/udp) | info | `public-expected` |
 | reachable from the internet: anything else | warning | `public-other` |
 | reachable only from part of the internet | info (danger ports: warning) | `restricted` |
-| unknown from the internet | none | `unknown` |
+| unknown from the internet (a rule this page cannot read, or the packet filter or the addresses not read) | none | `unknown` |
 | blocked by the Hetzner Cloud Firewall | ok | `hetzner` |
 | reachable from the VPN and/or the private network only | ok | `only-vpn`, `only-private`, `only-vpn-private` |
 | only from the host | ok | `local` |
@@ -211,7 +224,7 @@ A port marked as expected becomes `info` (`expected`, `base_state`).
  "crowdsec": {"installed": false},
  "fail2ban": {"installed": true, "version": "1.0.2", "active": "active", "running": true, "since": "2026-10-18T08:00:00Z",
               "unit_file": "enabled", "dbpurgeage": "1d", "state": "warning",
-              "findings": [{"code": "unmanaged-bans", "state": "warning", "value": 1, "chains": ["f2b-sshd"]}],
+              "findings": [{"code": "unmanaged-bans", "state": "warning", "value": 1, "chains": ["f2b-sshd"]}], "incomplete": [],
               "jails": [{"name": "web", "backend": "auto", "logs": [{"path": "/var/log/web/access.log", "exists": true, "size": 48000, "mtime": "…"}],
                          "journal": null, "maxretry": 3, "findtime": "10m", "bantime": "10m", "failregex": 1, "running": true,
                          "actions": [{"name": "nftables", "port": "8080,443", "protocols": ["tcp"], "allports": false, "kind": "nftables",
@@ -224,14 +237,20 @@ A port marked as expected becomes `info` (`expected`, `base_state`).
 ```
 
 - `format`: 1. A page that knows a lower format says so.
+- `network.public.<family>`: `true` (a public address), `false` (none), `null` (not known: `ip -j
+  addr` failed).
 - `reach.<family>.<class>.result`: `open`, `restricted` (+ `sources`: networks, or `ipset NAME`;
   `limited_by`: the step, in the form of `steps`, that drops the rest of the class), `closed`,
   `unknown` (+ `unknown`: the step with the rule), `absent` (no address of that family and class
   receives the socket). `path`: `input` or `forward` (+ `to`); `proxy`: true for docker-proxy;
   `reason`: `local-published` (the host to a published port), `no-rules` (the packet filter could
-  not be read). `steps` keep the base chains that decided (a rule, or the policy); for
-  `restricted` they are the way of an allowed source. A port only the Hetzner Cloud Firewall
-  restricts has no `limited_by` (see `hetzner`).
+  not be read), `no-addresses` (the addresses could not be read). `steps` keep the base chains that
+  decided (a rule, or the policy); for `restricted` they are the way of an allowed source. A port
+  only the Hetzner Cloud Firewall restricts has no `limited_by` (see `hetzner`).
+- `reach.<family>.internet.hetzner` (with a Hetzner answer, for a port the host lets in or cannot
+  judge): `result` `none` (no firewall applied), `allows`, `restricted` (+ `sources`), `blocks` or
+  `unknown` (the rules of an applied firewall not known); `refs` the firewalls (`firewall` its name,
+  empty when the API did not list it, `id`) and for `allows` and `restricted` the rule.
 - Container findings: `docker-socket` (danger, also read-only: `:ro` protects the file, not the
   API), `privileged`, `pid-host`, `cap-add` (`SYS_ADMIN`, `NET_ADMIN`, `ALL`), `host-mount` (`/`,
   `/etc`, `/root`, `/var/run`, `/run` writable) (warning), `network-host`, `root-user`,
@@ -261,12 +280,23 @@ A port marked as expected becomes `info` (`expected`, `base_state`).
 - fail2ban: `{"installed": false}` when `fail2ban-client` is missing. `active` and `unit_file` come
   from systemctl, `running` is true when `fail2ban-client ping` answers, `since` is when the unit
   became active. A jail is listed when the configuration (`-d`) or `status` names it; `running`:
-  `status JAIL` answered for it. `backend` as configured (`systemd…` reads the journal: `journal`
-  holds its matches, `logs` stays empty); `logs[]` with `exists`, `size` and `mtime`; `maxretry`,
-  `findtime`, `bantime` as fail2ban gives them (a number or a text such as `10m`); `failregex` the
-  number of its patterns; `failed_now`, `failed_total`, `banned_now`, `banned_total` the counters
-  of `status JAIL` since the jail started (`null` when it does not run); `history` its bans in
-  `history_days` (14) from the database.
+  `true` when `status` lists it, `false` when the list does not (or fail2ban does not run), `null`
+  when the list could not be read; `error`: why `status JAIL` failed for it. `backend` as
+  configured (`systemd…` reads the journal: `journal` holds its matches, `logs` stays empty);
+  `logs[]` with `exists`, `size` and `mtime`; `maxretry`, `findtime`, `bantime` as fail2ban gives
+  them (a number or a text such as `10m`); `failregex` the number of its patterns; `failed_now`,
+  `failed_total`, `banned_now`, `banned_total` the counters of `status JAIL` since the jail started
+  (`null` when it does not run or did not answer); `history` its bans in `history_days` (14) from
+  the database.
+- fail2ban, what could not be read: `incomplete` lists the parts the assessment needs that are
+  missing, in this order: `ping` (the unit is active, or the call hangs, but `fail2ban-client ping`
+  gives no answer: not known whether it runs, which is not `not-running`), `config` (`-d`),
+  `status` (the list of running jails), `jails` (`status JAIL` failed for one, see its `error`).
+  Then the state of fail2ban, and of each jail it concerns, is `none` (not checked) unless a
+  finding is `info` or above; a jail is `ok` only when it runs, answered and its configuration was
+  read. The database is optional: without it (`errors.db`) only `history`, `history_total` and the
+  times of the bans are missing, and the state stands. `bans_total` is `null` when neither every
+  running jail nor the database could say who is banned.
 - fail2ban's actions: `kind` `iptables`, `nftables` or `other` (any other action, not judged:
   `where` empty, `forward` `null`); `port` and `protocols` from the action's options (`allports`
   for a ban of every port). `where` is the chain the packet filter jumps to `f2b-NAME` from
@@ -278,15 +308,18 @@ A port marked as expected becomes `info` (`expected`, `base_state`).
   without end), at most 100, with `count` from fail2ban; `bans_total` counts them all. When the
   database gives none, they come from `status JAIL`, without times. `history_total` is the sum of
   the jails' `history`, `null` without the database. `errors` names what could not be read
-  (`config`, `status`, `db`) with a short reason.
+  (`ping`, `config`, `status`, `db`) with a short reason.
 - fail2ban's findings per jail, each with `value`: `input-only` (warning: a port of the jail that
   Docker publishes to the internet, the ban not in front of the forwarding; `value` the ports, at
   most 6), `allports-input` (note: the same for an all-ports ban), `udp-open` (warning: TCP only
   while one of its ports is open for UDP from the internet; the UDP ports), `log-missing` (warning:
   the path), `log-idle` (warning: unchanged for 3 days; the path, `days`), `no-match` (warning: a
-  file log that is not empty, 0 hits, fail2ban running for more than a day; `value` the start). For
-  the whole: `not-running` (warning; the unit's state), `unmanaged-bans` (warning: addresses in
-  `f2b-` chains or `addr-set-` sets that fail2ban does not hold as banned; their number, `chains`),
+  file log that is not empty, 0 hits, fail2ban running for more than a day; `value` the start),
+  `jail-not-running` (warning, no `value`: in the configuration, while fail2ban answers and its list
+  of running jails lacks it). For the whole: `not-running` (warning; the unit's state; a jail of a
+  fail2ban that does not run has no finding of its own), `unmanaged-bans` (warning: addresses in
+  `f2b-` chains or `addr-set-` sets that fail2ban does not hold as banned, by the lists of its
+  jails or else its database, not judged without both; their number, `chains`),
   `persisted-chains` (note: `f2b-` lines in a saved ruleset; the file).
 
 ## The marks (`/etc/cockpit-security-monitor/exposure.conf`)
@@ -320,6 +353,9 @@ of this host (`ip -j addr`), and keeps the incoming rules of the firewalls in it
                 "rules": [{"direction": "in", "protocol": "tcp", "port": "80", "source_ips": ["0.0.0.0/0", "::/0"], "description": "HTTP"}]}]}
 ```
 
+A firewall the server names but `/v1/firewalls` does not list is kept with `name` and `rules`
+`null`: its rules are not known (not `[]`, which blocks everything), and the scan counts it as no
+protection (see the evaluator).
 When a request fails, the last good answer stays and `error` and `tried_at` are added; the scan
 then calls the state `stale` and the page says how old it is. The token is never written anywhere
 and never printed. The format of the API is taken from Hetzner's documentation and the hcloud-python
@@ -335,12 +371,12 @@ exists but cannot be read exits 77. Without the file the state is `none` ("Not c
 
 | `id` | State | `value` | `detail` |
 |---|---|---|---|
-| `exposure` | the most severe port; at least `info` when a port could not be assessed; `none` when the packet filter could not be read | ports the whole internet reaches | those ports with their service, at most 5; then the ports only some addresses reach (`restricted`), at most 3 |
+| `exposure` | the most severe port; at least `info` when a port could not be assessed; `none` when the packet filter could not be read, and when the addresses or the listening sockets could not be read unless a port found is at least `info` | ports the whole internet reaches (left out when nothing was found and the addresses or sockets are missing) | first what could not be read; those ports with their service, at most 5; then the ports only some addresses reach (`restricted`), at most 3; never "no port reachable" without the addresses and sockets |
 | `ssh` | the most severe of the configuration and the keys; `none` when `sshd -T` failed and the keys could not be read | findings at warning or above | password login, root, locked accounts whose keys still log in (a count, no names), short or DSA keys, files others can change, keys without `from=`, or why `sshd -T` failed |
 | `logins` | `warning` with a successful login from outside VPN and private networks, else `ok`; `none` when the journal could not be read | logins from outside, else failed attempts | counts, no addresses or names; "since DAY" instead of "in 14 days" when the journal begins later |
 | `containers` | the most severe finding not marked; `none` when Docker could not be asked | containers with a warning or danger | the finding and container names, at most 3 per finding |
 | `crowdsec` | only when installed: its findings, else `ok` | active decisions | its findings, then the number of active decisions |
-| `fail2ban` | only when installed: the most severe finding, else `ok` | bans now | the warnings with their jail (no addresses, no paths), else the number of jails and bans |
+| `fail2ban` | only when installed: the most severe finding, else `ok`; `none` when a part it needs (`incomplete`) could not be read and no finding is `info` or above | bans now (left out when not known) | first what could not be read (no answer to ping, the configuration, the running jails, the jails whose status failed); the warnings with their jail (no addresses, no paths), else the number of jails and bans; last "history of bans not readable" when only the database is missing |
 | `scan` | `ok`; `warning` when the state is older than an hour (decided when the verb runs) | | |
 
 `stale_after` is 3600 for every item, `link` is `#/<id>` (no link for `scan`); a `detail` is cut
@@ -390,13 +426,13 @@ version of the installed page (`const VERSION` in `security.js`).
 
 | File | Checks |
 |---|---|
-| `test/lib_test.py` | address classes, `ip -j addr`, every form of `ss` addresses, UFW's tuples, `sshd -T` and its assessment, authorized_keys (sizes and fingerprints equal to ssh-keygen's, options with quotes, DSA, garbage), accounts and key files, the journal (one failure per connection), cscli and the bouncer's YAML, the marks, Docker's allowed paths, fail2ban-client's `status` and `-d` (literals only, a jail only once added, the options that say where an action bans), port names and ranges, every code with its page text |
+| `test/lib_test.py` | address classes, `ip -j addr`, every form of `ss` addresses, UFW's tuples, `sshd -T` and its assessment, authorized_keys (sizes and fingerprints equal to ssh-keygen's, options with quotes, DSA, garbage), accounts and key files, the journal (one failure per connection), cscli and the bouncer's YAML, the marks, Docker's allowed paths, fail2ban-client's `status` and `-d` (literals only, a jail only once added, the options that say where an action bans), port names and ranges, every code with its page text (fail2ban's findings and unread parts also with their status text) |
 | `test/fw_test.py` | iptables-save and nft's JSON read into chains; UFW's default deny and allow rules, `ufw limit`, the IPv6 routing header rule, DOCKER-USER (new connections, the original port, one allowed network, ban lists), unknown matches both ways (also across chains), a part of the internet whose rule cannot be read, too many forks, queues, ipsets (as the source: a country list, an allow list, a ban list, against networks; as the destination), source ports (DHCP replies, a drop avoided, `--ports`), goto, two base chains, verdict maps, netdev ingress, samples |
-| `test/scan_test.py` | every port of the three hand-made scenarios and of the four recorded servers with state and reason; Docker past UFW and docker-proxy for IPv6; addresses a socket is bound to; the Hetzner Cloud Firewall (blocks, restricted, no token, stale, not matched, unreadable); SSH, logins, containers, CrowdSec; fail2ban (where each jail bans, the packet filter before the configuration, every finding, the bans now, not running, an unreadable database); a DOCKER-USER rule (VPN only), no root, Docker failing or missing, legacy rules, an unreadable rule, an ipset as the source; the marks; the state fixtures current; only documentation and private addresses in the fixtures |
-| `test/status_test.py` | the status of every scenario in both languages: fields, ids, links, lengths, nothing private, no German in English; marks; unknown ports; an unreadable packet filter; the fail2ban item (the warnings with their jail, else jails and bans); an old state; `security.py status` (languages, wrong calls, missing, broken, unreadable, as a process within 2 seconds) |
+| `test/scan_test.py` | every port of the three hand-made scenarios and of the four recorded servers with state and reason; Docker past UFW and docker-proxy for IPv6; addresses a socket is bound to; the addresses or the sockets not read (and, apart, a host really without a public address or a listening socket); the Hetzner Cloud Firewall (blocks, restricted, no token, stale, not matched, unreadable, rules not known, no incoming rule, several firewalls); SSH, logins, containers, CrowdSec; fail2ban (where each jail bans, the packet filter before the configuration, every finding, the bans now, not running, an unreadable database; on the scenario cut down to one jail: `-d`, `status`, `status JAIL` or ping failing, a configured jail not running, only the database missing); a DOCKER-USER rule (VPN only), no root, Docker failing or missing, legacy rules, an unreadable rule, an ipset as the source; the marks; the state fixtures current; only documentation and private addresses in the fixtures |
+| `test/status_test.py` | the status of every scenario in both languages: fields, ids, links, lengths, nothing private, no German in English; marks; unknown ports; an unreadable packet filter, addresses or sockets; rules of a Hetzner Cloud Firewall not known; the fail2ban item (the warnings with their jail, else jails and bans; what could not be read, a jail not running, the history missing); an old state; `security.py status` (languages, wrong calls, missing, broken, unreadable, as a process within 2 seconds) |
 | `test/verbs_test.py` | the arguments of `expect`/`unexpect`; writing the marks file, its copy, lines by hand kept, a file others can change refused, root required, German messages |
-| `test/hetzner_test.py` | the server by IPv4 or IPv6 network, pages, no match, failures keeping the last good answer, the token never in the output; how the scan reads rules |
-| `test/page.test.js` | the page in jsdom with the state fixtures: overview, ports and their reasons, every tab, links and keyboard, the summary without administrative access, the first check by itself, Refresh and its failures, the dialogs (timer, marks), page messages, escaping; the menu icon (every scenario's status in both languages, no file, a broken one, an item worse than the whole, out of date, the check again after an hour, what the board ignores), the page loaded hidden (nothing run, the first check only once shown), a link while the page is hidden; the fail2ban tab (only when installed, findings, jails, bans, one hit and one ban in the singular, both languages) |
+| `test/hetzner_test.py` | the server by IPv4 or IPv6 network, pages, no match, failures keeping the last good answer, the token never in the output, a firewall missing from the answer; how the scan reads rules (rules not known next to known ones, `[]`, the union of several firewalls) |
+| `test/page.test.js` | the page in jsdom with the state fixtures: overview, ports and their reasons, every tab, links and keyboard, the summary without administrative access, the first check by itself, Refresh and its failures, the dialogs (timer, marks), page messages, escaping; the addresses or sockets not read; rules of a Hetzner Cloud Firewall not known; the menu icon (every scenario's status in both languages, no file, a broken one, an item worse than the whole, out of date, the check again after an hour, what the board ignores), the page loaded hidden (nothing run, the first check only once shown), a link while the page is hidden; the fail2ban tab (only when installed, findings, jails, bans, one hit and one ban in the singular, both languages, what could not be read, a jail not running, only the history missing) |
 | `test/i18n.test.js`, `test/files.test.js` | every text in both languages, no German in English, no long dash; no HTML from strings, nothing the CSP blocks, only the fixed verbs, the menu icon reading status.json only and sending only its page status, the manifest |
 | `test/contrast_test.py`, `test/fonts_test.py` | WCAG contrast in light and dark; every font the page uses ships with it |
 | `tools/check-units.sh` | `systemd-analyze verify`, and `systemd-analyze security` exposure at most 5.0 |

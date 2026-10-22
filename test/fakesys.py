@@ -9,7 +9,9 @@ test/fixtures/<scenario>/:
   meta.json                         now, uid, exit codes and stderr of commands, stat data,
                                     paths that exist without a file (sockets)
 
-Nothing touches the machine the tests run on. Unknown commands fail the test."""
+Nothing touches the machine the tests run on. Unknown commands fail the test.
+Variants of the scenarios (a failing command, another answer of the Hetzner
+service, fail2ban cut down to one jail) are at the end, as keyword arguments."""
 
 import json
 import os
@@ -177,3 +179,47 @@ class FakeSystem:
 
     def uid(self):
         return self._uid
+
+
+# ---------------------------------------------------------------------------
+# Variants of the scenarios, as keyword arguments for FakeSystem
+
+def failing(msg, rc=1):
+    """A command that fails with `msg` on stderr."""
+    return secproc.Result(rc, "", msg + "\n")
+
+
+def _fixture(*parts):
+    with open(os.path.join(FIXTURES, *parts), encoding="utf-8") as f:
+        return f.read()
+
+
+HETZNER_FILE = "/var/lib/cockpit-security-hetzner/hetzner.json"
+
+
+def hetzner_firewalls(change):
+    """hetzner-open with the answer of the Hetzner service changed: `change(answer)` edits the
+    parsed hetzner.json in place. Keyword arguments for FakeSystem("hetzner-open", ...)."""
+    answer = json.loads(_fixture("hetzner-open", "files", HETZNER_FILE.lstrip("/")))
+    change(answer)
+    return {"files": {HETZNER_FILE: json.dumps(answer)}}
+
+
+F2B_OTHER_JAILS = ("nginx-botsearch", "recidive", "web")
+
+
+def fail2ban_quiet(results=None, files=None):
+    """The scenario fail2ban cut down to the jail sshd (on the journal, banning port 22, no
+    finding), without the bans fail2ban does not manage and without a saved ruleset: every
+    finding gone, what is left to judge is whether fail2ban could be read. `results` and `files`
+    change or add to it. Keyword arguments for FakeSystem("fail2ban", ...)."""
+    dump = "\n".join(line for line in _fixture("fail2ban", "commands", "f2b-dump.txt").splitlines()
+                     if not any(f"'{j}'" in line for j in F2B_OTHER_JAILS)) + "\n"
+    ipt = "\n".join(line for line in _fixture("fail2ban", "commands", "iptables-save.txt").splitlines()
+                    if "f2b-recidive" not in line and "198.51.100.7/" not in line) + "\n"
+    nft = json.loads(_fixture("fail2ban", "commands", "nft.json"))
+    nft["nftables"] = [e for e in nft["nftables"] if "f2b-table" not in json.dumps(e)]
+    base = {"f2b-dump": dump, "iptables-save": ipt, "nft": json.dumps(nft),
+            "f2b-status": "Status\n|- Number of jail:\t1\n`- Jail list:\tsshd\n"}
+    base.update(results or {})
+    return {"results": base, "files": dict({"/etc/iptables/rules.v4": None}, **(files or {}))}
