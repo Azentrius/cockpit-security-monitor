@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 – Unreleased
+## 0.3.0 – 2026-10-22
 
 fail2ban, shown: what it watches, whom it bans, and where a ban does not take effect.
 
