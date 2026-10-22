@@ -1,0 +1,3 @@
+Status
+|- Number of jail:	4
+`- Jail list:	nginx-botsearch, recidive, sshd, web

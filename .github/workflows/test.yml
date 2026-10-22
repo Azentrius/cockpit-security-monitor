@@ -105,8 +105,8 @@ jobs:
               python3 -B "$t" > "/tmp/$t.log" 2>&1 || { cat "/tmp/$t.log"; exit 1; }; echo "PASS $t"; done'
 
   # Spec 4.7 on this throw-away runner: a real Cockpit with systemd, UFW on (incoming denied,
-  # the VPN allowed), Docker publishing 0.0.0.0:8080, a public address and a VPN as dummy
-  # interfaces (test/e2e/setup.sh). Playwright drives Chromium through Cockpit
+  # the VPN allowed), Docker publishing 0.0.0.0:8080, fail2ban from Ubuntu with a jail on 8080, a
+  # public address and a VPN as dummy interfaces (test/e2e/setup.sh). Playwright drives Chromium through Cockpit
   # (test/e2e_session.py): 8080 "reachable from the internet, UFW does not apply here", marked
   # and unmarked from the page, then "VPN only" with a DOCKER-USER rule; the timer; a user
   # without administrative access; the page loaded hidden for the menu icon and the icon as the
@@ -137,7 +137,7 @@ jobs:
         run: |
           pip install -q -r test/requirements.txt
           python -m playwright install --with-deps chromium > /dev/null
-      - name: Two users, UFW on, Docker publishing 8080, a public address and a VPN
+      - name: Two users, UFW on, Docker publishing 8080, fail2ban, a public address and a VPN
         run: |
           admin_pw=$(openssl rand -hex 16)
           plain_pw=$(openssl rand -hex 16)

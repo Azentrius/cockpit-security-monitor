@@ -57,7 +57,7 @@ test("ufw-docker, English: the overview, the ports in order, Docker past UFW", a
     assert.match(text(row(d, "tcp", 22)), /sshd ssh no yes no yes VPN only/);
     assert.match(text(row(d, "tcp", 6379)), /container cache redis · redis:7\.4 – yes – yes VPN only/);
     assert.match(text(d.getElementById("sm-unchecked-exposure")), /Rules this page cannot read/);
-    assert.strictEqual(text(d.getElementById("sm-sig-version")), "Security Monitor 0.2.0");
+    assert.strictEqual(text(d.getElementById("sm-sig-version")), "Security Monitor 0.3.0");
     assert.strictEqual(text(d.getElementById("sm-sig-host")), "server");
     assert.ok(!GERMAN.test(text(d.body)), "no German on the English page: " + (text(d.body).match(GERMAN) || [])[0]);
     assert.ok(d.getElementById("sm-loading").hidden);
@@ -382,6 +382,51 @@ test("unknown sources are named under Not checked", async () => {
     assert.match(text(d.getElementById("sm-unchecked-logins")), /Journal: failed: journal corrupt\./);
 });
 
+test("fail2ban: the tab only when installed, where each ban takes effect, the bans now", async () => {
+    const base = boot();
+    await settle();
+    assert.strictEqual(base.d.getElementById("sm-tab-btn-fail2ban").hidden, true, "not installed: no tab");
+    const { d, w } = boot({ scenario: "fail2ban" });
+    await settle();
+    assert.strictEqual(d.getElementById("sm-tab-btn-fail2ban").hidden, false);
+    d.getElementById("sm-tab-btn-fail2ban").click();
+    assert.strictEqual(d.getElementById("sm-tab-fail2ban").hidden, false);
+    const top = d.getElementById("sm-fail2ban");
+    assert.strictEqual(top.querySelector(".az-card__header .az-label").dataset.state, "warning");
+    assert.match(text(top), /Version 1\.0\.2/);
+    assert.match(text(top), /Banned now 3/);
+    assert.match(text(top), /Bans in 14 days 11/);
+    assert.match(text(top), /History kept \(dbpurgeage\) 1d/);
+    assert.match(text(top), /Addresses the packet filter blocks for fail2ban although fail2ban does not hold them as banned: 1 \(in f2b-sshd\)/);
+    assert.match(text(top), /\/etc\/iptables\/rules\.v4 holds fail2ban's chains/);
+    const web = d.getElementById("sm-f2b-jail-web");
+    assert.match(text(web), /nftables in hook input/);
+    assert.match(text(web), /ports 8080,443 \(tcp\) · seen in the packet filter/);
+    assert.match(text(web), /Docker forwards 8080\/tcp past it to a container/);
+    assert.match(text(web), /Bans TCP only, while 443\/udp is open too \(HTTP\/3\)/);
+    assert.ok(web.querySelector('[data-code="input-only"][data-state="warning"]'));
+    const sshd = d.getElementById("sm-f2b-jail-sshd");
+    assert.match(text(sshd), /Journal _SYSTEMD_UNIT=ssh\.service \+ _COMM=sshd/);
+    assert.match(text(sshd), /41 hits, 1 banned now, 7 bans/);
+    assert.match(text(sshd), /5 hits within 10m, banned for 1h/);
+    assert.match(text(sshd), /no finding$/);
+    assert.match(text(d.getElementById("sm-f2b-jail-recidive")), /iptables-allports in INPUT ports all \(tcp\)/);
+    assert.match(text(d.getElementById("sm-f2b-jail-recidive")), /has not changed for 5 days/);
+    assert.match(text(d.getElementById("sm-f2b-jail-nginx-botsearch")), /Not one hit since fail2ban started/);
+    const bans = text(d.getElementById("sm-f2b-bans"));
+    assert.match(bans, /203\.0\.113\.50 internet sshd/);
+    assert.match(bans, /198\.51\.100\.20 internet recidive/);
+    assert.ok(!/198\.51\.100\.99/.test(bans), "an expired ban is not shown");
+    assert.ok(!GERMAN.test(text(d.body)), "no German on the English page: " + (text(d.body).match(GERMAN) || [])[0]);
+    assert.ok(!/\bf2b\.[a-z]/.test(text(d.body)), "no raw text keys");
+    assert.strictEqual(w.__pwned, undefined);
+    const de = boot({ scenario: "fail2ban", language: "de", location: ["fail2ban"] });
+    await settle();
+    assert.strictEqual(de.d.getElementById("sm-tab-fail2ban").hidden, false, "a link #/fail2ban opens the tab");
+    assert.match(text(de.d.getElementById("sm-f2b-jail-web")), /Docker leitet 8080\/tcp daran vorbei an einen Container/);
+    assert.match(text(de.d.getElementById("sm-fail2ban")), /Jetzt gesperrt 3/);
+});
+
 // --- The status icon in Cockpit's menu (menu-status.js) and the hidden start ---
 const statusFixture = (name) => JSON.parse(fs.readFileSync(path.join(FIX, "status-" + name + ".json"), "utf8"));
 const SCENARIOS = fs.readdirSync(FIX).filter((f) => /^status-.+\.json$/.test(f)).map((f) => f.slice("status-".length, -".json".length));
@@ -474,7 +519,7 @@ test("preloaded hidden: only the icon; the page starts once it is shown", async 
     r.hint(false);
     await settle();
     same(verbs(r.calls), ["show", "scan", "show"], "shown: the state, and only now the first check by itself");
-    assert.strictEqual(text(r.d.getElementById("sm-sig-version")), "Security Monitor 0.2.0");
+    assert.strictEqual(text(r.d.getElementById("sm-sig-version")), "Security Monitor 0.3.0");
     same(r.calls.reads, ["/etc/hostname"]);
     r.hint(true);
     r.hint(false);

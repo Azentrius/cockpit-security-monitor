@@ -2495,6 +2495,9 @@
   "errors": {},
   "state": "warning"
  },
+ "fail2ban": {
+  "installed": false
+ },
  "sources": {
   "ip": {
    "state": "ok",
@@ -2534,6 +2537,10 @@
   },
   "crowdsec": {
    "state": "ok",
+   "took_ms": 0
+  },
+  "fail2ban": {
+   "state": "missing",
    "took_ms": 0
   }
  },

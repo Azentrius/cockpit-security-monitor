@@ -2110,6 +2110,9 @@
  "crowdsec": {
   "installed": false
  },
+ "fail2ban": {
+  "installed": false
+ },
  "sources": {
   "ip": {
    "state": "ok",
@@ -2149,6 +2152,10 @@
    "took_ms": 0
   },
   "crowdsec": {
+   "state": "missing",
+   "took_ms": 0
+  },
+  "fail2ban": {
    "state": "missing",
    "took_ms": 0
   }

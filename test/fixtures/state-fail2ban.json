@@ -1,0 +1,3652 @@
+{
+ "format": 1,
+ "generated": "2026-10-20T12:00:00Z",
+ "root": true,
+ "network": {
+  "interfaces": [
+   {
+    "name": "lo",
+    "kind": "local",
+    "up": true,
+    "addrs": [
+     {
+      "addr": "127.0.0.1",
+      "prefix": 8,
+      "family": 4,
+      "class": "local"
+     },
+     {
+      "addr": "::1",
+      "prefix": 128,
+      "family": 6,
+      "class": "local"
+     }
+    ]
+   },
+   {
+    "name": "eth0",
+    "kind": "net",
+    "up": true,
+    "addrs": [
+     {
+      "addr": "203.0.113.10",
+      "prefix": 32,
+      "family": 4,
+      "class": "internet"
+     },
+     {
+      "addr": "2001:db8:10::1",
+      "prefix": 64,
+      "family": 6,
+      "class": "internet"
+     },
+     {
+      "addr": "fe80::5054:ff:fe00:2",
+      "prefix": 64,
+      "family": 6,
+      "class": "link"
+     }
+    ]
+   },
+   {
+    "name": "enp7s0",
+    "kind": "net",
+    "up": true,
+    "addrs": [
+     {
+      "addr": "10.0.0.2",
+      "prefix": 32,
+      "family": 4,
+      "class": "private"
+     }
+    ]
+   },
+   {
+    "name": "wg0",
+    "kind": "vpn",
+    "up": true,
+    "addrs": [
+     {
+      "addr": "10.8.0.1",
+      "prefix": 24,
+      "family": 4,
+      "class": "vpn"
+     }
+    ]
+   }
+  ],
+  "public": {
+   "4": true,
+   "6": true
+  }
+ },
+ "firewall": {
+  "iptables": {
+   "version": "1.8.10",
+   "variant": "nf_tables"
+  },
+  "tables": [
+   {
+    "src": "iptables",
+    "family": "ip",
+    "table": "filter",
+    "chains": 44,
+    "rules": 96,
+    "owners": [
+     "docker",
+     "fail2ban",
+     "ufw"
+    ]
+   },
+   {
+    "src": "iptables",
+    "family": "ip",
+    "table": "nat",
+    "chains": 5,
+    "rules": 7,
+    "owners": [
+     "docker"
+    ]
+   },
+   {
+    "src": "iptables",
+    "family": "ip6",
+    "table": "filter",
+    "chains": 41,
+    "rules": 79,
+    "owners": [
+     "docker",
+     "ufw"
+    ]
+   },
+   {
+    "src": "iptables",
+    "family": "ip6",
+    "table": "nat",
+    "chains": 5,
+    "rules": 2,
+    "owners": [
+     "docker"
+    ]
+   },
+   {
+    "src": "nft",
+    "family": "inet",
+    "table": "f2b-table",
+    "chains": 1,
+    "rules": 1,
+    "owners": [
+     "fail2ban"
+    ]
+   }
+  ],
+  "legacy_rules": false,
+  "docker_user": {
+   "4": 0,
+   "6": 0
+  },
+  "input_filter": {
+   "4": "on",
+   "6": "on"
+  },
+  "ufw": {
+   "installed": true,
+   "enabled": true,
+   "loaded": {
+    "4": true,
+    "6": true
+   },
+   "ipv6": true,
+   "default_input": "drop",
+   "default_forward": "drop",
+   "rules": [
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "any",
+     "port": "any",
+     "to": "0.0.0.0/0",
+     "sport": "any",
+     "from": "0.0.0.0/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "wg0",
+     "iface_out": "",
+     "comment": "VPN",
+     "family": 4
+    },
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "tcp",
+     "port": "80,443",
+     "to": "0.0.0.0/0",
+     "sport": "any",
+     "from": "0.0.0.0/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "",
+     "iface_out": "",
+     "comment": "",
+     "family": 4
+    },
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "udp",
+     "port": "443",
+     "to": "0.0.0.0/0",
+     "sport": "any",
+     "from": "0.0.0.0/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "",
+     "iface_out": "",
+     "comment": "",
+     "family": 4
+    },
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "udp",
+     "port": "51820",
+     "to": "0.0.0.0/0",
+     "sport": "any",
+     "from": "0.0.0.0/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "",
+     "iface_out": "",
+     "comment": "WireGuard",
+     "family": 4
+    },
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "any",
+     "port": "any",
+     "to": "::/0",
+     "sport": "any",
+     "from": "::/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "wg0",
+     "iface_out": "",
+     "comment": "VPN",
+     "family": 6
+    },
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "tcp",
+     "port": "80,443",
+     "to": "::/0",
+     "sport": "any",
+     "from": "::/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "",
+     "iface_out": "",
+     "comment": "",
+     "family": 6
+    },
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "udp",
+     "port": "443",
+     "to": "::/0",
+     "sport": "any",
+     "from": "::/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "",
+     "iface_out": "",
+     "comment": "",
+     "family": 6
+    },
+    {
+     "action": "allow",
+     "log": "",
+     "route": false,
+     "proto": "udp",
+     "port": "51820",
+     "to": "::/0",
+     "sport": "any",
+     "from": "::/0",
+     "app": "",
+     "direction": "in",
+     "iface_in": "",
+     "iface_out": "",
+     "comment": "WireGuard",
+     "family": 6
+    }
+   ],
+   "rules_total": 8
+  },
+  "docker": {
+   "version": "28.5.1",
+   "backend": "iptables",
+   "backend_known": true,
+   "containers": 4
+  },
+  "hetzner": {
+   "configured": false
+  }
+ },
+ "ports": [
+  {
+   "id": "tcp-22",
+   "proto": "tcp",
+   "port": 22,
+   "name": "ssh",
+   "weight": "danger",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "sshd"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "0.0.0.0:22",
+    "[::]:22"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "drop",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 1,
+         "text": "-i wg0 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "drop",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "input"
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "drop",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-before-input",
+         "index": 2,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "only-vpn"
+  },
+  {
+   "id": "tcp-53",
+   "proto": "tcp",
+   "port": 53,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "systemd-resolve"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "127.0.0.53%lo:53",
+    "127.0.0.54:53"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "local"
+  },
+  {
+   "id": "udp-53",
+   "proto": "udp",
+   "port": 53,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "systemd-resolve"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "127.0.0.53%lo:53",
+    "127.0.0.54:53"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "local"
+  },
+  {
+   "id": "tcp-80",
+   "proto": "tcp",
+   "port": 80,
+   "name": "http",
+   "weight": "info",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "caddy"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "*:80"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 2,
+         "text": "-p tcp -m multiport --dports 80,443 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 1,
+         "text": "-i wg0 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 2,
+         "text": "-p tcp -m multiport --dports 80,443 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "input"
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-user-input",
+         "index": 2,
+         "text": "-p tcp -m multiport --dports 80,443 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-before-input",
+         "index": 2,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    }
+   },
+   "state": "info",
+   "why": "public-expected"
+  },
+  {
+   "id": "udp-323",
+   "proto": "udp",
+   "port": 323,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "chronyd"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "127.0.0.1:323",
+    "[::1]:323"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-before-input",
+         "index": 2,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "local"
+  },
+  {
+   "id": "tcp-443",
+   "proto": "tcp",
+   "port": 443,
+   "name": "https",
+   "weight": "info",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "caddy"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "*:443"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 2,
+         "text": "-p tcp -m multiport --dports 80,443 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 1,
+         "text": "-i wg0 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 2,
+         "text": "-p tcp -m multiport --dports 80,443 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "input"
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-user-input",
+         "index": 2,
+         "text": "-p tcp -m multiport --dports 80,443 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-before-input",
+         "index": 2,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    }
+   },
+   "state": "info",
+   "why": "public-expected"
+  },
+  {
+   "id": "udp-443",
+   "proto": "udp",
+   "port": 443,
+   "name": "http3",
+   "weight": "info",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "caddy"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "*:443"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 3,
+         "text": "-p udp -m udp --dport 443 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 1,
+         "text": "-i wg0 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 3,
+         "text": "-p udp -m udp --dport 443 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "input"
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-user-input",
+         "index": 3,
+         "text": "-p udp -m udp --dport 443 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-before-input",
+         "index": 2,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    }
+   },
+   "state": "info",
+   "why": "public-expected"
+  },
+  {
+   "id": "tcp-5432",
+   "proto": "tcp",
+   "port": 5432,
+   "name": "postgresql",
+   "weight": "danger",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "db"
+    ],
+    "images": [
+     "postgres:17"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     5432
+    ]
+   },
+   "binds": [
+    "127.0.0.1:5432"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.18.0.2",
+       "port": 5432,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 6,
+        "text": "-d 127.0.0.1/32 ! -i br-1a2b3c4d5e6f -p tcp -m tcp --dport 5432 -j DNAT --to-destination 172.18.0.2:5432",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "local"
+  },
+  {
+   "id": "tcp-6379",
+   "proto": "tcp",
+   "port": 6379,
+   "name": "redis",
+   "weight": "danger",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "cache"
+    ],
+    "images": [
+     "redis:7.4"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     6379
+    ]
+   },
+   "binds": [
+    "10.8.0.1:6379"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "absent",
+      "steps": []
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 3,
+         "text": "-d 172.18.0.3/32 ! -i br-1a2b3c4d5e6f -o br-1a2b3c4d5e6f -p tcp -m tcp --dport 6379 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "forward",
+      "to": {
+       "addr": "172.18.0.3",
+       "port": 6379,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 7,
+        "text": "-d 10.8.0.1/32 ! -i br-1a2b3c4d5e6f -p tcp -m tcp --dport 6379 -j DNAT --to-destination 172.18.0.3:6379",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.18.0.3",
+       "port": 6379,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 7,
+        "text": "-d 10.8.0.1/32 ! -i br-1a2b3c4d5e6f -p tcp -m tcp --dport 6379 -j DNAT --to-destination 172.18.0.3:6379",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "absent"
+     },
+     "vpn": {
+      "result": "absent"
+     },
+     "private": {
+      "result": "absent"
+     },
+     "local": {
+      "result": "absent"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "only-vpn"
+  },
+  {
+   "id": "tcp-8080",
+   "proto": "tcp",
+   "port": 8080,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "docker",
+    "containers": [
+     "web"
+    ],
+    "images": [
+     "nginx:1.27-alpine"
+    ],
+    "processes": [
+     "docker-proxy"
+    ],
+    "container_ports": [
+     80
+    ]
+   },
+   "binds": [
+    "0.0.0.0:8080",
+    "[::]:8080"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 1,
+         "text": "-d 172.17.0.2/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 80 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 80,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 8,
+        "text": "! -i docker0 -p tcp -m tcp --dport 8080 -j DNAT --to-destination 172.17.0.2:80",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 1,
+         "text": "-d 172.17.0.2/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 80 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 80,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 8,
+        "text": "! -i docker0 -p tcp -m tcp --dport 8080 -j DNAT --to-destination 172.17.0.2:80",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "FORWARD",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "DOCKER",
+         "index": 1,
+         "text": "-d 172.17.0.2/32 ! -i docker0 -o docker0 -p tcp -m tcp --dport 80 -j ACCEPT",
+         "comment": "",
+         "owner": "docker"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 80,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 8,
+        "text": "! -i docker0 -p tcp -m tcp --dport 8080 -j DNAT --to-destination 172.17.0.2:80",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     },
+     "local": {
+      "result": "open",
+      "steps": [],
+      "sources": [],
+      "reason": "local-published",
+      "path": "forward",
+      "to": {
+       "addr": "172.17.0.2",
+       "port": 80,
+       "rule": {
+        "src": "iptables",
+        "family": "ip",
+        "table": "nat",
+        "chain": "DOCKER",
+        "index": 8,
+        "text": "! -i docker0 -p tcp -m tcp --dport 8080 -j DNAT --to-destination 172.17.0.2:80",
+        "comment": "",
+        "owner": "docker"
+       }
+      }
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "drop",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input",
+      "proxy": true
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-before-input",
+         "index": 2,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input",
+      "proxy": true
+     }
+    }
+   },
+   "state": "warning",
+   "why": "public-other"
+  },
+  {
+   "id": "tcp-9090",
+   "proto": "tcp",
+   "port": 9090,
+   "name": "cockpit",
+   "weight": "danger",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "systemd"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "*:9090"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "drop",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 1,
+         "text": "-i wg0 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "drop",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "input"
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "drop",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-before-input",
+         "index": 2,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "only-vpn"
+  },
+  {
+   "id": "tcp-9100",
+   "proto": "tcp",
+   "port": 9100,
+   "name": null,
+   "weight": "warning",
+   "service": {
+    "kind": "process",
+    "containers": [],
+    "images": [],
+    "processes": [
+     "node_exporter"
+    ],
+    "container_ports": []
+   },
+   "binds": [
+    "*:9100"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "drop",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 1,
+         "text": "-i wg0 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "drop",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "input"
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "closed",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "drop",
+        "rule": null,
+        "policy": true
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-before-input",
+         "index": 2,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    }
+   },
+   "state": "ok",
+   "why": "only-vpn"
+  },
+  {
+   "id": "udp-51820",
+   "proto": "udp",
+   "port": 51820,
+   "name": "wireguard",
+   "weight": "info",
+   "service": {
+    "kind": "kernel",
+    "containers": [],
+    "images": [],
+    "processes": [],
+    "container_ports": []
+   },
+   "binds": [
+    "0.0.0.0:51820",
+    "[::]:51820"
+   ],
+   "reach": {
+    "4": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 4,
+         "text": "-p udp -m udp --dport 51820 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 1,
+         "text": "-i wg0 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "wg0",
+      "path": "input"
+     },
+     "private": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-user-input",
+         "index": 4,
+         "text": "-p udp -m udp --dport 51820 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "enp7s0",
+      "path": "input"
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip",
+         "table": "filter",
+         "chain": "ufw-before-input",
+         "index": 1,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    },
+    "6": {
+     "internet": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-user-input",
+         "index": 4,
+         "text": "-p udp -m udp --dport 51820 -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "eth0",
+      "path": "input"
+     },
+     "vpn": {
+      "result": "absent",
+      "steps": []
+     },
+     "private": {
+      "result": "absent",
+      "steps": []
+     },
+     "local": {
+      "result": "open",
+      "steps": [
+       {
+        "chain": {
+         "src": "nft",
+         "family": "inet",
+         "table": "f2b-table",
+         "chain": "f2b-chain",
+         "policy": "accept",
+         "owner": "fail2ban"
+        },
+        "result": "accept",
+        "rule": null,
+        "policy": true
+       },
+       {
+        "chain": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "INPUT",
+         "policy": "drop",
+         "owner": null
+        },
+        "result": "accept",
+        "rule": {
+         "src": "iptables",
+         "family": "ip6",
+         "table": "filter",
+         "chain": "ufw6-before-input",
+         "index": 2,
+         "text": "-i lo -j ACCEPT",
+         "comment": "",
+         "owner": "ufw"
+        },
+        "policy": false
+       }
+      ],
+      "sources": [],
+      "iface": "lo",
+      "path": "input"
+     }
+    }
+   },
+   "state": "info",
+   "why": "public-expected"
+  }
+ ],
+ "ssh": {
+  "sshd": {
+   "state": "ok",
+   "match": []
+  },
+  "findings": [
+   {
+    "key": "passwordauthentication",
+    "value": "no",
+    "state": "ok",
+    "code": "password-off"
+   },
+   {
+    "key": "kbdinteractiveauthentication",
+    "value": "no",
+    "state": "ok",
+    "code": "kbd-off"
+   },
+   {
+    "key": "permitrootlogin",
+    "value": "without-password",
+    "state": "info",
+    "code": "root-key"
+   },
+   {
+    "key": "pubkeyauthentication",
+    "value": "yes",
+    "state": "ok",
+    "code": "pubkey-on"
+   },
+   {
+    "key": "maxauthtries",
+    "value": "6",
+    "state": "ok",
+    "code": "tries-ok"
+   },
+   {
+    "key": "allowusers",
+    "value": "",
+    "state": "info",
+    "code": "no-allow-list"
+   },
+   {
+    "key": "x11forwarding",
+    "value": "yes",
+    "state": "info",
+    "code": "x11-on"
+   },
+   {
+    "key": "allowagentforwarding",
+    "value": "yes",
+    "state": "info",
+    "code": "agent-on"
+   }
+  ],
+  "keys": [
+   {
+    "user": "root",
+    "file": "/root/.ssh/authorized_keys",
+    "mode": "600",
+    "problems": [],
+    "keys": [
+     {
+      "line": 1,
+      "type": "ssh-ed25519",
+      "bits": 256,
+      "fingerprint": "SHA256:qDKmFG/9kyw+c70mRjy835t7UXT1U0DlyvkwDDsFSKc",
+      "comment": "bastion",
+      "options": [
+       "from=\"10.8.0.0/24\"",
+       "no-agent-forwarding",
+       "no-X11-forwarding"
+      ],
+      "findings": [],
+      "state": "ok"
+     }
+    ],
+    "account": {
+     "password": "none",
+     "expired": false
+    },
+    "state": "ok"
+   },
+   {
+    "user": "alex",
+    "file": "/home/alex/.ssh/authorized_keys",
+    "mode": "664",
+    "problems": [
+     "file-writable"
+    ],
+    "keys": [
+     {
+      "line": 2,
+      "type": "ssh-ed25519",
+      "bits": 256,
+      "fingerprint": "SHA256:2K79bJsAg+NO83qU9qr34b0KCHjClsFCTLWZr+geexE",
+      "comment": "alex@laptop",
+      "options": [],
+      "findings": [
+       {
+        "code": "no-from",
+        "state": "info"
+       }
+      ],
+      "state": "info"
+     },
+     {
+      "line": 3,
+      "type": "ssh-rsa",
+      "bits": 2048,
+      "fingerprint": "SHA256:d+vGx8H4xRAWRVfTQCXEWjqwZ+6yPf1gbOa35tMH5OU",
+      "comment": "deploy@ci",
+      "options": [],
+      "findings": [
+       {
+        "code": "rsa-short",
+        "state": "warning"
+       },
+       {
+        "code": "no-from",
+        "state": "info"
+       }
+      ],
+      "state": "warning"
+     },
+     {
+      "line": 4,
+      "type": "ssh-rsa",
+      "bits": 4096,
+      "fingerprint": "SHA256:Znw9MqtaNA8yJ6hAIKK9/FpMNy+c3zbWX/oIn7oS/wg",
+      "comment": "backup",
+      "options": [
+       "restrict",
+       "command=\"/usr/local/bin/backup-receive\""
+      ],
+      "findings": [
+       {
+        "code": "no-from",
+        "state": "info"
+       }
+      ],
+      "state": "info"
+     }
+    ],
+    "account": {
+     "password": "locked",
+     "expired": false,
+     "finding": "locked-with-keys"
+    },
+    "state": "warning"
+   }
+  ],
+  "counts": {
+   "keys": 4,
+   "files": 2
+  },
+  "ports": [
+   "22"
+  ],
+  "listen": [
+   "[::]:22",
+   "0.0.0.0:22"
+  ],
+  "state": "warning"
+ },
+ "logins": {
+  "entries": 9,
+  "success": [
+   {
+    "service": "ssh",
+    "method": "publickey",
+    "user": "root",
+    "source": "10.8.0.2",
+    "class": "vpn",
+    "time": "2026-10-20T11:55:00Z"
+   },
+   {
+    "service": "cockpit",
+    "method": "password",
+    "user": "alex",
+    "source": null,
+    "class": null,
+    "time": "2026-10-20T10:00:00Z"
+   },
+   {
+    "service": "ssh",
+    "method": "publickey",
+    "user": "alex",
+    "source": "10.8.0.3",
+    "class": "vpn",
+    "time": "2026-10-20T07:00:00Z"
+   }
+  ],
+  "success_total": 3,
+  "failed": [
+   {
+    "source": "10.8.0.9",
+    "class": "vpn",
+    "count": 1,
+    "last": "2026-10-20T06:59:00Z",
+    "services": [
+     "ssh"
+    ],
+    "users": 1
+   }
+  ],
+  "failed_sources": 1,
+  "failed_total": 1,
+  "sudo": [
+   {
+    "user": "alex",
+    "uses": 1,
+    "failures": 1,
+    "last": "2026-10-20T11:00:00Z"
+   }
+  ],
+  "outside": 0,
+  "state": "ok",
+  "truncated": false,
+  "journal_start": "2026-10-11T08:00:00Z",
+  "assessment": "ok"
+ },
+ "containers": {
+  "state": "ok",
+  "items": [
+   {
+    "name": "cache",
+    "image": "redis:7.4",
+    "findings": []
+   },
+   {
+    "name": "db",
+    "image": "postgres:17",
+    "findings": [
+     {
+      "kind": "root-user",
+      "state": "info"
+     },
+     {
+      "kind": "no-new-privileges",
+      "state": "info"
+     }
+    ]
+   },
+   {
+    "name": "runner",
+    "image": "gitea/act_runner:0.2.13",
+    "findings": [
+     {
+      "kind": "docker-socket",
+      "state": "danger",
+      "detail": "/var/run/docker.sock"
+     },
+     {
+      "kind": "root-user",
+      "state": "info"
+     },
+     {
+      "kind": "no-new-privileges",
+      "state": "info"
+     }
+    ]
+   },
+   {
+    "name": "web",
+    "image": "nginx:1.27-alpine",
+    "findings": [
+     {
+      "kind": "root-user",
+      "state": "info"
+     },
+     {
+      "kind": "no-new-privileges",
+      "state": "info"
+     }
+    ]
+   }
+  ]
+ },
+ "crowdsec": {
+  "installed": false
+ },
+ "fail2ban": {
+  "installed": true,
+  "version": "1.0.2",
+  "active": "active",
+  "running": true,
+  "since": "2026-10-18T08:00:00Z",
+  "unit_file": "enabled",
+  "dbpurgeage": "1d",
+  "jails": [
+   {
+    "name": "nginx-botsearch",
+    "backend": "auto",
+    "logs": [
+     {
+      "exists": true,
+      "size": 2048,
+      "mtime": "2026-10-20T10:00:00Z",
+      "path": "/var/log/nginx/error.log"
+     }
+    ],
+    "journal": null,
+    "maxretry": 2,
+    "findtime": "10m",
+    "bantime": "10m",
+    "failregex": 1,
+    "actions": [
+     {
+      "name": "iptables-multiport",
+      "port": "http,https",
+      "protocols": [
+       "tcp"
+      ],
+      "allports": false,
+      "kind": "iptables",
+      "where": [
+       "INPUT"
+      ],
+      "forward": false,
+      "observed": false
+     }
+    ],
+    "running": true,
+    "failed_now": 0,
+    "failed_total": 0,
+    "banned_now": 0,
+    "banned_total": 0,
+    "history": null,
+    "findings": [
+     {
+      "code": "udp-open",
+      "state": "warning",
+      "value": "443/udp"
+     },
+     {
+      "code": "no-match",
+      "state": "warning",
+      "value": "2026-10-18T08:00:00Z"
+     }
+    ],
+    "state": "warning"
+   },
+   {
+    "name": "recidive",
+    "backend": "auto",
+    "logs": [
+     {
+      "exists": true,
+      "size": 12000,
+      "mtime": "2026-10-15T09:00:00Z",
+      "path": "/var/log/fail2ban.log"
+     }
+    ],
+    "journal": null,
+    "maxretry": 5,
+    "findtime": "1d",
+    "bantime": "1w",
+    "failregex": 1,
+    "actions": [
+     {
+      "name": "iptables-allports",
+      "port": null,
+      "protocols": [
+       "tcp"
+      ],
+      "allports": true,
+      "kind": "iptables",
+      "where": [
+       "INPUT"
+      ],
+      "forward": false,
+      "observed": true
+     }
+    ],
+    "running": true,
+    "failed_now": 0,
+    "failed_total": 2,
+    "banned_now": 1,
+    "banned_total": 1,
+    "history": 1,
+    "findings": [
+     {
+      "code": "allports-input",
+      "state": "info",
+      "value": "8080/tcp"
+     },
+     {
+      "code": "log-idle",
+      "state": "warning",
+      "value": "/var/log/fail2ban.log",
+      "days": 5
+     }
+    ],
+    "state": "warning"
+   },
+   {
+    "name": "sshd",
+    "backend": "systemd",
+    "logs": [],
+    "journal": "_SYSTEMD_UNIT=ssh.service + _COMM=sshd",
+    "maxretry": 5,
+    "findtime": "10m",
+    "bantime": "1h",
+    "failregex": 2,
+    "actions": [
+     {
+      "name": "iptables-multiport",
+      "port": "ssh",
+      "protocols": [
+       "tcp"
+      ],
+      "allports": false,
+      "kind": "iptables",
+      "where": [
+       "INPUT"
+      ],
+      "forward": false,
+      "observed": true
+     }
+    ],
+    "running": true,
+    "failed_now": 1,
+    "failed_total": 41,
+    "banned_now": 1,
+    "banned_total": 7,
+    "history": 7,
+    "findings": [],
+    "state": "ok"
+   },
+   {
+    "name": "web",
+    "backend": "auto",
+    "logs": [
+     {
+      "exists": true,
+      "size": 48000,
+      "mtime": "2026-10-20T11:58:00Z",
+      "path": "/var/log/web/access.log"
+     }
+    ],
+    "journal": null,
+    "maxretry": 3,
+    "findtime": "10m",
+    "bantime": "10m",
+    "failregex": 1,
+    "actions": [
+     {
+      "name": "nftables",
+      "port": "8080,443",
+      "protocols": [
+       "tcp"
+      ],
+      "allports": false,
+      "kind": "nftables",
+      "where": [
+       "hook input"
+      ],
+      "forward": false,
+      "observed": true
+     }
+    ],
+    "running": true,
+    "failed_now": 0,
+    "failed_total": 12,
+    "banned_now": 1,
+    "banned_total": 3,
+    "history": 3,
+    "findings": [
+     {
+      "code": "input-only",
+      "state": "warning",
+      "value": "8080/tcp"
+     },
+     {
+      "code": "udp-open",
+      "state": "warning",
+      "value": "443/udp"
+     }
+    ],
+    "state": "warning"
+   }
+  ],
+  "bans": [
+   {
+    "ip": "203.0.113.50",
+    "class": "internet",
+    "jail": "sshd",
+    "since": "2026-10-20T11:30:00Z",
+    "until": "2026-10-20T12:30:00Z",
+    "count": 1
+   },
+   {
+    "ip": "198.51.100.20",
+    "class": "internet",
+    "jail": "recidive",
+    "since": "2026-10-19T12:00:00Z",
+    "until": "2026-10-26T12:00:00Z",
+    "count": 1
+   },
+   {
+    "ip": "192.0.2.80",
+    "class": "internet",
+    "jail": "web",
+    "since": "2026-10-20T11:55:00Z",
+    "until": "2026-10-20T12:05:00Z",
+    "count": 2
+   }
+  ],
+  "bans_total": 3,
+  "history_total": 11,
+  "history_days": 14,
+  "findings": [
+   {
+    "code": "unmanaged-bans",
+    "state": "warning",
+    "value": 1,
+    "chains": [
+     "f2b-sshd"
+    ]
+   },
+   {
+    "code": "persisted-chains",
+    "state": "info",
+    "value": "/etc/iptables/rules.v4"
+   }
+  ],
+  "errors": {},
+  "state": "warning"
+ },
+ "sources": {
+  "ip": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "ss": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "docker": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "rules": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "ufw": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "hetzner": {
+   "state": "skipped",
+   "took_ms": 0,
+   "reason": "no-token"
+  },
+  "sshd": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "keys": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "journal": {
+   "state": "ok",
+   "took_ms": 0
+  },
+  "crowdsec": {
+   "state": "missing",
+   "took_ms": 0
+  },
+  "fail2ban": {
+   "state": "ok",
+   "took_ms": 0
+  }
+ },
+ "took_ms": 0
+}

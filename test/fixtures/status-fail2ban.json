@@ -1,0 +1,104 @@
+{
+ "schema": 1,
+ "addon": "security",
+ "label": "Security Monitor",
+ "version": "0.1.0",
+ "checked_at": "2026-10-20T12:00:00Z",
+ "state": "danger",
+ "summary": "Findings in 4 areas: Reachable from the internet, SSH, Container hardening, fail2ban.",
+ "items": [
+  {
+   "id": "exposure",
+   "state": "warning",
+   "title": "Reachable from the internet",
+   "value": "5",
+   "detail": "8080/tcp web, 80/tcp http, 443/tcp https, 443/udp http3, 51820/udp wireguard",
+   "link": "#/exposure",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "ssh",
+   "state": "warning",
+   "title": "SSH",
+   "value": "3",
+   "detail": "root may log in with a key; 1 locked account can still log in with keys; 1 RSA key under 3072 bits; 1 key file others can change; 3 keys without from=",
+   "link": "#/ssh",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "logins",
+   "state": "ok",
+   "title": "Logins",
+   "value": "1",
+   "detail": "1 failed attempt from 1 source since 11 Oct (the journal begins there)",
+   "link": "#/logins",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "containers",
+   "state": "danger",
+   "title": "Container hardening",
+   "value": "1",
+   "detail": "Docker socket: runner",
+   "link": "#/containers",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "fail2ban",
+   "state": "warning",
+   "title": "fail2ban",
+   "value": "3",
+   "detail": "1 address blocked that fail2ban does not manage; nginx-botsearch: TCP only, 443/udp stays open; nginx-botsearch: not one hit since 18 Oct; recidive: log unchanged for 5 days; web: does not protect …",
+   "link": "#/fail2ban",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "scan",
+   "state": "ok",
+   "title": "Check",
+   "detail": "checked every 15 minutes when set up",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  }
+ ],
+ "i18n": {
+  "de": {
+   "summary": "Befunde in 4 Bereichen: Aus dem Internet erreichbar, SSH, Container-Härtung, fail2ban.",
+   "items": {
+    "exposure": {
+     "title": "Aus dem Internet erreichbar",
+     "detail": "8080/tcp web, 80/tcp http, 443/tcp https, 443/udp http3, 51820/udp wireguard"
+    },
+    "ssh": {
+     "title": "SSH",
+     "detail": "root darf sich mit Schlüssel anmelden; 1 gesperrtes Konto kann sich per Schlüssel anmelden; 1 RSA-Schlüssel unter 3072 Bit; 1 Schlüsseldatei, die andere ändern können; 3 Schlüssel ohne from="
+    },
+    "logins": {
+     "title": "Anmeldungen",
+     "detail": "1 Fehlversuch von 1 Quelle seit 11.10. (dort beginnt das Journal)"
+    },
+    "containers": {
+     "title": "Container-Härtung",
+     "detail": "Docker-Socket: runner"
+    },
+    "fail2ban": {
+     "title": "fail2ban",
+     "detail": "1 Adresse gesperrt, die fail2ban nicht verwaltet; nginx-botsearch: nur TCP, 443/udp bleibt offen; nginx-botsearch: kein einziger Treffer seit 18.10.; recidive: Log seit 5 Tagen unverändert; web: …"
+    },
+    "scan": {
+     "title": "Prüfung",
+     "detail": "alle 15 Minuten, wenn eingerichtet"
+    }
+   },
+   "scan_old": "die letzte Prüfung ist älter als eine Stunde"
+  },
+  "en": {
+   "scan_old": "the last check is older than an hour"
+  }
+ }
+}

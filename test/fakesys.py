@@ -51,6 +51,14 @@ def key(argv):
         return "cscli-alerts"
     if a[:3] == ["cscli", "bouncers", "list"]:
         return "cscli-bouncers"
+    if a[:3] == ["systemctl", "show", "fail2ban.service"]:
+        return "systemctl-show-fail2ban"
+    if a[:1] == ["/usr/bin/fail2ban-client"]:
+        rest = a[1:]
+        if rest in (["--version"], ["ping"], ["-d"], ["status"]):
+            return "f2b-" + {"--version": "version", "ping": "ping", "-d": "dump", "status": "status"}[rest[0]]
+        if len(rest) == 2 and rest[0] == "status":
+            return "f2b-status-" + rest[1]
     raise AssertionError(f"unexpected command {argv}")
 
 
@@ -129,8 +137,22 @@ class FakeSystem:
     @staticmethod
     def _st(kind, info):
         mode = {"file": stat.S_IFREG, "dir": stat.S_IFDIR, "link": stat.S_IFLNK, "socket": stat.S_IFSOCK}[kind]
+        mtime = 1792400000.0
+        if info.get("mtime"):
+            mtime = datetime.strptime(info["mtime"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
         return SimpleNamespace(st_mode=mode | int(info.get("mode", "644"), 8), st_uid=info.get("uid", 0),
-                               st_mtime=1792400000.0)
+                               st_mtime=mtime, st_size=info.get("size", 0))
+
+    def sqlite_ro(self, path, queries, limit=1000):
+        """fail2ban's database as fail2ban-db.json ({query name: rows}); meta "db_error" fails it."""
+        if self.meta.get("db_error"):
+            return None, self.meta["db_error"]
+        p = os.path.join(self.dir, "fail2ban-db.json")
+        if not os.path.exists(p):
+            return None, "unable to open database file"
+        with open(p, encoding="utf-8") as f:
+            data = json.load(f)
+        return {name: data.get(name, [])[:limit] for name, _, _ in queries}, None
 
     def exists(self, path):
         return self.lstat(path) is not None

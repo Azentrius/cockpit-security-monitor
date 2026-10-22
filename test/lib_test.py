@@ -299,6 +299,65 @@ class Docker(unittest.TestCase):
             seclib.docker_get("/info", sock="/nonexistent.sock")
 
 
+class Fail2ban(unittest.TestCase):
+    """fail2ban-client's answers, as fail2ban 1.0.2's beautifier and jail reader write them."""
+
+    def test_status(self):
+        nl = chr(10)
+        self.assertEqual(seclib.parse_f2b_status("Status" + nl + "|- Number of jail:\t3" + nl +
+                                                 "`- Jail list:\tnginx-botsearch, recidive, sshd" + nl),
+                         ["nginx-botsearch", "recidive", "sshd"])
+        self.assertEqual(seclib.parse_f2b_status("Status" + nl + "|- Number of jail:\t0" + nl + "`- Jail list:\t"), [])
+        self.assertIsNone(seclib.parse_f2b_status("ERROR   Failed to access socket path"))
+        self.assertEqual(seclib.parse_f2b_status("`- Jail list:\tok, bad name, $(x)"), ["ok"])
+
+    def test_jail_status(self):
+        nl = chr(10)
+        text = nl.join(["Status for the jail: sshd", "|- Filter", "|  |- Currently failed:\t1",
+                        "|  |- Total failed:\t41", "|  `- Journal matches:\t_SYSTEMD_UNIT=ssh.service + _COMM=sshd",
+                        "`- Actions", "   |- Currently banned:\t2", "   |- Total banned:\t7",
+                        "   `- Banned IP list:\t203.0.113.50 2001:db8::7"])
+        self.assertEqual(seclib.parse_f2b_jail_status(text), {
+            "failed_now": 1, "failed_total": 41, "journal": "_SYSTEMD_UNIT=ssh.service + _COMM=sshd",
+            "banned_now": 2, "banned_total": 7, "banned": ["203.0.113.50", "2001:db8::7"]})
+        files = seclib.parse_f2b_jail_status("|  `- File list:\t/var/log/a.log /var/log/b.log" + nl +
+                                             "   `- Banned IP list:\t")
+        self.assertEqual((files["files"], files["banned"]), (["/var/log/a.log", "/var/log/b.log"], []))
+
+    def test_dump(self):
+        nl = chr(10)
+        lines = [
+            "['set', 'dbpurgeage', '14d']", "['set', 'dbfile', '/var/lib/fail2ban/fail2ban.sqlite3']",
+            "['add', 'sshd', 'systemd']", "['set', 'sshd', 'maxretry', 5]", "['set', 'sshd', 'bantime', '1h']",
+            "['set', 'sshd', 'addjournalmatch', '_SYSTEMD_UNIT=ssh.service', '+', '_COMM=sshd']",
+            "['set', 'sshd', 'addignoreip', '127.0.0.1/8', '::1']",
+            "['multi-set', 'sshd', 'addfailregex', ['^a <HOST>', '^b <HOST>']]",
+            "['set', 'sshd', 'addaction', 'iptables-multiport']",
+            "['multi-set', 'sshd', 'action', 'iptables-multiport', [['actionban', '<iptables> -I f2b-<name> 1'], "
+            "['port', 'ssh'], ['protocol', 'tcp'], ['chain', '<known/chain>']]]",
+            "['add', 'web', 'auto']", "['set', 'web', 'addlogpath', '/var/log/web.log', 'head']",
+            "['set', 'web', 'addaction', 'nftables']", "['set', 'web', 'action', 'nftables', 'chain_hook', 'forward']",
+            "['set', 'ghost', 'maxretry', 3]", "__import__('os').system('id')", "not a list", "['start', 'sshd']"]
+        d = seclib.parse_f2b_dump(nl.join(lines))
+        self.assertEqual(d["global"], {"dbpurgeage": "14d", "dbfile": "/var/lib/fail2ban/fail2ban.sqlite3"})
+        self.assertEqual(sorted(d["jails"]), ["sshd", "web"], "a jail is known only once added")
+        s = d["jails"]["sshd"]
+        self.assertEqual((s["backend"], s["maxretry"], s["bantime"], s["journalmatch"], s["ignoreip"], s["failregex"]),
+                         ("systemd", 5, "1h", ["_SYSTEMD_UNIT=ssh.service + _COMM=sshd"], ["127.0.0.1/8", "::1"], 2))
+        self.assertEqual(s["actions"], [{"name": "iptables-multiport", "opts": {
+            "port": "ssh", "protocol": "tcp", "chain": "<known/chain>"}}], "only the options that say where it bans")
+        w = d["jails"]["web"]
+        self.assertEqual((w["logpaths"], w["actions"][0]["opts"]), (["/var/log/web.log"], {"chain_hook": "forward"}))
+
+    def test_ports(self):
+        self.assertEqual(seclib.f2b_ports("ssh"), [(22, 22)])
+        self.assertEqual(seclib.f2b_ports("http,https 8080"), [(80, 80), (443, 443), (8080, 8080)])
+        self.assertEqual(seclib.f2b_ports("1000:2000"), [(1000, 2000)])
+        self.assertIsNone(seclib.f2b_ports("my-service"), "an unknown name: no guess")
+        services = seclib.parse_services("# c" + chr(10) + "my-service  4242/tcp  alias2   # note" + chr(10) + "x 1/udp")
+        self.assertEqual(seclib.f2b_ports("alias2", services), [(4242, 4242)])
+
+
 class PageTexts(unittest.TestCase):
     """Every code the helpers emit has its text on the page (plugin/i18n.js)."""
 

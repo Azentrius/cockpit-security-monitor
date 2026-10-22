@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Every check of Security Monitor, stage 1: what is reachable from where,
-the SSH configuration and keys, the logins of the last 14 days, the
-hardening of the containers and, when installed, CrowdSec.
+"""Every check of Security Monitor: what is reachable from where, the SSH
+configuration and keys, the logins of the last 14 days, the hardening of the
+containers and, when installed, CrowdSec and fail2ban.
 
 Lives in /usr/lib/cockpit-security-monitor (root-owned). Standard library
 only. Reads only: the commands are listings (ip, ss, iptables-save, nft,
-sshd -T, journalctl, cscli), Docker is asked with GET only, files are read
+sshd -T, journalctl, cscli, fail2ban-client status and -d), fail2ban's
+database is opened read-only, Docker is asked with GET only, files are read
 without following a link where a user could place one. The format of the
 result (state.json) is in docs/INTERNALS.md.
 
@@ -92,6 +93,25 @@ class System:
     def docker(self, path):
         return seclib.docker_get(path)
 
+    def sqlite_ro(self, path, queries, limit=1000):
+        """Rows of a few queries against an SQLite file opened read-only
+        (fail2ban's database): ({name: rows}, None) or (None, error)."""
+        import sqlite3
+        from urllib.parse import quote
+        try:
+            con = sqlite3.connect(f"file:{quote(path)}?mode=ro", uri=True, timeout=5)
+        except sqlite3.Error as e:
+            return None, str(e)
+        try:
+            out = {}
+            for name, query, args in queries:
+                out[name] = [list(r) for r in con.execute(query, args).fetchmany(limit)]
+            return out, None
+        except sqlite3.Error as e:
+            return None, str(e)
+        finally:
+            con.close()
+
     def now(self):
         return datetime.now(timezone.utc)
 
@@ -158,6 +178,7 @@ def scan(system=None):
     keys = collect_keys(system, src, root, sshd)
     logins = collect_logins(system, src, root, ifaces)
     crowd = collect_crowdsec(system, src, root)
+    f2b = collect_fail2ban(system, src, root, now)
 
     net = network(ifaces)
     fw["input_filter"] = {f: input_filter(rs, net, f) if src.items.get("rules", {}).get("state") == "ok" else
@@ -174,6 +195,7 @@ def scan(system=None):
     doc["logins"] = logins
     doc["containers"] = assess_containers(docker)
     doc["crowdsec"] = assess_crowdsec(crowd, docker, rs if rules_ok else None)
+    doc["fail2ban"] = assess_fail2ban(f2b, docker, rs if rules_ok else None, doc["ports"], now)
     doc["sources"] = src.items
     doc["took_ms"] = int((time.monotonic() - t_start) * 1000)
     return doc
@@ -989,6 +1011,296 @@ def assess_crowdsec(cs, docker, rs):
     if not bouncers and cs.get("bouncers") is not None:
         findings.append({"code": "no-bouncer", "state": "warning"})
     out["state"] = max((f["state"] for f in findings), key=ORDER.get, default="ok")
+    return out
+
+
+# ---------------------------------------------------------------------------
+# fail2ban (spec 5.3): only shown
+
+F2B_CLIENT = "/usr/bin/fail2ban-client"
+F2B_DB = "/var/lib/fail2ban/fail2ban.sqlite3"
+F2B_DB_RE = re.compile(r"^/var/lib/[A-Za-z0-9_./-]{1,200}$")
+F2B_PERSIST = ("/etc/iptables/rules.v4", "/etc/iptables/rules.v6")
+F2B_PERSIST_RE = re.compile(r"(?m)^(:f2b-|-A f2b-|-A \S+ .*-j f2b-)")
+F2B_MAX_JAILS = 30
+F2B_HISTORY_DAYS = 14
+F2B_IDLE_DAYS = 3
+
+
+def parse_systemd_time(text):
+    """`ActiveEnterTimestamp` as systemctl prints it with TZ=UTC: ISO time or None."""
+    m = re.search(r"(\d{4}-\d\d-\d\d) (\d\d:\d\d:\d\d)", text or "")
+    return f"{m.group(1)}T{m.group(2)}Z" if m else None
+
+
+def collect_fail2ban(system, src, root, now):
+    t0 = time.monotonic()
+    if not system.exists(F2B_CLIENT):
+        src.note("fail2ban", "missing", t0)
+        return None
+    out = {"installed": True, "jails": {}, "logs": {}}
+    unit = system.run(["systemctl", "show", "fail2ban.service", "-p", "ActiveState", "-p", "UnitFileState",
+                       "-p", "ActiveEnterTimestamp"], 10)
+    kv = seclib.parse_kv(unit.out) if unit.ok else {}
+    out["active"] = seclib.clean(kv.get("ActiveState"), 20) or None
+    out["unit_file"] = seclib.clean(kv.get("UnitFileState"), 20) or None
+    out["since"] = parse_systemd_time(kv.get("ActiveEnterTimestamp")) if out["active"] == "active" else None
+    ver = system.run([F2B_CLIENT, "--version"], 15)
+    out["version"] = ".".join(map(str, seclib.version_tuple(ver.out + ver.err) or ())) or None
+    ping = system.run([F2B_CLIENT, "ping"], 15)
+    out["running"] = bool(ping.ok and "pong" in ping.out)
+    dump = system.run([F2B_CLIENT, "-d"], 30)
+    out["config"] = seclib.parse_f2b_dump(dump.out) if dump.ok else None
+    errors = {}
+    if not dump.ok:
+        msg = (dump.err or dump.out or "").strip().splitlines()
+        errors["config"] = seclib.clean(msg[-1] if msg else f"exit {dump.rc}", 160)
+    if out["running"]:
+        st = system.run([F2B_CLIENT, "status"], 15)
+        names = seclib.parse_f2b_status(st.out) if st.ok else None
+        if names is None:
+            errors["status"] = seclib.clean((st.err or st.out or f"exit {st.rc}").strip().splitlines()[-1]
+                                            if (st.err or st.out).strip() else f"exit {st.rc}", 160)
+        for name in (names or [])[:F2B_MAX_JAILS]:
+            r = system.run([F2B_CLIENT, "status", name], 15)
+            if r.ok:
+                out["jails"][name] = seclib.parse_f2b_jail_status(r.out)
+    # The log files the jails read: there, size and age (journal-backed jails have none).
+    paths = set()
+    for j in ((out["config"] or {}).get("jails") or {}).values():
+        if not str(j.get("backend") or "").startswith("systemd"):
+            paths.update(j.get("logpaths") or [])
+    for j in out["jails"].values():
+        paths.update(j.get("files") or [])
+    for p in sorted(paths)[:100]:
+        st = system.lstat(p)
+        out["logs"][p] = {"exists": st is not None, "size": getattr(st, "st_size", None) if st else None,
+                          "mtime": iso_ts(getattr(st, "st_mtime", None)) if st else None}
+    # Bans and their history from fail2ban's database, opened read-only.
+    dbfile = ((out["config"] or {}).get("global") or {}).get("dbfile") or F2B_DB
+    if dbfile and F2B_DB_RE.match(dbfile) and ".." not in dbfile:
+        since = int(now.timestamp()) - F2B_HISTORY_DAYS * 86400
+        rows, err = system.sqlite_ro(dbfile, [
+            ("bips", "SELECT ip, jail, timeofban, bantime, bancount FROM bips ORDER BY timeofban DESC LIMIT 500", ()),
+            ("history", "SELECT jail, COUNT(*), MAX(timeofban) FROM bans WHERE timeofban >= ? GROUP BY jail",
+             (since,))])
+        out["db"] = rows
+        if err:
+            errors["db"] = seclib.clean(err, 160)
+    else:
+        out["db"] = None
+    out["persisted"] = [p for p in F2B_PERSIST if F2B_PERSIST_RE.search(system.read(p, 4 << 20) or "")]
+    out["services"] = seclib.parse_services(system.read("/etc/services", 1 << 20))
+    out["errors"] = errors
+    if not root and not out["running"]:
+        src.note("fail2ban", "needs-root", t0)
+    else:
+        src.note("fail2ban", "partial" if errors else "ok", t0, error=next(iter(errors.values()), None))
+    return out
+
+
+def _f2b_addr(e):
+    """An address of an nft set element as nft's JSON gives it."""
+    if isinstance(e, dict):
+        if "prefix" in e and isinstance(e["prefix"], dict):
+            return f"{e['prefix'].get('addr')}/{e['prefix'].get('len')}"
+        if "elem" in e and isinstance(e["elem"], dict):
+            return _f2b_addr(e["elem"].get("val"))
+        return None
+    return str(e) if e is not None else None
+
+
+def _norm_addr(text):
+    try:
+        n = ipaddress.ip_network(str(text), strict=False)
+    except ValueError:
+        return None
+    return str(n.network_address) if n.prefixlen == n.max_prefixlen else str(n)
+
+
+def f2b_firewall(rs):
+    """What the packet filter holds of fail2ban: {"chains": {name: {"from": [...],
+    "addrs": set}}, "sets": {jail: set}, "hooks": {chain: hook}}."""
+    out = {"chains": {}, "sets": {}, "hooks": {}}
+    if rs is None:
+        return out
+    for c in rs.chains.values():
+        if secfw.owner(c.table, c.name) == "fail2ban":
+            entry = out["chains"].setdefault(c.name, {"from": set(), "addrs": set()})
+            if c.hook:
+                out["hooks"][c.name] = c.hook
+            for r in c.rules:
+                for kind, neg, value in r.matches:
+                    if kind == "saddr" and not neg:
+                        for n in value:
+                            a = _norm_addr(n)
+                            if a:
+                                entry["addrs"].add(a)
+        for r in c.rules:
+            if r.target and str(r.target).startswith("f2b-"):
+                out["chains"].setdefault(r.target, {"from": set(), "addrs": set()})["from"].add(c.name)
+    for (fam, table, name), elems in rs.sets.items():
+        if table == "f2b-table" and str(name).startswith("addr-set-"):
+            addrs = {_norm_addr(_f2b_addr(e)) for e in elems or []}
+            out["sets"].setdefault(name[len("addr-set-"):], set()).update(a for a in addrs if a)
+    return out
+
+
+def f2b_action(a, jail, fwinfo, services):
+    """Where an action bans: kind (iptables, nftables, other), the chains or
+    hook, whether that is in front of Docker's forwarding, ports and protocols."""
+    name, o = a["name"], a.get("opts") or {}
+    plain = {k: v for k, v in o.items() if "<" not in v and "%(" not in v}
+    allports = "allports" in name or str(plain.get("port", "")).strip() in ("0:65535", "1:65535")
+    ranges = None if allports else seclib.f2b_ports(plain.get("port"), services)
+    protocols = sorted({p.strip() for p in re.split(r"[,\s]+", plain.get("protocol") or "tcp") if p.strip()})
+    out = {"name": name, "port": plain.get("port"), "protocols": protocols, "allports": allports,
+           "ranges": ranges, "kind": "other", "where": [], "forward": None, "observed": False}
+    chain_name = "f2b-" + (plain.get("name") or jail)
+    if name.startswith(("iptables", "ip6tables")):
+        out["kind"] = "iptables"
+        out["where"] = [c for c in re.split(r"[,\s]+", plain.get("chain") or "INPUT") if c]
+        seen = (fwinfo["chains"].get(chain_name) or {}).get("from")
+        if seen:
+            out["where"], out["observed"] = sorted(seen), True
+        out["forward"] = any(c in ("FORWARD", "DOCKER-USER") for c in out["where"])
+    elif name.startswith("nftables"):
+        out["kind"] = "nftables"
+        hook = plain.get("chain_hook") or "input"
+        hooks = [h for c, h in fwinfo["hooks"].items() if c == (plain.get("chain") or "f2b-chain")]
+        if hooks:
+            hook, out["observed"] = hooks[0], True
+        out["where"] = ["hook " + hook]
+        out["forward"] = hook in ("forward", "prerouting")
+    return out
+
+
+def _in_ranges(port, ranges):
+    return any(lo <= port <= hi for lo, hi in ranges or [])
+
+
+def assess_fail2ban(f2b, docker, rs, ports, now):
+    if not f2b:
+        return {"installed": False}
+    findings = []
+    if f2b.get("active") != "active" or not f2b.get("running"):
+        findings.append({"code": "not-running", "state": "warning", "value": f2b.get("active")})
+    cfg = f2b.get("config") or {"global": {}, "jails": {}}
+    fwinfo = f2b_firewall(rs)
+    internet = {(p.get("proto"), p.get("port")) for p in ports or [] if any(
+        (((p.get("reach") or {}).get(f) or {}).get("internet") or {}).get("result") in ("open", "restricted")
+        for f in ("4", "6"))}
+    # Container ports the internet reaches: a ban that never sees forwarded traffic leaves them open.
+    published = sorted({(m["proto"], m["host_port"]) for m in docker_mappings(docker)} & internet)
+    udp_open = sorted(port for proto, port in internet if proto == "udp")
+    services = f2b.get("services") or {}
+    status = f2b.get("jails") or {}
+    db = f2b.get("db") or {}
+    now_ts = int(now.timestamp())
+    known = set()
+    for js in status.values():
+        known.update(a for a in (_norm_addr(x) for x in js.get("banned") or []) if a)
+    bans = []
+    for row in db.get("bips") or []:
+        ip, jail, tob, bt, cnt = (list(row) + [None] * 5)[:5]
+        if not isinstance(tob, int) or not isinstance(bt, int):
+            continue
+        until = None if bt < 0 else tob + bt
+        if until is not None and until < now_ts:
+            continue
+        a = _norm_addr(ip)
+        if not a:
+            continue
+        if not status:
+            known.add(a)
+        bans.append({"ip": a, "class": seclib.source_class(a), "jail": seclib.clean(jail, 64),
+                     "since": iso_ts(tob), "until": iso_ts(until) if until else None, "count": cnt})
+    if not bans and status:
+        for name, js in sorted(status.items()):
+            for x in js.get("banned") or []:
+                a = _norm_addr(x)
+                if a:
+                    bans.append({"ip": a, "class": seclib.source_class(a), "jail": name, "since": None,
+                                 "until": None, "count": None})
+    history = {}
+    for row in db.get("history") or []:
+        if len(row) >= 2 and isinstance(row[1], int):
+            history[seclib.clean(row[0], 64)] = row[1]
+    # Addresses the packet filter blocks for fail2ban that fail2ban does not hold as banned.
+    if f2b.get("running") and status is not None:
+        stray = {}
+        for cname, c in fwinfo["chains"].items():
+            extra = sorted(c["addrs"] - known)
+            if extra:
+                stray[cname] = len(extra)
+        for jail, addrs in fwinfo["sets"].items():
+            extra = sorted(addrs - known)
+            if extra:
+                stray["addr-set-" + jail] = len(extra)
+        if stray:
+            findings.append({"code": "unmanaged-bans", "state": "warning", "value": sum(stray.values()),
+                             "chains": sorted(stray)})
+    for p in f2b.get("persisted") or []:
+        findings.append({"code": "persisted-chains", "state": "info", "value": p})
+    since = f2b.get("since")
+    running_for = None
+    if since:
+        try:
+            running_for = now_ts - int(datetime.strptime(since, "%Y-%m-%dT%H:%M:%SZ")
+                                       .replace(tzinfo=timezone.utc).timestamp())
+        except ValueError:
+            running_for = None
+    jails = []
+    for name in sorted(set(cfg.get("jails") or {}) | set(status)):
+        jc, js = (cfg.get("jails") or {}).get(name) or {}, status.get(name) or {}
+        backend = jc.get("backend") or ("systemd" if js.get("journal") else None)
+        file_backend = backend is not None and not str(backend).startswith("systemd")
+        logs = (jc.get("logpaths") or js.get("files") or []) if file_backend else []
+        actions = [f2b_action(a, name, fwinfo, services) for a in jc.get("actions") or []]
+        jf = []
+        for a in actions:
+            if a["kind"] != "other" and not a["forward"]:
+                hit = [f"{p}/{proto}" for proto, p in published
+                       if proto in a["protocols"] and (a["allports"] or _in_ranges(p, a["ranges"]))]
+                if hit and a["allports"]:
+                    jf.append({"code": "allports-input", "state": "info", "value": ", ".join(hit[:6])})
+                elif hit:
+                    jf.append({"code": "input-only", "state": "warning", "value": ", ".join(hit[:6])})
+            if a["kind"] != "other" and a["protocols"] == ["tcp"] and not a["allports"]:
+                udp = [f"{p}/udp" for p in udp_open if _in_ranges(p, a["ranges"])]
+                if udp:
+                    jf.append({"code": "udp-open", "state": "warning", "value": ", ".join(udp[:6])})
+        log_info = []
+        for p in logs:
+            li = (f2b.get("logs") or {}).get(p) or {"exists": None}
+            log_info.append(dict(li, path=p))
+            if li.get("exists") is False:
+                jf.append({"code": "log-missing", "state": "warning", "value": p})
+            elif li.get("mtime"):
+                age = now_ts - int(datetime.strptime(li["mtime"], "%Y-%m-%dT%H:%M:%SZ")
+                                   .replace(tzinfo=timezone.utc).timestamp())
+                if age > F2B_IDLE_DAYS * 86400:
+                    jf.append({"code": "log-idle", "state": "warning", "value": p, "days": age // 86400})
+        if (file_backend and js.get("failed_total") == 0 and running_for is not None and running_for > 86400
+                and any((li.get("size") or 0) > 0 for li in log_info)):
+            jf.append({"code": "no-match", "state": "warning", "value": since})
+        jails.append({"name": name, "backend": backend, "logs": log_info,
+                      "journal": js.get("journal") or " + ".join(jc.get("journalmatch") or []) or None,
+                      "maxretry": jc.get("maxretry"), "findtime": jc.get("findtime"), "bantime": jc.get("bantime"),
+                      "failregex": jc.get("failregex"),
+                      "actions": [{k: v for k, v in a.items() if k != "ranges"} for a in actions],
+                      "running": name in status,
+                      "failed_now": js.get("failed_now"), "failed_total": js.get("failed_total"),
+                      "banned_now": js.get("banned_now"), "banned_total": js.get("banned_total"),
+                      "history": history.get(name), "findings": jf,
+                      "state": max((f["state"] for f in jf), key=ORDER.get, default="ok")})
+    out = {"installed": True, "version": f2b.get("version"), "active": f2b.get("active"),
+           "running": f2b.get("running"), "since": since, "unit_file": f2b.get("unit_file"),
+           "dbpurgeage": (cfg.get("global") or {}).get("dbpurgeage"), "jails": jails, "bans": bans[:100],
+           "bans_total": len(bans), "history_total": sum(history.values()) if db.get("history") is not None
+           else None, "history_days": F2B_HISTORY_DAYS, "findings": findings,
+           "errors": f2b.get("errors") or {}}
+    out["state"] = max([f["state"] for f in findings] + [j["state"] for j in jails], key=ORDER.get, default="ok")
     return out
 
 

@@ -89,6 +89,17 @@ T = {
         "crowdsec.bouncer-no-docker-user": "bouncer does not protect container ports",
         "crowdsec.no-bouncer": "no bouncer",
         "crowdsec.decisions": {"one": "{n} active decision", "other": "{n} active decisions"},
+        "fail2ban.title": "fail2ban",
+        "fail2ban.not-running": "not running",
+        "fail2ban.unmanaged-bans": {"one": "{n} address blocked that fail2ban does not manage",
+                                    "other": "{n} addresses blocked that fail2ban does not manage"},
+        "fail2ban.input-only": "{jail}: does not protect container ports ({value})",
+        "fail2ban.udp-open": "{jail}: TCP only, {value} stays open",
+        "fail2ban.log-missing": "{jail}: log missing",
+        "fail2ban.log-idle": "{jail}: log unchanged for {days} days",
+        "fail2ban.no-match": "{jail}: not one hit since {date}",
+        "fail2ban.jails": {"one": "{n} jail", "other": "{n} jails"},
+        "fail2ban.bans": {"one": "{n} ban", "other": "{n} bans"},
         "scan.title": "Check",
         "scan.ok": "checked every 15 minutes when set up",
         "scan.old": "the last check is older than an hour",
@@ -156,6 +167,17 @@ T = {
         "crowdsec.bouncer-no-docker-user": "Bouncer schützt keine Container-Ports",
         "crowdsec.no-bouncer": "kein Bouncer",
         "crowdsec.decisions": {"one": "{n} aktive Sperre", "other": "{n} aktive Sperren"},
+        "fail2ban.title": "fail2ban",
+        "fail2ban.not-running": "läuft nicht",
+        "fail2ban.unmanaged-bans": {"one": "{n} Adresse gesperrt, die fail2ban nicht verwaltet",
+                                    "other": "{n} Adressen gesperrt, die fail2ban nicht verwaltet"},
+        "fail2ban.input-only": "{jail}: schützt keine Container-Ports ({value})",
+        "fail2ban.udp-open": "{jail}: nur TCP, {value} bleibt offen",
+        "fail2ban.log-missing": "{jail}: Log fehlt",
+        "fail2ban.log-idle": "{jail}: Log seit {days} Tagen unverändert",
+        "fail2ban.no-match": "{jail}: kein einziger Treffer seit {date}",
+        "fail2ban.jails": {"one": "{n} Jail", "other": "{n} Jails"},
+        "fail2ban.bans": {"one": "{n} Sperre", "other": "{n} Sperren"},
         "scan.title": "Prüfung",
         "scan.ok": "alle 15 Minuten, wenn eingerichtet",
         "scan.old": "die letzte Prüfung ist älter als eine Stunde",
@@ -369,6 +391,25 @@ def items_of(doc, lang):
         parts = list(dict.fromkeys(parts))
         parts.append(t(lang, "crowdsec.decisions", n=cr.get("decisions_total", 0)))
         out.append(item("crowdsec", cr.get("state") or "ok", cr.get("decisions_total", 0), "; ".join(parts)))
+
+    # fail2ban (only when installed): the warnings, then jails and bans; no addresses
+    fb = doc.get("fail2ban") or {}
+    if fb.get("installed"):
+        parts = []
+        for jail, f in [(None, f) for f in fb.get("findings") or []] + [
+                (j.get("name"), f) for j in fb.get("jails") or [] for f in j.get("findings") or []]:
+            if ORDER.get(f.get("state"), 0) < ORDER["warning"] or "fail2ban." + str(f.get("code")) not in T[lang]:
+                continue
+            when = _parse_iso(f.get("value")) if f.get("code") == "no-match" else None
+            date = (f"{when.day} {MONTHS_EN[when.month - 1]}" if lang == "en" else f"{when.day}.{when.month}.") \
+                if when else ""
+            parts.append(t(lang, "fail2ban." + f["code"], jail=jail or "", value=f.get("value", ""),
+                           n=f.get("value") if isinstance(f.get("value"), int) else 0, days=f.get("days", ""),
+                           date=date))
+        # The warnings first; the number of bans is the value anyway.
+        parts = list(dict.fromkeys(parts)) or [t(lang, "fail2ban.jails", n=len(fb.get("jails") or [])) + ", " +
+                                               t(lang, "fail2ban.bans", n=fb.get("bans_total", 0))]
+        out.append(item("fail2ban", fb.get("state") or "ok", fb.get("bans_total", 0), "; ".join(parts)))
 
     out.append(item("scan", "ok", detail=t(lang, "scan.ok"), link=False))
     return out
