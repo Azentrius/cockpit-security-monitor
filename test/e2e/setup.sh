@@ -16,6 +16,8 @@ set -eu
 : "${ADMIN_USER:?}" "${ADMIN_PW:?}" "${PLAIN_USER:?}" "${PLAIN_PW:?}"
 export DEBIAN_FRONTEND=noninteractive
 exec 1>&2
+# apt-get with a time limit and retries (a stuck mirror must not hold the job)
+APT_GET="$(cd "$(dirname "$0")/../.." && pwd)/tools/apt-get.sh"
 
 # The GitHub runner image sets XDG_CONFIG_HOME=/home/runner/.config for everyone in
 # /etc/environment: Cockpit's bridge, started for another user, then fails on the runner's
@@ -34,7 +36,7 @@ ip link add wg0 type dummy
 ip addr add 10.8.0.1/24 dev wg0
 ip link set wg0 up
 
-command -v ufw > /dev/null || apt-get install -y -qq ufw > /dev/null
+command -v ufw > /dev/null || sh "$APT_GET" install ufw
 ufw --force reset
 ufw default deny incoming
 ufw default allow outgoing
@@ -52,7 +54,7 @@ ip -br addr
 
 # fail2ban as Ubuntu ships it (banaction nftables: a chain at the hook input) with a jail in front
 # of Docker's 8080, which that ban never reaches, and one address banned in it.
-apt-get install -y -qq fail2ban python3-systemd > /dev/null
+sh "$APT_GET" install fail2ban python3-systemd
 printf '%s\n' '203.0.113.99 - - [20/Oct/2026:12:00:00 +0000] "GET / HTTP/1.1" 200 12' > /var/log/e2e-web.log
 cat > /etc/fail2ban/jail.d/e2e.local <<'EOF'
 [e2e-web]

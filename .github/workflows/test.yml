@@ -35,8 +35,8 @@ jobs:
         run: make check
       - name: Packages (.deb, .rpm) with valid AppStream data, built twice to the same bytes
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends rpm appstream > /dev/null
+          sh tools/apt-get.sh update
+          sh tools/apt-get.sh install --no-install-recommends rpm appstream
           appstreamcli validate --no-net packaging/*.metainfo.xml
           make packages
           (cd dist && sha256sum *.deb *.rpm) > first.sha256
@@ -52,7 +52,10 @@ jobs:
           for image in debian:13 fedora:43; do
             docker run --rm -e IMAGE="$image" -v "$PWD/dist:/dist:ro" "$image" sh -ec '
               case "$IMAGE" in
-                debian*) apt-get update -qq; apt-get install -y -qq /dist/*.deb > /dev/null ;;
+                debian*) # the same limits as tools/apt-get.sh, which is not in this container
+                  apt="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+                  timeout 300 apt-get $apt update -qq
+                  timeout 300 apt-get $apt install -y -qq /dist/*.deb > /dev/null ;;
                 fedora*) dnf install -y -q /dist/*.rpm ;;
               esac
               test -x /usr/lib/cockpit-security-monitor/security-scan.py
@@ -125,8 +128,8 @@ jobs:
           python-version: "3.12"
       - name: Cockpit and the packages of this build
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends cockpit-ws cockpit-system cockpit-bridge rpm > /dev/null
+          sh tools/apt-get.sh update
+          sh tools/apt-get.sh install --no-install-recommends cockpit-ws cockpit-system cockpit-bridge rpm
           sudo systemctl start cockpit.socket
           make packages
           {
