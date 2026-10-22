@@ -9,7 +9,7 @@
             "order": 37,
             "keywords": [
                 {
-                    "matches": ["security", "firewall", "ufw", "nftables", "iptables", "ports", "exposure", "docker", "ssh", "logins", "crowdsec", "hetzner"]
+                    "matches": ["security", "firewall", "ufw", "nftables", "iptables", "ports", "exposure", "docker", "ssh", "logins", "crowdsec", "fail2ban", "hetzner"]
                 }
             ]
         }

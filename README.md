@@ -15,6 +15,21 @@ A finding of "OK" means: in what this page checks, nothing was found. It never m
 the page does not understand is "Not assessable", never "OK", and every tab says what it does not
 check.
 
+| Light | Dark |
+|---|---|
+| ![Exposure: the overview and every port with where it is reachable from](docs/img/exposure.png) | ![The same tab in the dark theme](docs/img/exposure-dark.png) |
+
+| SSH | Containers |
+|---|---|
+| ![SSH: the effective configuration and the authorized keys](docs/img/ssh.png) | ![Containers: what weakens their boundary](docs/img/containers.png) |
+
+| Mark as expected | On a phone |
+|---|---|
+| ![The dialog that marks a port as expected, with a note](docs/img/mark-dialog.png) | ![The exposure tab on a phone, dark](docs/img/mobile-dark.png) |
+
+The screenshots show a test scenario with documentation addresses; they come from the CI artifact
+`screenshots` (`tools/preview/shoot.py`).
+
 **Contents**
 
 - [What it checks](#what-it-checks)
