@@ -7,8 +7,9 @@ IPv4 and IPv6, and which rule decides. It sees what Cockpit's own firewall page 
 the ports Docker forwards past it.
 
 The add-on only reads. A local service checks the server and writes the state; the page shows it.
-It changes no firewall rule. The only things the page can change are the add-on's own regular
-check and the add-on's own list of findings marked as expected.
+It changes no firewall rule and nothing in CrowdSec or fail2ban. The only things the page can
+change are the add-on's own regular check and the add-on's own list of findings marked as
+expected.
 
 A finding of "OK" means: in what this page checks, nothing was found. It never means "safe". What
 the page does not understand is "Not assessable", never "OK", and every tab says what it does not
@@ -27,6 +28,7 @@ check.
 - [Marking a finding as expected](#marking-a-finding-as-expected)
 - [Operation and troubleshooting](#operation-and-troubleshooting)
 - [Development](#development)
+- [Releasing](#releasing)
 - [Known limits](#known-limits)
 - [License](#license)
 
@@ -44,7 +46,7 @@ check.
 | **Logins** of the last 14 days | the journal of `sshd`, `sshd-session`, `sudo`, `cockpit-session` | successful logins with source, account and method; failed attempts per source; a login from outside VPN and private networks is a warning; when the journal begins later than 14 days back, the page and the status say since when |
 | **Container hardening** | Docker's API | the Docker socket mounted (danger, also read-only), privileged, host PIDs, extra capabilities, writable host folders (warnings), the host network, root, no-new-privileges, AppArmor (notes) |
 | **CrowdSec**, when installed | `cscli` (JSON), the firewall bouncer's configuration | the service, version, bouncers, active decisions, alerts of 14 days, whether signals are shared; Ubuntu's outdated package and a bouncer that does not protect container ports are warnings |
-| **fail2ban**, when installed (shown only) | `fail2ban-client status` and `-d`, its database read-only, the packet filter | the service, every jail with what it reads, where its ban takes effect (the chain or hook, from the packet filter where it is there), ports, counters since the start, the bans now and of 14 days. Warnings: a ban only at INPUT or the hook input in front of a port Docker publishes (Docker forwards past it), TCP only where the port is open for UDP too, a log missing or unchanged for days, not one hit while the log is not empty, addresses blocked for fail2ban that fail2ban does not manage; chains saved in `/etc/iptables/rules.v4` are a note |
+| **fail2ban**, when installed (shown only) | `systemctl show fail2ban.service`, `fail2ban-client ping`, `status`, `status JAIL` and `-d` (the configuration it runs), its database opened read-only, the size and age of the jails' log files, the packet filter, `/etc/iptables/rules.v4` and `rules.v6` | the service, every jail with what it reads (files or the journal), where its ban takes effect (the chain or hook, from the packet filter where it is there, else from the action's options), ports and protocols, its counters since the start and its rules, the bans now and the number of bans in 14 days. Warnings: fail2ban installed but not running; a ban only at INPUT or the hook input in front of a port Docker publishes to the internet (Docker forwards past it; for a ban of all ports a note); a ban of TCP only while one of its ports is open for UDP from the internet (HTTP/3); a log missing or unchanged for 3 days; not one hit since fail2ban started more than a day ago while the log is not empty; addresses blocked for fail2ban that fail2ban does not manage. `f2b-` chains saved in `/etc/iptables/rules.v4` or `rules.v6` are a note |
 
 How the packet filter is followed: [docs/INTERNALS.md](docs/INTERNALS.md#the-evaluator-secfwpy).
 In short: every base chain of the hooks a new connection passes, in order; addresses, ports,
@@ -90,8 +92,11 @@ fail2ban and its jails, and lifting bans from the page, follow in a later versio
   service and the four classes. "Details" under the assessment names the binding, Docker's DNAT,
   and the rule or policy that decided per class.
 - **SSH, Logins, Containers, CrowdSec, fail2ban:** one tab each (CrowdSec and fail2ban only when
-  installed). Links like `#/ssh` open a tab, as the
-  Status Board does.
+  installed). Links like `#/ssh` open a tab, as the Status Board does.
+- **fail2ban:** the service, its version, the bans now and in 14 days, how long fail2ban keeps its
+  history (`dbpurgeage`) and the findings for the whole; every jail with what it reads, where its
+  ban takes effect (and whether the packet filter shows it there), its ports, counters, rules and
+  findings; the addresses banned now with their class, jail, since and until when.
 - **Without administrative access** the page shows only the summary the Status Board sees.
 - **In Cockpit's menu:** the entry "Security Monitor" shows the same state with Cockpit's own icon
   (blue: something to know, yellow: something to look at or a state older than an hour, red: a
@@ -114,7 +119,7 @@ flowchart LR
     end
     ST[("state.json 0600, status.json 0644<br/>/var/lib/cockpit-security-monitor")]
     M[("exposure.conf<br/>/etc/cockpit-security-monitor")]
-    SYS["ip, ss, iptables-save, nft,<br/>Docker API, sshd -T, journal, cscli"]
+    SYS["ip, ss, iptables-save, nft,<br/>Docker API, sshd -T, journal, cscli,<br/>fail2ban-client, fail2ban's database"]
     API["api.hetzner.cloud"]
     SB["Status Board"]
     P -->|"cockpit.spawn"| V
@@ -143,7 +148,9 @@ codes: [docs/INTERNALS.md](docs/INTERNALS.md).
 ## Security model
 
 - **Read only.** The scan lists; it never changes a firewall rule, never restarts anything. Docker
-  is asked with GET only, on a fixed list of paths.
+  is asked with GET only, on a fixed list of paths. fail2ban is asked only what it runs and whom it
+  bans (`--version`, `ping`, `status`, `-d`; never a command that bans or lifts a ban); its
+  database is opened read-only, and the column with log lines is never read.
 - **Root without the network.** The scan runs in the host's network namespace (it lists it) with
   `IPAddressDeny=any` except the loopback, a cut-down capability set and `ProtectSystem=strict`
   (`tools/check-units.sh` checks the exposure). It writes only its own folder.
@@ -151,11 +158,12 @@ codes: [docs/INTERNALS.md](docs/INTERNALS.md).
   own (`DynamicUser`) that gets the token as a systemd credential (`LoadCredential=`); the page only
   sees whether a token is set up.
 - **Fixed verbs.** The page calls `security.py` with fixed verbs; every argument is checked there.
-- **Text, never markup.** Rule texts, container and process names, key comments reach the page as
-  text only.
-- **Private data stays private.** `state.json` (addresses, user names, key comments) is root's
-  (0600); `status.json` for the Status Board holds numbers, states, ports and names of services and
-  containers only. Logins are read for 14 days, as long as the journal keeps them on our hosts.
+- **Text, never markup.** Rule texts, container, process and jail names, key comments and log paths
+  reach the page as text only.
+- **Private data stays private.** `state.json` (addresses, also the banned ones, user names, key
+  comments) is root's (0600); `status.json` for the Status Board holds numbers, states, ports and
+  names of services, containers and fail2ban's jails only. Logins are read for 14 days, as long as
+  the journal keeps them on our hosts.
 - **The marks file** counts only when root owns it and nobody else can write it.
 - **No network from the browser.** No CDNs or external fonts (the fonts ship with the add-on);
   Cockpit's strict CSP stays unchanged.
@@ -165,10 +173,21 @@ codes: [docs/INTERNALS.md](docs/INTERNALS.md).
 - Debian 12 or newer, or Ubuntu 22.04 or newer, with systemd and **Cockpit 264** or newer
 - **Python 3.8** or newer (standard library only), `iproute2`
 - Read when present (the page says what is missing): iptables (nft or legacy), nftables, UFW,
-  Docker, OpenSSH, CrowdSec
+  Docker, OpenSSH, CrowdSec, fail2ban (the formats of 1.0 and 1.1)
 
-Fedora, RHEL and openSUSE are not tested yet; firewalld's tables are followed like any other nft
-table, but not explained on their own.
+### Supported systems
+
+What CI really runs, and what is expected but not tested. A package that installs is not a tested
+system by itself.
+
+| | Systems | What is checked |
+|---|---|---|
+| **Tested** | Ubuntu 24.04 (GitHub runner) with Ubuntu's own Cockpit, UFW and fail2ban, and Docker from the runner image | the page in a real Cockpit session in Chromium (job `e2e`): installed with apt, the first check by itself through the hardened service, Docker's port reachable past UFW, fail2ban's jail on that port reported as not reaching it, a mark set and removed, "VPN only" with a DOCKER-USER rule, the regular check, the status as a user without sudo, a user without administrative access, the menu icon, links into the tabs, no JavaScript errors |
+| **Tested** | Python 3.8 and 3.12 | the helper tests against the scenarios (job `python-min` and `make check`); 3.8 is the oldest supported |
+| **Recorded** | four real Ubuntu servers (24.04 and 26.04) | the scan against their outputs, recorded read only and made anonymous (`test/fixtures/recorded-*`) |
+| **Package installs** | Debian 13 (`.deb`), Fedora 43 (`.rpm`) | the package installs with the distribution's own dependencies, a scan as root and the status as an unprivileged user answer, the package removes cleanly. No Cockpit, systemd or packet filter runs there. |
+| **Expected, untested** | Debian 12 and 13, Ubuntu 22.04 and newer, with Cockpit 264 or newer | the page in a real Cockpit there |
+| **Not supported yet** | Fedora, RHEL, openSUSE | firewalld's tables are followed like any other nft table, but not explained on their own; releases carry no `.rpm`, and the package repository serves the add-on for Debian and Ubuntu only |
 
 ## Install
 
@@ -179,7 +198,8 @@ From the Azentrius package repository (set up once, see
 sudo apt update && sudo apt install cockpit-security-monitor
 ```
 
-Or install **Security Monitor** in Cockpit under **Applications**.
+Or install **Security Monitor** in Cockpit under **Applications**. The system's updates keep it
+current. Which systems are tested how: [Supported systems](#supported-systems).
 
 Or from the files of a release: download the `.deb` and `SHA256SUMS`, check them, install:
 
@@ -251,13 +271,31 @@ make check                             # every offline test
 make lint                              # shellcheck, ruff, systemd units and their hardening
 python3 tools/preview/build.py         # the page with the scenarios' data:
                                        # tools/preview/out/security/index.html?scenario=ufw-docker&lang=de
+python3 tools/preview/shoot.py         # screenshots (light, dark, phone) to docs/img; needs Playwright
 ```
 
-The helper tests run against three scenarios in `test/fixtures/` (UFW with Docker past it; UFW off
-behind a Hetzner Cloud Firewall with CrowdSec; nftables with a verdict map and a failing `sshd -T`)
-and their variants. The CI job `e2e` runs spec 4.7 on a throw-away runner: UFW on, Docker publishing
-a port, the page in a real Cockpit reporting it as reachable from the internet past UFW, and as VPN
-only with a DOCKER-USER rule. More in [CONTRIBUTING.md](CONTRIBUTING.md).
+The helper tests run against hand-made scenarios in `test/fixtures/` (UFW with Docker past it; UFW
+off behind a Hetzner Cloud Firewall with CrowdSec; nftables with a verdict map and a failing
+`sshd -T`; UFW with Docker plus fail2ban with four jails), their variants, and four real servers
+recorded read only and made anonymous (`test/fixtures/capture.sh`). The CI job `e2e` runs on a
+throw-away runner with UFW on, Docker publishing a port and fail2ban from Ubuntu with a jail in
+front of that port: the page in a real Cockpit reports the port as reachable from the internet past
+UFW, the jail as not reaching it, and the port as VPN only with a DOCKER-USER rule (all steps:
+[Supported systems](#supported-systems)). More in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Releasing
+
+1. Set the new version in `plugin/security.js` (`const VERSION`) and in every `?v=` in
+   `plugin/index.html`, and turn what `CHANGELOG.md` collects as unreleased into a section
+   `## X.Y.Z – YYYY-MM-DD` (`tools/check-version.sh` checks that the three agree).
+2. Merge to `main`.
+3. On GitHub: Actions › **release** › Run workflow (branch `main`). The workflow checks the version,
+   waits for the test workflow of that commit to pass, runs the tests, builds the `.deb` and the
+   source archive `cockpit-security-monitor-X.Y.Z.tar.gz` with `SHA256SUMS` and a signed build
+   provenance, and creates the tag `vX.Y.Z` with a release whose notes come from `CHANGELOG.md`.
+   Releases carry no `.rpm` yet.
+4. packages.azentrius.com takes the package from the release within an hour
+   ([Azentrius/packages](https://github.com/Azentrius/packages)).
 
 ## Known limits
 
@@ -270,8 +308,15 @@ only with a DOCKER-USER rule. More in [CONTRIBUTING.md](CONTRIBUTING.md).
 - Docker's nftables mode (Docker 29, experimental) is followed through its DNAT and forward chains,
   but has not been seen on a host yet.
 - Logins come from the journal: a host keeping it shorter shows fewer days.
+- fail2ban: where a ban takes effect is judged for the iptables and nftables actions only. The hits
+  and bans of a jail are fail2ban's counters since it started; the bans of 14 days go back only as
+  far as fail2ban's database keeps them (`dbpurgeage`, one day unless set otherwise), and the tab
+  shows that setting.
 
 ## License
 
 Apache-2.0, see [LICENSE](LICENSE). Third-party material (fonts, icons) is listed in
-[NOTICE](NOTICE).
+[NOTICE](NOTICE). The page contains no code from Cockpit; it uses Cockpit's API `cockpit.js` at
+runtime, which Cockpit itself ships.
+
+Please report security issues privately, see [SECURITY.md](SECURITY.md).

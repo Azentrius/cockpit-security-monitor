@@ -15,8 +15,8 @@
       UFW, Docker (which forwards published ports past UFW), nftables and iptables, and
       optionally the Hetzner Cloud Firewall with a read-only token. It also shows the SSH
       configuration and keys, the logins of the last 14 days, container settings that weaken
-      the boundary to the host, and CrowdSec if it is installed. It only reads; the one change
-      it makes is marking a finding as expected in its own file.
+      the boundary to the host, and CrowdSec and fail2ban if they are installed. It only reads;
+      the one change it makes is marking a finding as expected in its own file.
     </p>
     <p xml:lang="de">
       Die Seite zeigt je Port, ob er aus dem Internet, dem VPN, dem Privatnetz oder nur vom
@@ -24,9 +24,21 @@
       UFW, Docker (das veröffentlichte Ports an UFW vorbei weiterleitet), nftables und iptables
       und auf Wunsch die Hetzner Cloud Firewall mit einem nur lesenden Token. Dazu zeigt sie die
       SSH-Konfiguration und Schlüssel, die Anmeldungen der letzten 14 Tage, Einstellungen von
-      Containern, die die Grenze zum Host schwächen, und CrowdSec, wenn es installiert ist. Sie
-      liest nur; die einzige Änderung ist, einen Befund in ihrer eigenen Datei als erwartet zu
-      markieren.
+      Containern, die die Grenze zum Host schwächen, und CrowdSec und fail2ban, wenn sie
+      installiert sind. Sie liest nur; die einzige Änderung ist, einen Befund in ihrer eigenen
+      Datei als erwartet zu markieren.
+    </p>
+    <p>
+      For fail2ban it shows what each jail watches, whom it bans and where a ban does not reach:
+      Docker forwards published ports past a ban at the host's input. A status for the Azentrius
+      Status Board and Cockpit's menu says where something needs a look, without addresses or
+      user names.
+    </p>
+    <p xml:lang="de">
+      Bei fail2ban zeigt sie, was jedes Jail beobachtet, wen es sperrt und wo eine Sperre nicht
+      greift: Docker leitet veröffentlichte Ports an einer Sperre am Eingang des Hosts vorbei. Ein
+      Status für das Azentrius Status Board und Cockpits Menü meldet, wo etwas zu prüfen ist, ohne
+      Adressen oder Benutzernamen.
     </p>
   </description>
   <extends>org.cockpit_project.cockpit</extends>
