@@ -30,12 +30,14 @@ The offline tests need no root and no network: the helpers read the scenarios in
 through `test/fakesys.py`. A new case of the packet filter goes into `test/fw_test.py` (a few
 iptables-save lines are enough) or, when it needs a whole host, into a new scenario. The `test`
 workflow runs the lint, the tests and the package build on every push and pull request; the job
-`e2e` runs the page in a real Cockpit with UFW and Docker.
+`python-min` runs the helper tests on Python 3.8, and the job `e2e` runs the page in a real
+Cockpit with UFW, Docker and fail2ban.
 
 ## How the add-on is built
 
-- **Read only.** The helpers list and never change a firewall rule, never restart anything. Docker
-  is asked with GET only. The page changes only the add-on's own timer and marks file, and both go
+- **Read only.** The helpers list and never change a firewall rule, never restart anything, and
+  change nothing in CrowdSec or fail2ban. Docker is asked with GET only, fail2ban's database is
+  opened read-only. The page changes only the add-on's own timer and marks file, and both go
   through a dialog: show → confirm → live output → result.
 - **Root code only in `lib/`**, installed to `/usr/lib/cockpit-security-monitor` (root-owned).
   Nothing is ever run or imported from a directory others can write.
