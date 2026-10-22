@@ -410,6 +410,7 @@ test("fail2ban: the tab only when installed, where each ban takes effect, the ba
     assert.match(text(sshd), /41 hits, 1 banned now, 7 bans/);
     assert.match(text(sshd), /5 hits within 10m, banned for 1h/);
     assert.match(text(sshd), /no finding$/);
+    assert.match(text(d.getElementById("sm-f2b-jail-recidive")), /2 hits, 1 banned now, 1 ban(?!s)/);
     assert.match(text(d.getElementById("sm-f2b-jail-recidive")), /iptables-allports in INPUT ports all \(tcp\)/);
     assert.match(text(d.getElementById("sm-f2b-jail-recidive")), /has not changed for 5 days/);
     assert.match(text(d.getElementById("sm-f2b-jail-nginx-botsearch")), /Not one hit since fail2ban started/);
@@ -425,6 +426,17 @@ test("fail2ban: the tab only when installed, where each ban takes effect, the ba
     assert.strictEqual(de.d.getElementById("sm-tab-fail2ban").hidden, false, "a link #/fail2ban opens the tab");
     assert.match(text(de.d.getElementById("sm-f2b-jail-web")), /Docker leitet 8080\/tcp daran vorbei an einen Container/);
     assert.match(text(de.d.getElementById("sm-fail2ban")), /Jetzt gesperrt 3/);
+    assert.match(text(de.d.getElementById("sm-f2b-jail-recidive")), /2 Treffer, 1 jetzt gesperrt, 1 Sperre(?!n)/);
+    assert.match(text(de.d.getElementById("sm-f2b-jail-sshd")), /41 Treffer, 1 jetzt gesperrt, 7 Sperren/);
+    // One hit, one ban, and a limit of one hit as the dump may give it (a string): the singular.
+    const st = state("fail2ban");
+    const one = st.fail2ban.jails.find((j) => j.name === "web");
+    Object.assign(one, { failed_total: 1, banned_total: 1, maxretry: "1" });
+    const single = boot({ view: show(st) });
+    await settle();
+    const webOne = text(single.d.getElementById("sm-f2b-jail-web"));
+    assert.match(webOne, /1 hit, 1 banned now, 1 ban(?!s)/);
+    assert.match(webOne, /1 hit within 10m, banned for 10m/);
 });
 
 // --- The status icon in Cockpit's menu (menu-status.js) and the hidden start ---

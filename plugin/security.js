@@ -740,6 +740,8 @@
         const fb = st && st.fail2ban;
         if (!fb || !fb.installed) { fill(box); return; }
         const num = (v) => (v == null ? "–" : String(v));
+        // A count as a number, so that t() takes the singular for 1 (the dump may give "1").
+        const count = (v) => (v == null ? "–" : /^\d+$/.test(String(v)) ? Number(v) : String(v));
         const top = card("sm-fail2ban", t("f2b.title"), label(fb.state), [h("p", { class: "sm-intro", text: t("f2b.intro") }), kv([
             [t("f2b.service"), fb.running ? t("f2b.running", { since: fb.since ? fmtDate(fb.since) : "?" }) : t("f2b.stopped", { state: fb.active || "?" })],
             [t("f2b.version"), fb.version || "?"],
@@ -759,8 +761,9 @@
                         ? h("div", null, t("f2b.journal"), h("span", { class: "sm-sub az-mono", text: j.journal || "" }))
                         : (j.logs || []).map(f2bLog),
                     (j.actions || []).length ? j.actions.map(f2bAction) : "?",
-                    [t("f2b.counts", { failed: num(j.failed_total), now: num(j.banned_now), total: num(j.banned_total) }),
-                     h("span", { class: "sm-sub", text: t("f2b.rules", { maxretry: num(j.maxretry), findtime: num(j.findtime), bantime: num(j.bantime) }) })],
+                    [t("f2b.counts", { hits: t("f2b.counts.hits", { n: count(j.failed_total) }), now: num(j.banned_now),
+                                       bans: t("f2b.counts.bans", { n: count(j.banned_total) }) }),
+                     h("span", { class: "sm-sub", text: t("f2b.rules", { n: count(j.maxretry), findtime: num(j.findtime), bantime: num(j.bantime) }) })],
                     (j.findings || []).length
                         ? h("ul", { class: "sm-plain-list sm-findings-list" }, j.findings.map((f) => h("li", { "data-code": f.code, "data-state": f.state },
                             label(f.state, null), " ", f2bText(j.name, f))))
