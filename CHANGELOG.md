@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 – 2026-10-23
 
 What could not be read is never OK.
 
