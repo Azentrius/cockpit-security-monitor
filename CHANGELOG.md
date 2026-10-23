@@ -15,6 +15,10 @@ What could not be read is never OK, also when Docker does not answer or fail2ban
   counted as OK without an answer. They are now "not checked" (`skipped`), fail2ban is incomplete
   (`skipped` in `incomplete`), and the tab and the status item say how many were not asked.
 - Tests for both, with their counterparts: Docker answering, 30 jails.
+- **Menu:** the entry moves to the end of System, after Services, in one block with the other
+  Azentrius add-ons (Status Board, Security Monitor, Update Gaps, Image Update Monitor, Cron Jobs,
+  Host Settings). Searching the menu for "azentrius" finds them all, and Cockpit's Help menu links
+  the README.
 
 ## 0.3.1 – 2026-10-23
 

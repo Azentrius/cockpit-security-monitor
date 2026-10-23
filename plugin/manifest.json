@@ -6,10 +6,16 @@
     "menu": {
         "index": {
             "label": "Security Monitor",
-            "order": 37,
+            "order": 102,
             "keywords": [
                 {
-                    "matches": ["security", "firewall", "ufw", "nftables", "iptables", "ports", "exposure", "docker", "ssh", "logins", "crowdsec", "fail2ban", "hetzner"]
+                    "matches": ["security", "firewall", "ufw", "nftables", "iptables", "ports", "exposure", "docker", "ssh", "logins", "crowdsec", "fail2ban", "hetzner", "azentrius"]
+                }
+            ],
+            "docs": [
+                {
+                    "label": "Security Monitor",
+                    "url": "https://github.com/Azentrius/cockpit-security-monitor#readme"
                 }
             ]
         }
