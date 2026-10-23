@@ -415,6 +415,50 @@ test("addresses or sockets not read: not assessable, never \"nothing reachable\"
     assert.ok(!/could not be read/.test(text(d3.getElementById("sm-ov"))));
 });
 
+test("Docker not answering: what it may publish is not assessable, never \"nothing reachable\"", async () => {
+    // As the scan writes it when Docker's API does not answer: no mapping, the docker-proxy socket of 8080
+    // unknown from outside this host.
+    const st = state("ufw-docker");
+    st.sources.docker = { state: "error", error: "timed out" };
+    st.firewall.docker = null;
+    const p = st.ports.find((x) => x.port === 8080 && x.proto === "tcp");
+    const unknown = { result: "unknown", steps: [], sources: [], reason: "no-docker", path: "input" };
+    [["4", "internet"], ["4", "vpn"], ["4", "private"], ["6", "internet"]].forEach(([f, c]) => { p.reach[f][c] = Object.assign({}, unknown); });
+    p.reach["4"].local = { result: "open", steps: [], sources: [], path: "input" };
+    Object.assign(p, { state: "none", why: "unknown", binds: ["0.0.0.0:8080", "[::]:8080"],
+                       service: { kind: "process", containers: [], images: [], processes: ["docker-proxy"], container_ports: [] } });
+    const { d } = boot({ view: show(st) });
+    await settle();
+    const ov = text(d.getElementById("sm-ov"));
+    assert.match(ov, /Docker could not be asked: a port it may publish \(docker-proxy, a DNAT rule\) cannot be assessed, and a port it publishes without docker-proxy is not listed\./);
+    assert.match(ov, /Docker found, but it could not be asked/);
+    assert.match(ov, /1 port could not be assessed\./);
+    const r = row(d, "tcp", 8080);
+    assert.strictEqual(r.dataset.state, "none");
+    assert.match(text(r), /Not assessable Docker could not be asked; it may forward this port to a container\./);
+    const det = text(r.querySelector("details"));
+    assert.match(det, /From the internet: not assessable: Docker could not be asked, and it may forward this port to a container past the host's input rules/);
+    assert.match(det, /From this host: reachable/);
+    assert.match(text(d.getElementById("sm-unchecked-exposure")), /Docker: failed: timed out\./);
+    // Nothing public, Docker not answering: no "No port is reachable".
+    st.ports = st.ports.filter((x) => x.state === "ok" || x.state === "none");
+    const { d: d2 } = boot({ view: show(st), language: "de" });
+    await settle();
+    const ov2 = text(d2.getElementById("sm-ov"));
+    assert.match(ov2, /Docker ließ sich nicht abfragen: Ein Port, den es veröffentlichen könnte/);
+    assert.match(ov2, /gefunden, ließ sich aber nicht abfragen/);
+    assert.ok(!/Kein Port ist aus dem Internet erreichbar/.test(ov2), ov2);
+    assert.match(text(row(d2, "tcp", 8080)), /Docker ließ sich nicht abfragen; es könnte diesen Port an einen Container weiterleiten\./);
+    // Docker not installed: "not found", as before.
+    const none = state("ufw-docker");
+    none.sources.docker = { state: "missing" };
+    none.firewall.docker = null;
+    const { d: d3 } = boot({ view: show(none) });
+    await settle();
+    assert.match(text(d3.getElementById("sm-ov")), /Docker not found/);
+    assert.ok(!/could not be asked/.test(text(d3.getElementById("sm-ov"))));
+});
+
 test("Hetzner Cloud Firewall whose rules are not known: no protection", async () => {
     const st = state("hetzner-open");
     st.firewall.hetzner.firewalls[0].rules = null;
@@ -569,6 +613,22 @@ test("fail2ban not read completely: not checked, never OK; a jail that does not 
     assert.match(text(d4.getElementById("sm-f2b-history-unread")), /^fail2ban's database could not be read \(unable to open database file\): the history of bans is missing\.$/);
     assert.ok(!/could not be read completely|Bans in 14 days/.test(text(top4)));
     assert.ok(!GERMAN.test(text(d4.body)));
+    // A jail past the first 30 that was not asked: not checked, and the whole is incomplete.
+    const st5 = state("fail2ban");
+    Object.assign(st5.fail2ban, { incomplete: ["skipped"], state: "none" });
+    Object.assign(st5.fail2ban.jails.find((j) => j.name === "sshd"), { skipped: true, running: true, findings: [], state: "none",
+        failed_now: null, failed_total: null, banned_now: null, banned_total: null });
+    const { d: d5 } = boot({ view: show(st5), location: ["fail2ban"] });
+    await settle();
+    assert.match(text(d5.getElementById("sm-fail2ban")), /fail2ban could not be read completely Only the first 30 jails are asked; the jail sshd was not\. What depends on it/);
+    const s5 = jailsOf(d5).sshd;
+    assert.strictEqual(s5.dataset.state, "none");
+    assert.match(text(s5), /Unknown not asked: only the first 30 jails are read$/);
+    assert.ok(s5.querySelector('[data-code="skipped"][data-state="none"]'));
+    const { d: de5 } = boot({ view: show(st5), location: ["fail2ban"], language: "de" });
+    await settle();
+    assert.match(text(de5.getElementById("sm-fail2ban")), /Nur die ersten 30 Jails werden abgefragt; das Jail sshd nicht\./);
+    assert.match(text(jailsOf(de5).sshd), /nicht abgefragt: Nur die ersten 30 Jails werden gelesen$/);
 });
 
 // --- The status icon in Cockpit's menu (menu-status.js) and the hidden start ---

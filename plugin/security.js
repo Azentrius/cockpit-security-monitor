@@ -344,7 +344,8 @@
         }
         if (p.why === "unknown") {
             const reasons = inet.map((r) => r.reason);
-            return t(reasons.indexOf("no-addresses") >= 0 ? "sub.noAddresses" : reasons.indexOf("no-rules") >= 0 ? "sub.noRules" : "sub.unknown");
+            return t(reasons.indexOf("no-addresses") >= 0 ? "sub.noAddresses" : reasons.indexOf("no-rules") >= 0 ? "sub.noRules"
+                : reasons.indexOf("no-docker") >= 0 ? "sub.noDocker" : "sub.unknown");
         }
         if (p.why === "hetzner") {
             const hz = inet.map((r) => r.hetzner).find(Boolean);
@@ -374,6 +375,7 @@
         if (r.reason === "local-published") why.push(rich(t("det.localPublished")));
         else if (r.reason === "no-rules") why.push(rich(t("det.noRules")));
         else if (r.reason === "no-addresses") why.push(rich(t("det.noAddresses")));
+        else if (r.reason === "no-docker") why.push(rich(t("det.noDocker")));
         if (r.limited_by) why.push(limitText(r.limited_by));
         const steps = r.steps || [];
         const decisive = r.result === "unknown" ? steps.filter((s) => s.result === "unknown") :
@@ -482,9 +484,13 @@
         if (!(u.loaded && (u.loaded["4"] || u.loaded["6"]))) return t("ov.ufw.onNoRules");
         return t("ov.ufw.on", { policy: u.default_input || "?" }) + " · " + t("ov.ufw.rules", { n: u.rules_total || 0 });
     }
+    // Docker's socket is there, but Docker could not be asked: the ports it publishes are not known.
+    function dockerUnread(st) {
+        return ["error", "needs-root"].indexOf((((st.sources || {}).docker) || {}).state) >= 0;
+    }
     function dockerText(st) {
         const d = st.firewall && st.firewall.docker;
-        if (!d) return t("ov.docker.missing");
+        if (!d) return t(dockerUnread(st) ? "ov.docker.unread" : "ov.docker.missing");
         const line = t(d.backend_known ? "ov.docker.line" : "ov.docker.assumed", { version: d.version || "?", backend: d.backend });
         const du = st.firewall.docker_user || {};
         return [line, h("span", { class: "sm-sub", text: t("ov.docker.user", { n4: du["4"] || 0, n6: du["6"] || 0 }) })];
@@ -546,14 +552,16 @@
         const addrsRead = read("ip");
         const socketsRead = read("ss", true);
         const rulesRead = read("rules");
+        const dockerRead = !dockerUnread(st);
         const intro = [];
         if (!addrsRead) intro.push(h("p", { text: t("ov.noAddresses") }));
         if (!socketsRead) intro.push(h("p", { text: t("ov.noSockets") }));
         if (!rulesRead) intro.push(h("p", { text: t("ov.noRules") }));
+        if (!dockerRead) intro.push(h("p", { text: t("ov.noDocker") }));
         if (addrsRead && !Object.values((st.network || {}).public || {}).some(Boolean)) intro.push(h("p", { text: t("ov.noPublic") }));
         if (open.length) intro.push(h("p", { text: t("ov.public", { n: open.length }) }));
         if (limited) intro.push(h("p", { text: t("ov.limited", { n: limited }) }));
-        if (!pub.length && addrsRead && socketsRead && rulesRead) intro.push(h("p", { text: t("ov.publicNone") }));
+        if (!pub.length && addrsRead && socketsRead && rulesRead && dockerRead) intro.push(h("p", { text: t("ov.publicNone") }));
         if (attention.length) {
             intro.push(h("p", { text: t("ov.attention", { n: attention.length }) },
                 h("span", { class: "sm-chips" }, attention.map((p) => label(p.state, p.port + "/" + p.proto + (p.name ? " " + p.name : ""))))));
@@ -769,6 +777,9 @@
             items.push(h("li", { "data-code": "error", "data-state": "none" }, label("none", null), " ",
                 tr("f2b.jail.error", { jail: j.name, error: j.error })));
         }
+        if (j.skipped) {
+            items.push(h("li", { "data-code": "skipped", "data-state": "none" }, label("none", null), " ", t("f2b.jail.skipped")));
+        }
         if (items.length) return h("ul", { class: "sm-plain-list sm-findings-list" }, items);
         return j.state === "none" ? label("none", t("f2b.jail.notChecked")) : label("ok", t("ck.none"));
     }
@@ -784,9 +795,11 @@
         // The essential parts that could not be read (the state is then "not checked", never OK),
         // and apart from them fail2ban's database, which only the history needs.
         const failedJails = (fb.jails || []).filter((j) => j.error).map((j) => j.name);
+        const skippedJails = (fb.jails || []).filter((j) => j.skipped).map((j) => j.name);
         const unread = (fb.incomplete || []).map((k) => (k === "jails"
             ? tr("f2b.part.jails", { n: failedJails.length, names: failedJails.join(", ") })
-            : tr("f2b.part." + k, { error: errors[k] || "?" })));
+            : k === "skipped" ? tr("f2b.part.skipped", { n: skippedJails.length, names: skippedJails.join(", ") })
+                : tr("f2b.part." + k, { error: errors[k] || "?" })));
         const unreadBox = unread.length ? alertBox("warning", t("f2b.incompleteTitle"),
             [unread.reduce((acc, x, i) => acc.concat(i ? [" ", x] : [x]), []), " ", t("f2b.incompleteNote")]) : null;
         const service = fb.running ? t("f2b.running", { since: fb.since ? fmtDate(fb.since) : "?" })

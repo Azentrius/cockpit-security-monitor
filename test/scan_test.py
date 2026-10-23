@@ -468,14 +468,44 @@ class Variants(unittest.TestCase):
         self.assertEqual(doc["sources"]["rules"]["state"], "needs-root")
         self.assertEqual(doc["sources"]["docker"]["state"], "needs-root")
         self.assertFalse(doc["root"])
-        self.assertEqual({p["state"] for p in doc["ports"] if p["why"] != "local"}, {"none"})
+        inet = [p for p in doc["ports"] if any(p["reach"][f]["internet"]["result"] != "absent" for f in ("4", "6"))]
+        self.assertEqual({p["state"] for p in inet}, {"none"})
+        self.assertEqual((ports(doc)["6379/tcp"]["state"], ports(doc)["6379/tcp"]["why"]), ("ok", "only-vpn"),
+                         "on the VPN address: the VPN is not known, so not \"this host only\"")
         self.assertEqual(doc["containers"]["state"], "skipped")
 
     def test_docker_failing(self):
-        doc = scan("ufw-docker", docker_error=ConnectionRefusedError(111, "Connection refused"))
-        self.assertEqual(doc["sources"]["docker"]["state"], "error")
-        self.assertEqual([k for k, p in ports(doc).items() if p["service"]["kind"] == "docker"], [],
-                         "no mapping is known without Docker's answer")
+        """Docker does not answer (the review's case): the docker-proxy socket of 8080 was judged by
+        UFW's input chain, closed, though Docker forwards 8080 past UFW. A socket of docker-proxy,
+        or on a port a DNAT rule names, is not assessable from outside this host (no-docker),
+        never closed; every other port is judged as with Docker's answer."""
+        base = {k: (p["state"], p["why"]) for k, p in ports(scan("ufw-docker")).items()}
+        for err in (ConnectionRefusedError(111, "Connection refused"), TimeoutError("timed out")):
+            doc = scan("ufw-docker", docker_error=err)
+            self.assertEqual(doc["sources"]["docker"]["state"], "error")
+            p = ports(doc)
+            self.assertEqual([k for k, x in p.items() if x["service"]["kind"] == "docker"], [],
+                             "no mapping is known without Docker's answer")
+            web = p["8080/tcp"]
+            self.assertEqual((web["state"], web["why"]), ("none", "unknown"), "not ok/closed through UFW's input")
+            for f, classes in (("4", ("internet", "vpn", "private")), ("6", ("internet",))):
+                for c in classes:
+                    self.assertEqual((web["reach"][f][c]["result"], web["reach"][f][c]["reason"]), ("unknown", "no-docker"),
+                                     f + " " + c)
+            self.assertEqual(reach(web)["local"], "open", "the host itself still reaches it")
+            redis = p["6379/tcp"]
+            self.assertEqual(reach(redis), {"internet": "absent", "vpn": "unknown", "private": "absent", "local": "open"},
+                             "docker-proxy on the VPN address: the VPN is not known")
+            self.assertEqual(redis["reach"]["4"]["vpn"]["reason"], "no-docker")
+            self.assertEqual((redis["state"], redis["why"]), ("ok", "only-vpn"), "never \"this host only\"")
+            self.assertEqual({k: (x["state"], x["why"]) for k, x in p.items() if k != "8080/tcp"},
+                             {k: v for k, v in base.items() if k != "8080/tcp"}, "the rest as with Docker's answer")
+
+    def test_docker_answering_unchanged(self):
+        """With Docker's answer 8080 is still forwarded past UFW (warning), whatever docker-proxy holds."""
+        p = ports(scan("ufw-docker"))["8080/tcp"]
+        self.assertEqual((p["state"], p["why"], p["reach"]["4"]["internet"]["path"]), ("warning", "public-other", "forward"))
+        self.assertNotIn("no-docker", json.dumps(scan("ufw-docker")["ports"]))
 
     def test_no_docker(self):
         doc = scan("ufw-docker", meta={"exists": []})
@@ -746,6 +776,29 @@ class Fail2banRead(unittest.TestCase):
         self.assertEqual((j["sshd"]["running"], j["sshd"]["findings"], j["sshd"]["state"]),
                          (False, [{"code": "jail-not-running", "state": "warning"}], "warning"))
         self.assertEqual((f["state"], f["incomplete"], f["findings"]), ("warning", [], []))
+
+    def test_more_jails_than_asked(self):
+        """The review's case: 31 quiet jails, configured and running. Only the first 30 are asked
+        (F2B_MAX_JAILS stays); the 31st was ok without an answer of its own, and the whole ok with
+        nothing incomplete. Now it is not checked, and the whole is incomplete."""
+        system = fakesys.FakeSystem("fail2ban", **fakesys.fail2ban_jails(31))
+        doc = seccheck.scan(system)
+        f, j = doc["fail2ban"], {x["name"]: x for x in doc["fail2ban"]["jails"]}
+        self.assertEqual(len([c for c in system.calls if c.startswith("f2b-status-")]), seccheck.F2B_MAX_JAILS)
+        self.assertEqual((f["state"], f["incomplete"], f["findings"]), ("none", ["skipped"], []))
+        self.assertEqual((j["j31"]["running"], j["j31"]["state"], j["j31"]["skipped"], j["j31"]["failed_total"]),
+                         (True, "none", True, None))
+        self.assertNotIn("error", j["j31"])
+        self.assertEqual({n for n, x in j.items() if x["state"] == "ok"}, {f"j{i:02d}" for i in range(1, 31)})
+        self.assertEqual([n for n, x in j.items() if x.get("skipped")], ["j31"])
+        self.assertEqual((doc["sources"]["fail2ban"]["state"], doc["sources"]["fail2ban"]["missing"]),
+                         ("partial", "skipped"))
+        self.assertEqual(f["bans_total"], 3, "not every jail answered: the bans from the database")
+        # 30 jails: every one asked, nothing incomplete.
+        doc = seccheck.scan(fakesys.FakeSystem("fail2ban", **fakesys.fail2ban_jails(30)))
+        f = doc["fail2ban"]
+        self.assertEqual((f["state"], f["incomplete"], doc["sources"]["fail2ban"]["state"]), ("ok", [], "ok"))
+        self.assertFalse(any(x.get("skipped") for x in f["jails"]))
 
     def test_service_down_is_one_finding(self):
         """fail2ban not running: one finding for the whole, its jails simply do not run."""

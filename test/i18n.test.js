@@ -70,7 +70,7 @@ t("every key the page asks for exists", () => {
         "tab.": ["exposure", "ssh", "logins", "containers", "crowdsec", "fail2ban"],
         "f2b.": ["not-running", "unmanaged-bans", "persisted-chains", "input-only", "allports-input", "udp-open",
                  "log-missing", "log-idle", "no-match", "jail-not-running"],
-        "f2b.part.": ["ping", "config", "status", "jails"],
+        "f2b.part.": ["ping", "config", "status", "jails", "skipped"],
     };
     Object.entries(families).forEach(([prefix, keys]) => keys.forEach((k) => assert.ok(prefix + k in en, "missing: " + prefix + k)));
 });
