@@ -17,7 +17,6 @@ own.
 - **Links to a port:** `#/exposure/<port>-<proto>`, the link of a finding, opens the exposure tab,
   marks the port's row and brings it into view, also when the page is already open, and once it is
   shown when the link arrives while it is hidden.
-
 - **Docker not answering:** with Docker's socket there but no answer from its API, no published
   port was known, so the docker-proxy socket of a port Docker forwards past UFW was judged by UFW's
   input chain: "not reachable" instead of open. A socket of docker-proxy, or one on a port a DNAT
