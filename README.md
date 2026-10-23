@@ -38,10 +38,11 @@ The screenshots show a test scenario with documentation addresses; they come fro
 - [Architecture](#architecture)
 - [Security model](#security-model)
 - [Requirements](#requirements)
-- [Install](#install)
+- [Install, update, uninstall](#install-update-uninstall)
 - [The Hetzner Cloud Firewall](#the-hetzner-cloud-firewall)
 - [Marking a finding as expected](#marking-a-finding-as-expected)
 - [Operation and troubleshooting](#operation-and-troubleshooting)
+- [Translations](#translations)
 - [Development](#development)
 - [Releasing](#releasing)
 - [Known limits](#known-limits)
@@ -204,7 +205,7 @@ system by itself.
 | **Expected, untested** | Debian 12 and 13, Ubuntu 22.04 and newer, with Cockpit 264 or newer | the page in a real Cockpit there |
 | **Not supported yet** | Fedora, RHEL, openSUSE | firewalld's tables are followed like any other nft table, but not explained on their own; releases carry no `.rpm`, and the package repository serves the add-on for Debian and Ubuntu only |
 
-## Install
+## Install, update, uninstall
 
 From the Azentrius package repository (set up once, see
 [packages.azentrius.com](https://packages.azentrius.com)):
@@ -264,6 +265,9 @@ port 8080/tcp Rustdesk relay, reachable on purpose
 container forgejo-runner docker-socket The CI runner needs the socket
 ```
 
+Setting or removing a mark on the page keeps the previous version of the file next to it as
+`exposure.conf.bak` (0644, like the file itself).
+
 ## Operation and troubleshooting
 
 ```bash
@@ -277,6 +281,14 @@ systemctl list-timers cockpit-security-scan.timer               # the regular ch
 
 `sshd -T` fails when sshd is socket-activated and `/run/sshd` is missing; the SSH tab shows the one
 line for `tmpfiles.d` that fixes it.
+
+## Translations
+
+The page is in English and German (German addresses the user with "Sie"); it shows German when
+Cockpit uses German, otherwise English. The page's texts live in `plugin/i18n.js`, the status for
+the Status Board and the menu in `lib/secstatus.py`, the messages of `security.py` in its
+`say(de, en)` calls. `node test/i18n.test.js` checks that every text of the page exists in both
+languages with the same placeholders and plural shape, and that the English page has no German.
 
 ## Development
 
@@ -302,8 +314,8 @@ UFW, the jail as not reaching it, and the port as VPN only with a DOCKER-USER ru
 ## Releasing
 
 1. Set the new version in `plugin/security.js` (`const VERSION`) and in every `?v=` in
-   `plugin/index.html`, and turn what `CHANGELOG.md` collects as unreleased into a section
-   `## X.Y.Z – YYYY-MM-DD` (`tools/check-version.sh` checks that the three agree).
+   `plugin/index.html`, and add a section `## X.Y.Z – YYYY-MM-DD` to `CHANGELOG.md`
+   (`tools/check-version.sh` checks that the three agree).
 2. Merge to `main`.
 3. On GitHub: Actions › **release** › Run workflow (branch `main`). The workflow checks the version,
    waits for the test workflow of that commit to pass, runs the tests, builds the `.deb` and the
@@ -338,3 +350,5 @@ Apache-2.0, see [LICENSE](LICENSE). Third-party material (fonts, icons) is liste
 runtime, which Cockpit itself ships.
 
 Please report security issues privately, see [SECURITY.md](SECURITY.md).
+
+Made by [Azentrius](https://azentrius.com).
