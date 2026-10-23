@@ -6,7 +6,8 @@
  *   - the page calls only the fixed verbs of security.py, with administrative access only
  *     where it acts (scan, the timer, the marks); the menu icon reads status.json only,
  *     sends only its page status,
- *   - the manifest names the status verb as the status contract wants it.
+ *   - the manifest names the status verb as the status contract wants it,
+ *   - the menu entry sits with the other Azentrius add-ons and links the README.
  * Run with: node test/files.test.js */
 "use strict";
 const assert = require("assert");
@@ -92,6 +93,16 @@ t("the manifest names the status verb as the contract wants it", () => {
     assert.ok(/^\/usr\/lib\/cockpit-[a-z0-9][a-z0-9-]{0,40}(\/[A-Za-z0-9_][A-Za-z0-9._-]{0,80}){1,3}$/.test(cmd[0]));
     assert.strictEqual(m.requires.cockpit, "264");
     assert.ok(fs.existsSync(path.join(__dirname, "..", "lib", path.basename(cmd[0]))), "the verb ships in lib/");
+});
+
+t("the menu entry sits with the other Azentrius add-ons and links the README", () => {
+    const entry = JSON.parse(read("manifest.json")).menu.index;
+    // One block at the end of System, after Services (100): Status Board 101 to Host Settings 106.
+    assert.strictEqual(entry.order, 102);
+    assert.ok(entry.keywords.some((k) => k.matches.includes("azentrius")), "found by searching for azentrius");
+    // Shown in Cockpit's Help menu; the product name is not translated.
+    assert.deepStrictEqual(entry.docs,
+        [{ label: "Security Monitor", url: "https://github.com/Azentrius/cockpit-security-monitor#readme" }]);
 });
 
 t("the status module names the package folder", () => {
