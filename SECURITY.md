@@ -73,6 +73,7 @@ them holds an API token. Reports are particularly welcome for:
 - a port shown as not reachable that is reachable (a wrong "OK" is the worst finding this add-on
   can make), or a fail2ban ban shown as reaching a port it does not reach,
 - `/etc/cockpit-security-monitor/exposure.conf` being accepted when others than root can write it,
-  or "Mark as expected" writing anything else,
+  or "Mark as expected" writing anything but that file, its previous version `exposure.conf.bak`
+  (0644) and `status.json`,
 - the package `cockpit-security-monitor` (its install and removal scripts) or `make install`
   overwriting or exposing files it should not touch.
