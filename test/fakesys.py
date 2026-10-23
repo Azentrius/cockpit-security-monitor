@@ -11,7 +11,8 @@ test/fixtures/<scenario>/:
 
 Nothing touches the machine the tests run on. Unknown commands fail the test.
 Variants of the scenarios (a failing command, another answer of the Hetzner
-service, fail2ban cut down to one jail) are at the end, as keyword arguments."""
+service, fail2ban cut down to one jail or with many) are at the end, as keyword
+arguments."""
 
 import json
 import os
@@ -223,3 +224,19 @@ def fail2ban_quiet(results=None, files=None):
             "f2b-status": "Status\n|- Number of jail:\t1\n`- Jail list:\tsshd\n"}
     base.update(results or {})
     return {"results": base, "files": dict({"/etc/iptables/rules.v4": None}, **(files or {}))}
+
+
+def fail2ban_jails(n, results=None):
+    """fail2ban_quiet with `n` jails j01, j02, ... instead of sshd, each a copy of it (no
+    finding), all configured and running, each answering `status JAIL`. Keyword arguments for
+    FakeSystem("fail2ban", ...)."""
+    names = [f"j{i:02d}" for i in range(1, n + 1)]
+    lines = _fixture("fail2ban", "commands", "f2b-dump.txt").splitlines()
+    jail = [line for line in lines if "'sshd'" in line]
+    rest = [line for line in lines if not any(f"'{j}'" in line for j in F2B_OTHER_JAILS + ("sshd",))]
+    dump = "\n".join(rest + [line.replace("'sshd'", f"'{name}'") for name in names for line in jail]) + "\n"
+    answer = _fixture("fail2ban", "commands", "f2b-status-sshd.txt")
+    more = {"f2b-dump": dump, "f2b-status": f"Status\n|- Number of jail:\t{n}\n`- Jail list:\t{', '.join(names)}\n"}
+    more.update({"f2b-status-" + name: answer.replace("jail: sshd", "jail: " + name) for name in names})
+    more.update(results or {})
+    return fail2ban_quiet(more)

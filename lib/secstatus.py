@@ -48,6 +48,7 @@ T = {
         "exposure.norules": "the packet filter could not be read",
         "exposure.noaddrs": "the addresses could not be read",
         "exposure.nosockets": "the listening sockets could not be read",
+        "exposure.nodocker": "Docker could not be asked",
         "ssh.title": "SSH",
         "ssh.locked-keys": {"one": "{n} locked account can still log in with keys",
                             "other": "{n} locked accounts can still log in with keys"},
@@ -108,6 +109,7 @@ T = {
         "fail2ban.part.config": "the configuration",
         "fail2ban.part.status": "the running jails",
         "fail2ban.part.jails": {"one": "jail {names}", "other": "jails {names}"},
+        "fail2ban.part.skipped": {"one": "{n} jail beyond the first 30", "other": "{n} jails beyond the first 30"},
         "fail2ban.nohistory": "history of bans not readable",
         "scan.title": "Check",
         "scan.ok": "checked every 15 minutes when set up",
@@ -134,6 +136,7 @@ T = {
         "exposure.norules": "der Paketfilter ließ sich nicht lesen",
         "exposure.noaddrs": "die Adressen ließen sich nicht lesen",
         "exposure.nosockets": "die lauschenden Sockets ließen sich nicht lesen",
+        "exposure.nodocker": "Docker ließ sich nicht abfragen",
         "ssh.title": "SSH",
         "ssh.locked-keys": {"one": "{n} gesperrtes Konto kann sich per Schlüssel anmelden",
                             "other": "{n} gesperrte Konten können sich per Schlüssel anmelden"},
@@ -195,6 +198,8 @@ T = {
         "fail2ban.part.config": "die Konfiguration",
         "fail2ban.part.status": "die laufenden Jails",
         "fail2ban.part.jails": {"one": "Jail {names}", "other": "Jails {names}"},
+        "fail2ban.part.skipped": {"one": "{n} Jail über die ersten 30 hinaus",
+                                  "other": "{n} Jails über die ersten 30 hinaus"},
         "fail2ban.nohistory": "Verlauf der Sperren nicht lesbar",
         "scan.title": "Prüfung",
         "scan.ok": "alle 15 Minuten, wenn eingerichtet",
@@ -307,13 +312,16 @@ def items_of(doc, lang):
         def reached(p, result):
             return any(p["reach"][f]["internet"]["result"] == result for f in ("4", "6"))
 
-        # Without the addresses (which classes a socket receives from) or the sockets (which ports
-        # there are) the exposure is not assessable: never OK, and no "nothing reachable".
+        # Without the addresses (which classes a socket receives from), the sockets (which ports
+        # there are) or Docker's answer (which ports it publishes, also without a socket) the
+        # exposure is not assessable: never OK, and no "nothing reachable".
         missing = []
         if (src.get("ip") or {}).get("state") != "ok":
             missing.append(t(lang, "exposure.noaddrs"))
         if (src.get("ss") or {}).get("state") not in ("ok", "partial"):
             missing.append(t(lang, "exposure.nosockets"))
+        if (src.get("docker") or {}).get("state") in ("error", "needs-root"):
+            missing.append(t(lang, "exposure.nodocker"))
         # The figure counts what the whole internet reaches; ports only some addresses reach
         # (a country list, an allowed network) are named apart, so that they do not look as open.
         public = [p for p in ports if reached(p, "open")]
@@ -429,6 +437,8 @@ def items_of(doc, lang):
             if k == "jails":
                 bad = [str(j.get("name")) for j in fb.get("jails") or [] if j.get("error")]
                 unread.append(t(lang, "fail2ban.part.jails", n=len(bad), names=_names(bad, 3)))
+            elif k == "skipped":
+                unread.append(t(lang, "fail2ban.part.skipped", n=sum(1 for j in fb.get("jails") or [] if j.get("skipped"))))
             elif "fail2ban.part." + str(k) in T[lang]:
                 unread.append(t(lang, "fail2ban.part." + k))
         parts = []

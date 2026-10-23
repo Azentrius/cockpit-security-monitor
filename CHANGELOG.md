@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+What could not be read is never OK, also when Docker does not answer or fail2ban runs many jails.
+
+- **Docker not answering:** with Docker's socket there but no answer from its API, no published
+  port was known, so the docker-proxy socket of a port Docker forwards past UFW was judged by UFW's
+  input chain: "not reachable" instead of open. A socket of docker-proxy, or one on a port a DNAT
+  rule names, is now "Not assessable" from the internet, the VPN and the private network (reason
+  `no-docker`); this host is judged as before. A port whose VPN or private network reach is not
+  known is never "this host only". The overview says Docker could not be asked, and the status item
+  `exposure` starts with it and is "not checked" unless a port found is at least a note.
+- **More than 30 fail2ban jails:** only the first 30 are asked for their state, and the others
+  counted as OK without an answer. They are now "not checked" (`skipped`), fail2ban is incomplete
+  (`skipped` in `incomplete`), and the tab and the status item say how many were not asked.
+- Tests for both, with their counterparts: Docker answering, 30 jails.
+
 ## 0.3.1 – 2026-10-23
 
 What could not be read is never OK.

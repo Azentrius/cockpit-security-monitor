@@ -193,7 +193,11 @@ def scan(system=None):
                       "public": {str(f): bool(net[f]["internet"]) if addrs_ok else None for f in (4, 6)}}
     doc["firewall"] = fw
     rules_ok = src.items.get("rules", {}).get("state") == "ok"
-    doc["ports"] = assess_ports(rs if rules_ok else None, net, sockets or [], docker, hetzner, fw, addrs_ok)
+    # Docker answered, or is not there: what it publishes is known. Its socket without an answer
+    # (error, needs-root): a socket may be a port it publishes, whose mapping is not known.
+    docker_read = src.items.get("docker", {}).get("state") in ("ok", "missing")
+    doc["ports"] = assess_ports(rs if rules_ok else None, net, sockets or [], docker, hetzner, fw, addrs_ok,
+                                docker_read)
     doc["ssh"] = assess_ssh(sshd, keys)
     doc["logins"] = logins
     doc["containers"] = assess_containers(docker)
@@ -554,10 +558,12 @@ def _hz_port(spec, port):
 # ---------------------------------------------------------------------------
 # Ports: reach from each class and the assessment (spec 4.2)
 
-def assess_ports(rs, net, sockets, docker, hetzner, fw, addrs=True):
+def assess_ports(rs, net, sockets, docker, hetzner, fw, addrs=True, docker_read=True):
     """Every listening socket and published port with its reach and state.
     `addrs` False: `ip -j addr` failed, so the classes other than this host
-    are unknown for every socket not on the loopback."""
+    are unknown for every socket not on the loopback. `docker_read` False:
+    Docker did not answer, so a socket that may be a port it publishes is
+    unknown from the other classes (see port_reach)."""
     maps = docker_mappings(docker)
     keys = sorted({(s["proto"], s["port"]) for s in sockets} | {(m["proto"], m["host_port"]) for m in maps},
                   key=lambda k: (k[1], k[0]))
@@ -583,7 +589,7 @@ def assess_ports(rs, net, sockets, docker, hetzner, fw, addrs=True):
         binds = sorted({_bind_label(s) for s in socks} | {_map_label(m) for m in pm})
         reach = {}
         for fam in (4, 6):
-            reach[str(fam)] = port_reach(rs, net, fam, proto, port, socks, pm, hetzner, addrs)
+            reach[str(fam)] = port_reach(rs, net, fam, proto, port, socks, pm, hetzner, addrs, docker_read)
         p = {"id": f"{proto}-{port}", "proto": proto, "port": port, "name": name, "weight": weight,
              "service": service, "binds": binds, "reach": reach}
         p["state"], p["why"] = port_state(p, fw, hetzner)
@@ -639,12 +645,17 @@ def _loopback(addr):
         return False
 
 
-def port_reach(rs, net, fam, proto, port, socks, maps, hetzner, addrs=True):
+def port_reach(rs, net, fam, proto, port, socks, maps, hetzner, addrs=True, docker_read=True):
     """Per class: result, path (input or forward) and the decisive steps;
     for restricted also the step that stops the rest of the class. Without
     the addresses (`addrs` False) the internet, the VPN and the private
     network are unknown (reason no-addresses), except for a socket on the
-    loopback, which they never reach."""
+    loopback, which they never reach. When Docker did not answer
+    (`docker_read` False), a socket of docker-proxy, or one on a port a DNAT
+    rule names, may be a port Docker publishes: a new connection may be
+    forwarded to a container past the input rules, and where to is not
+    known. Those classes are then unknown (reason no-docker), never judged
+    by the input rules; this host is judged as before."""
     entries = []
     fam_maps = [m for m in maps if seclib.family(m["host_ip"]) == fam] if maps else []
     if maps:
@@ -658,9 +669,13 @@ def port_reach(rs, net, fam, proto, port, socks, maps, hetzner, addrs=True):
                 entries.append({"path": "input", "addr": s["addr"], "iface": s["iface"], "map": m,
                                 "proxy": True})
     else:
+        dnat = not docker_read and rs is not None and _dnat_names(rs, fam, proto, port)
         for s in socks:
             if fam in s["families"]:
-                entries.append({"path": "input", "addr": s["addr"], "iface": s["iface"]})
+                e = {"path": "input", "addr": s["addr"], "iface": s["iface"]}
+                if not docker_read and (dnat or any(p["name"] == "docker-proxy" for p in s["procs"])):
+                    e["no_docker"] = True
+                entries.append(e)
     out = {}
     if not entries:
         return {c: {"result": "absent"} for c in CLASSES}
@@ -678,6 +693,8 @@ def port_reach(rs, net, fam, proto, port, socks, maps, hetzner, addrs=True):
                 continue
             elif rs is None:
                 r = {"result": "unknown", "steps": [], "sources": [], "reason": "no-rules"}
+            elif e.get("no_docker") and c != "local":
+                r = {"result": "unknown", "steps": [], "sources": [], "reason": "no-docker"}
             elif c == "local" and e["path"] == "forward":
                 r = {"result": "open", "steps": [], "sources": [], "reason": "local-published"}
             else:
@@ -708,6 +725,13 @@ def port_reach(rs, net, fam, proto, port, socks, maps, hetzner, addrs=True):
     for c in CLASSES:
         _trim(out[c])
     return out
+
+
+def _dnat_names(rs, fam, proto, port):
+    """Whether a DNAT rule of the family names the port, as Docker writes one
+    for a port it publishes (whatever the destination address)."""
+    return any(d["family"] == fam and d["proto"] in (None, proto) and d["ports"]
+               and any(lo <= port <= hi for lo, hi in d["ports"]) for d in rs.dnat)
 
 
 def _trim(r):
@@ -762,7 +786,8 @@ def port_state(p, fw, hetzner):
     blocked = any(p["reach"][f]["internet"].get("hetzner", {}).get("result") == "blocks" for f in ("4", "6"))
     if blocked:
         return "ok", "hetzner"
-    others = [c for c in ("vpn", "private") if any(p["reach"][f][c]["result"] in ("open", "restricted")
+    # A class whose reach is not known may reach it: never "this host only" then.
+    others = [c for c in ("vpn", "private") if any(p["reach"][f][c]["result"] in ("open", "restricted", "unknown")
                                                    for f in ("4", "6"))]
     return "ok", ("only-" + "-".join(others)) if others else "local"
 
@@ -1078,8 +1103,9 @@ F2B_MAX_JAILS = 30
 F2B_HISTORY_DAYS = 14
 F2B_IDLE_DAYS = 3
 # What the assessment needs (a part missing leaves it "not checked", never OK), in this order;
-# "jails" stands for `status JAIL` failing for a jail. The database is optional: without it only
-# the history of bans is missing.
+# "jails" stands for `status JAIL` failing for a jail, "skipped" for running jails past the first
+# F2B_MAX_JAILS, which are not asked. The database is optional: without it only the history of
+# bans is missing.
 F2B_ESSENTIAL = ("ping", "config", "status")
 
 
@@ -1122,6 +1148,7 @@ def collect_fail2ban(system, src, root, now):
         if names is None:
             errors["status"] = _f2b_error(st)
         out["names"] = names
+        # At most F2B_MAX_JAILS jails are asked; the rest have no answer of their own.
         for name in (names or [])[:F2B_MAX_JAILS]:
             r = system.run([F2B_CLIENT, "status", name], 15)
             js = seclib.parse_f2b_jail_status(r.out) if r.ok else None
@@ -1157,7 +1184,7 @@ def collect_fail2ban(system, src, root, now):
     out["services"] = seclib.parse_services(system.read("/etc/services", 1 << 20))
     out["errors"] = errors
     missing = [k for k in F2B_ESSENTIAL if k in errors] + (["jails"] if out["jail_errors"] else []) + \
-        (["db"] if "db" in errors else [])
+        (["skipped"] if len(out["names"] or []) > F2B_MAX_JAILS else []) + (["db"] if "db" in errors else [])
     if not root and not out["running"]:
         src.note("fail2ban", "needs-root", t0)
     else:
@@ -1269,8 +1296,12 @@ def assess_fail2ban(f2b, docker, rs, ports, now):
     down = not f2b.get("running") and "ping" not in errors
     if down:
         findings.append({"code": "not-running", "state": "warning", "value": f2b.get("active")})
+    status = f2b.get("jails") or {}   # the answer of `status JAIL` for each jail that gave one
+    # Running jails that were not asked (past the first F2B_MAX_JAILS): no answer of their own.
+    skipped = [n for n in names or [] if n not in status and n not in jail_errors]
     # The essential parts that could not be read: what depends on them is "not checked".
-    incomplete = [k for k in F2B_ESSENTIAL if k in errors] + (["jails"] if jail_errors else [])
+    incomplete = [k for k in F2B_ESSENTIAL if k in errors] + (["jails"] if jail_errors else []) + \
+        (["skipped"] if skipped else [])
     cfg = f2b.get("config") or {"global": {}, "jails": {}}
     fwinfo = f2b_firewall(rs)
     internet = {(p.get("proto"), p.get("port")) for p in ports or [] if any(
@@ -1280,11 +1311,10 @@ def assess_fail2ban(f2b, docker, rs, ports, now):
     published = sorted({(m["proto"], m["host_port"]) for m in docker_mappings(docker)} & internet)
     udp_open = sorted(port for proto, port in internet if proto == "udp")
     services = f2b.get("services") or {}
-    status = f2b.get("jails") or {}   # the answer of `status JAIL` for each jail that gave one
     db = f2b.get("db") or {}
     db_ok = f2b.get("db") is not None
     # Every running jail answered: its lists say whom fail2ban holds as banned.
-    runtime = names is not None and not jail_errors and len(names) <= F2B_MAX_JAILS
+    runtime = names is not None and not jail_errors and not skipped
     now_ts = int(now.timestamp())
     known = set()
     for js in status.values():
@@ -1381,9 +1411,10 @@ def assess_fail2ban(f2b, docker, rs, ports, now):
         if names is not None and name not in names and name in cfg_jails:
             jf.insert(0, {"code": "jail-not-running", "state": "warning"})
         state = max((f["state"] for f in jf), key=ORDER.get, default="ok")
-        # OK only when it runs, answered, and its configuration was read; else not checked (a jail
-        # of a fail2ban that does not run has no finding of its own: the whole has one).
-        if (running is not True or name in jail_errors or f2b.get("config") is None) and ORDER[state] < ORDER["info"]:
+        # OK only when it runs, answered (failed or not asked: no answer), and its configuration was
+        # read; else not checked (a jail of a fail2ban that does not run has no finding of its own:
+        # the whole has one).
+        if (running is not True or name not in status or f2b.get("config") is None) and ORDER[state] < ORDER["info"]:
             state = "none"
         jail = {"name": name, "backend": backend, "logs": log_info,
                 "journal": js.get("journal") or " + ".join(jc.get("journalmatch") or []) or None,
@@ -1396,6 +1427,8 @@ def assess_fail2ban(f2b, docker, rs, ports, now):
                 "history": history.get(name), "findings": jf, "state": state}
         if name in jail_errors:
             jail["error"] = jail_errors[name]
+        if name in skipped:
+            jail["skipped"] = True
         jails.append(jail)
     out = {"installed": True, "version": f2b.get("version"), "active": f2b.get("active"),
            "running": f2b.get("running"), "since": since, "unit_file": f2b.get("unit_file"),

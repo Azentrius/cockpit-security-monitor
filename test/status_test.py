@@ -214,6 +214,27 @@ class Contract(unittest.TestCase):
         self.assertEqual(item(results={"ip-addr": lo_only}), ("ok", "0", "no public address"))
         self.assertEqual(item(meta={"exists": []}, results={"ss": ""}), ("ok", "0", "no port reachable from the internet"))
 
+    def test_docker_not_answering(self):
+        """Docker does not answer: 8080, which it forwards past UFW, is not assessable (it was "no
+        port" for it, as closed), and the detail says first that Docker could not be asked. Without a
+        port at info or above that is "not checked", never OK: a port Docker publishes without
+        docker-proxy has no socket and is not listed at all."""
+        def exposure(st, lang="en"):
+            st = secstatus.localize(st, lang, NOW)
+            self.assertEqual(secstatus.problems(st), [])
+            return next((i["state"], i.get("value"), i.get("detail")) for i in st["items"] if i["id"] == "exposure")
+        doc, system = make_states.state("ufw-docker", docker_error=TimeoutError("timed out"))
+        st = make_states.status(doc, system)
+        self.assertEqual(exposure(st), ("info", "4", "Docker could not be asked; 80/tcp http, 443/tcp https, 443/udp "
+                                                     "http3, 51820/udp wireguard; 1 port not assessable"))
+        self.assertTrue(exposure(st, "de")[2].startswith("Docker ließ sich nicht abfragen; 80/tcp http"))
+        self.assertTrue(exposure(st, "de")[2].endswith("; 1 Port nicht beurteilbar"))
+        doc["ports"] = [p for p in doc["ports"] if p["state"] in ("ok", "none")]
+        self.assertEqual(exposure(secstatus.status_file(doc, "0.1.0")),
+                         ("none", None, "Docker could not be asked; 1 port not assessable"))
+        doc, system = make_states.state("ufw-docker", meta={"exists": []})
+        self.assertNotIn("Docker", exposure(make_states.status(doc, system))[2], "no Docker at all: nothing to ask")
+
     def test_hetzner_rules_not_known(self):
         """A firewall missing from the API's answer protects nothing: the ports count as open
         (UFW is off there); a known empty list of rules blocks all."""
@@ -259,6 +280,14 @@ class Contract(unittest.TestCase):
                                               .splitlines() if "f2b-" not in x) + "\n"}
         self.assertEqual(item(results=stopped), ("warning", "3", "sshd: configured, but not running"))
         self.assertEqual(item("de", stopped), ("warning", "3", "sshd: eingerichtet, läuft aber nicht"))
+        # 31 quiet jails: the 31st is not asked, so fail2ban is not checked completely.
+        doc, system = make_states.state("fail2ban", **fakesys.fail2ban_jails(31))
+        st = make_states.status(doc, system)
+        f2b = {lang: next(i for i in secstatus.localize(st, lang, NOW)["items"] if i["id"] == "fail2ban")
+               for lang in ("en", "de")}
+        self.assertEqual((f2b["en"]["state"], f2b["en"]["detail"]),
+                         ("none", "not checked completely: 1 jail beyond the first 30; 31 jails, 3 bans"))
+        self.assertEqual(f2b["de"]["detail"], "nicht vollständig geprüft: 1 Jail über die ersten 30 hinaus; 31 Jails, 3 Sperren")
 
     def test_old_state(self):
         st = status("ufw-docker")

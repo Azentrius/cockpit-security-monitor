@@ -393,7 +393,7 @@ class PageTexts(unittest.TestCase):
         for code in warnings:
             for lang in ("en", "de"):
                 self.assertIn("fail2ban." + code, secstatus.T[lang], code)
-        for part in seccheck.F2B_ESSENTIAL + ("jails",):
+        for part in seccheck.F2B_ESSENTIAL + ("jails", "skipped"):
             self.assertEqual(page.count('"f2b.part.' + part + '"'), 2, part)
             for lang in ("en", "de"):
                 self.assertIn("fail2ban.part." + part, secstatus.T[lang], part)
