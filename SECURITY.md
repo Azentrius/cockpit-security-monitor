@@ -7,7 +7,7 @@ Please do **not** open a public issue for security problems.
 Report them privately through GitHub instead:
 [Report a vulnerability](https://github.com/Azentrius/cockpit-security-monitor/security/advisories/new)
 (tab **Security → Report a vulnerability** in this repository).
-If you cannot use GitHub, write to **support@azentrius.de**.
+If you cannot use GitHub, write to **support@azentrius.com**.
 
 Please include:
 
