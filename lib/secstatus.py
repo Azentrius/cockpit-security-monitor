@@ -10,6 +10,13 @@ The scan writes status.json (0644) next to state.json (0600): the English
 document plus the German texts under "i18n" (a field readers of schema 1
 ignore). Only numbers, states, ports, and names of services and containers:
 no addresses, no user names, no paths.
+
+Besides the items it sends the optional parts of the contract (`features`):
+`checks`, how each area went (read fully, in part, not at all, not there),
+and `findings` for the item `exposure`, one per port the internet reaches,
+whose `fid` (`port.<port>-<proto>`) stays the same in every language and on
+every run. When the scan first saw each of them is kept in state.json
+(`first_seen`, see first_seen()).
 """
 
 import os
@@ -25,6 +32,17 @@ ID_RE = re.compile(r"^[a-z0-9-]{1,40}$")
 LINK_RE = re.compile(r"^#/[A-Za-z0-9/_-]{0,80}$")
 MAX_NAMES = 5
 MAX_DETAIL = 200
+MAX_TITLE = 80
+# The optional parts of the contract ("Optional: checks, findings and a host's profile").
+FEATURES = ("checks", "findings")
+AREAS = ("exposure", "ssh", "logins", "containers", "crowdsec", "fail2ban")
+CHECK_STATES = ("checked", "partial", "failed", "unconfigured", "noaccess", "unsupported", "notapplicable")
+FID_RE = re.compile(r"^[a-z0-9][a-z0-9._:-]{0,63}$")
+EXPOSURES = ("internet", "restricted", "internal", "local")
+MAX_CHECKS = 50
+MAX_FINDINGS = 100      # per answer, over all items
+TIME_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+PORT_FID_RE = re.compile(r"^port\.\d{1,5}-(tcp|udp|sctp)$")
 PAGE_JS = (os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "plugin", "security.js"),
            "/usr/share/cockpit/security/security.js")
 
@@ -115,6 +133,27 @@ T = {
         "scan.ok": "checked every 15 minutes when set up",
         "scan.old": "the last check is older than an hour",
         "unchecked": "not checked",
+        # why a check is not "checked" (its reason)
+        "check.missing": "not checked yet",
+        "check.unreadable": "the last result could not be read",
+        "check.needsroot": "needs administrative access",
+        "check.incomplete": "not read completely",
+        "check.exposure.notool": "neither iptables-save nor nft is installed",
+        "check.exposure.somerules": "part of the packet filter could not be read",
+        "check.exposure.noprocs": "the processes behind the sockets could not be read",
+        "check.exposure.nohetzner": "the Hetzner Cloud Firewall could not be read",
+        "check.ssh.noserver": "no SSH server installed",
+        "check.ssh.noaccounts": "the accounts could not be read",
+        "check.ssh.otherkeys": "the keys of other accounts could not be read",
+        "check.logins.nojournal": "journalctl is not installed",
+        "check.logins.timeout": "the journal did not answer in time",
+        "check.logins.error": "the journal could not be read",
+        "check.logins.partial": "only part of the journal could be read",
+        "check.logins.truncated": "more than 100000 entries in the journal: not all read",
+        "check.containers.nodocker": "Docker is not installed",
+        "check.crowdsec.missing": "CrowdSec is not installed",
+        "check.crowdsec.partial": "cscli did not answer completely",
+        "check.fail2ban.missing": "fail2ban is not installed",
     },
     "de": {
         "summary.missing": "Noch nicht geprüft.",
@@ -205,6 +244,26 @@ T = {
         "scan.ok": "alle 15 Minuten, wenn eingerichtet",
         "scan.old": "die letzte Prüfung ist älter als eine Stunde",
         "unchecked": "nicht geprüft",
+        "check.missing": "noch nicht geprüft",
+        "check.unreadable": "das letzte Ergebnis ließ sich nicht lesen",
+        "check.needsroot": "braucht administrativen Zugriff",
+        "check.incomplete": "nicht vollständig gelesen",
+        "check.exposure.notool": "weder iptables-save noch nft ist installiert",
+        "check.exposure.somerules": "ein Teil des Paketfilters ließ sich nicht lesen",
+        "check.exposure.noprocs": "die Prozesse hinter den Sockets ließen sich nicht lesen",
+        "check.exposure.nohetzner": "die Hetzner Cloud Firewall ließ sich nicht lesen",
+        "check.ssh.noserver": "kein SSH-Server installiert",
+        "check.ssh.noaccounts": "die Konten ließen sich nicht lesen",
+        "check.ssh.otherkeys": "die Schlüssel anderer Konten ließen sich nicht lesen",
+        "check.logins.nojournal": "journalctl ist nicht installiert",
+        "check.logins.timeout": "das Journal antwortete nicht rechtzeitig",
+        "check.logins.error": "das Journal ließ sich nicht lesen",
+        "check.logins.partial": "nur ein Teil des Journals ließ sich lesen",
+        "check.logins.truncated": "mehr als 100000 Einträge im Journal: nicht alle gelesen",
+        "check.containers.nodocker": "Docker ist nicht installiert",
+        "check.crowdsec.missing": "CrowdSec ist nicht installiert",
+        "check.crowdsec.partial": "cscli antwortete nicht vollständig",
+        "check.fail2ban.missing": "fail2ban ist nicht installiert",
     },
 }
 
@@ -285,6 +344,20 @@ def _port_label(p):
     what = (p.get("service") or {}).get("containers") or (p.get("service") or {}).get("processes") or []
     name = p.get("name") or (what[0] if what else "")
     return f"{p['port']}/{p['proto']}" + (f" {name}" if name else "")
+
+
+def _f2b_unread(fb, lang):
+    """What fail2ban could not answer (its `incomplete`), as texts: no addresses, no paths."""
+    unread = []
+    for k in fb.get("incomplete") or []:
+        if k == "jails":
+            bad = [str(j.get("name")) for j in fb.get("jails") or [] if j.get("error")]
+            unread.append(t(lang, "fail2ban.part.jails", n=len(bad), names=_names(bad, 3)))
+        elif k == "skipped":
+            unread.append(t(lang, "fail2ban.part.skipped", n=sum(1 for j in fb.get("jails") or [] if j.get("skipped"))))
+        elif "fail2ban.part." + str(k) in T[lang]:
+            unread.append(t(lang, "fail2ban.part." + k))
+    return unread
 
 
 def items_of(doc, lang):
@@ -432,15 +505,7 @@ def items_of(doc, lang):
     # no addresses, no paths, no error messages
     fb = doc.get("fail2ban") or {}
     if fb.get("installed"):
-        unread = []
-        for k in fb.get("incomplete") or []:
-            if k == "jails":
-                bad = [str(j.get("name")) for j in fb.get("jails") or [] if j.get("error")]
-                unread.append(t(lang, "fail2ban.part.jails", n=len(bad), names=_names(bad, 3)))
-            elif k == "skipped":
-                unread.append(t(lang, "fail2ban.part.skipped", n=sum(1 for j in fb.get("jails") or [] if j.get("skipped"))))
-            elif "fail2ban.part." + str(k) in T[lang]:
-                unread.append(t(lang, "fail2ban.part." + k))
+        unread = _f2b_unread(fb, lang)
         parts = []
         for jail, f in [(None, f) for f in fb.get("findings") or []] + [
                 (j.get("name"), f) for j in fb.get("jails") or [] for f in j.get("findings") or []]:
@@ -467,8 +532,222 @@ def items_of(doc, lang):
     return out
 
 
+# ---------------------------------------------------------------------------
+# Checks: how each area went, from the scan's sources. "checked" only when
+# everything it rests on was read; what could not be read makes it "partial"
+# (or "failed" when nothing of it could), never "checked" (spec 4.4).
+
+def _base(p):
+    """A port's state before the marks (view() keeps it in base_state)."""
+    return p.get("base_state", p.get("state"))
+
+
+def _reached(p, result):
+    return any((((p.get("reach") or {}).get(f) or {}).get("internet") or {}).get("result") == result
+               for f in ("4", "6"))
+
+
+def check_exposure(doc, lang):
+    """(state, reasons) of the check `exposure`: the packet filter, the
+    addresses, the sockets and their processes, Docker's answer (its socket
+    there), the Hetzner Cloud Firewall (a token set), and every port assessed.
+    The marks change nothing here: a marked port that could not be assessed is
+    still not assessed."""
+    src = doc.get("sources") or {}
+    rules = src.get("rules") or {}
+    if rules.get("state") == "missing":
+        return "unsupported", [t(lang, "check.exposure.notool")]
+    why = []
+    if rules.get("state") != "ok":
+        why.append(t(lang, "exposure.norules"))
+    elif set(str(rules.get("partial") or "").split(",")) - {"", "missing"}:
+        # one of iptables-save, ip6tables-save, nft failed (a tool not installed is no gap)
+        why.append(t(lang, "check.exposure.somerules"))
+    if (src.get("ip") or {}).get("state") != "ok":
+        why.append(t(lang, "exposure.noaddrs"))
+    ss = src.get("ss") or {}
+    if ss.get("state") not in ("ok", "partial"):
+        why.append(t(lang, "exposure.nosockets"))
+    elif ss.get("state") == "partial" or ss.get("partial"):
+        why.append(t(lang, "check.exposure.noprocs"))
+    if (src.get("docker") or {}).get("state") in ("error", "needs-root", "timeout"):
+        why.append(t(lang, "exposure.nodocker"))
+    if (src.get("hetzner") or {}).get("state") in ("error", "partial", "timeout", "needs-root"):
+        why.append(t(lang, "check.exposure.nohetzner"))
+    unknown = sum(1 for p in doc.get("ports") or [] if _base(p) == "none")
+    if unknown:
+        why.append(t(lang, "exposure.unknown", n=unknown))
+    return ("partial" if why else "checked"), why
+
+
+def check_ssh(doc, lang):
+    src = doc.get("sources") or {}
+    sshd = (src.get("sshd") or {}).get("state")
+    keys = (src.get("keys") or {}).get("state")
+    if sshd == "missing":
+        return "notapplicable", [t(lang, "check.ssh.noserver")]
+    if sshd == "needs-root":
+        return "noaccess", [t(lang, "check.needsroot")]
+    why = []
+    if sshd != "ok":
+        reason = ((doc.get("ssh") or {}).get("sshd") or {}).get("reason")
+        why.append(t(lang, "ssh.privsep" if reason == "privsep-dir-missing" else "ssh.unchecked"))
+        if keys not in ("ok", "partial"):
+            return "failed", why + [t(lang, "check.ssh.noaccounts")]
+    if keys not in ("ok", "partial"):
+        why.append(t(lang, "check.ssh.noaccounts"))
+    elif keys == "partial":
+        why.append(t(lang, "check.ssh.otherkeys"))
+    return ("partial" if why else "checked"), why
+
+
+def check_logins(doc, lang):
+    journal = ((doc.get("sources") or {}).get("journal") or {}).get("state")
+    lg = doc.get("logins") or {}
+    if journal == "missing":
+        return "unsupported", [t(lang, "check.logins.nojournal")]
+    if journal == "needs-root":
+        return "noaccess", [t(lang, "check.needsroot")]
+    if journal == "timeout":
+        return "failed", [t(lang, "check.logins.timeout")]
+    if journal not in ("ok", "partial") or lg.get("state") != "ok":
+        return "failed", [t(lang, "check.logins.error")]
+    why = []
+    if journal == "partial":
+        why.append(t(lang, "check.logins.partial"))
+    if lg.get("truncated"):
+        why.append(t(lang, "check.logins.truncated"))
+    return ("partial" if why else "checked"), why
+
+
+def check_containers(doc, lang):
+    docker = ((doc.get("sources") or {}).get("docker") or {}).get("state")
+    if docker == "missing":
+        return "notapplicable", [t(lang, "check.containers.nodocker")]
+    if docker == "needs-root":
+        return "noaccess", [t(lang, "check.needsroot")]
+    if docker != "ok" or (doc.get("containers") or {}).get("state") != "ok":
+        return "failed", [t(lang, "exposure.nodocker")]
+    return "checked", []
+
+
+def check_crowdsec(doc, lang):
+    if not (doc.get("crowdsec") or {}).get("installed"):
+        return "notapplicable", [t(lang, "check.crowdsec.missing")]
+    state = ((doc.get("sources") or {}).get("crowdsec") or {}).get("state")
+    if state == "needs-root":
+        return "noaccess", [t(lang, "check.needsroot")]
+    if state != "ok":
+        return "partial", [t(lang, "check.crowdsec.partial")]
+    return "checked", []
+
+
+def check_fail2ban(doc, lang):
+    fb = doc.get("fail2ban") or {}
+    if not fb.get("installed"):
+        return "notapplicable", [t(lang, "check.fail2ban.missing")]
+    state = ((doc.get("sources") or {}).get("fail2ban") or {}).get("state")
+    if state == "needs-root":
+        return "noaccess", [t(lang, "check.needsroot")]
+    why = []
+    unread = _f2b_unread(fb, lang)
+    if unread:
+        why.append(t(lang, "fail2ban.incomplete", list=", ".join(unread)))
+    if (fb.get("errors") or {}).get("db"):
+        why.append(t(lang, "fail2ban.nohistory"))
+    if not why and state != "ok":
+        why.append(t(lang, "check.incomplete"))
+    return ("partial" if why else "checked"), why
+
+
+CHECKS = {"exposure": check_exposure, "ssh": check_ssh, "logins": check_logins, "containers": check_containers,
+          "crowdsec": check_crowdsec, "fail2ban": check_fail2ban}
+
+
+def checks_of(doc, lang, items):
+    """One check per area, in the order of AREAS: id and title as the item's,
+    `item` when the answer has that item, the time of the scan, and why it is
+    not "checked" (`reason`, cut to 200 characters)."""
+    at = doc.get("generated")
+    ids = {i["id"] for i in items}
+    out = []
+    for area in AREAS:
+        state, why = CHECKS[area](doc, lang)
+        c = {"id": area, "state": state, "title": t(lang, area + ".title")}
+        if area in ids:
+            c["item"] = area
+        if why and state != "checked":
+            c["reason"] = _clip("; ".join(why))
+        c["checked_at"] = at
+        c["stale_after"] = STALE_AFTER
+        out.append(c)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Findings of the item `exposure`: one per port the internet reaches.
+
+def port_fid(p):
+    """The finding's id: the rule and the port, never a text, a count, the
+    families or the addresses, so it is the same in every language and order."""
+    return f"port.{int(p['port'])}-{p['proto']}"
+
+
+def _title(text):
+    return text if len(text) <= MAX_TITLE else text[:MAX_TITLE - 2].rstrip() + " …"
+
+
+def findings_of(doc, complete):
+    """{complete, total, list} for the item `exposure`: every port at `info`
+    or above (the whole internet reaches it, or only some addresses), not
+    marked as expected; a port that could not be assessed is no finding (it
+    makes the check partial). The most severe first, at most MAX_FINDINGS;
+    `complete` only when the check is "checked" and every finding is listed."""
+    seen = doc.get("first_seen") if isinstance(doc.get("first_seen"), dict) else {}
+    found = [p for p in doc.get("ports") or [] if ORDER.get(p.get("state"), 0) >= ORDER["info"] and "expected" not in p]
+    found.sort(key=lambda p: (-ORDER[p["state"]], p["port"], p["proto"]))
+    out = []
+    for p in found[:MAX_FINDINGS]:
+        fid = port_fid(p)
+        f = {"fid": fid, "state": p["state"], "title": _title(_port_label(p))}
+        since = seen.get(fid)
+        if isinstance(since, str) and TIME_RE.match(since):
+            f["since"] = since
+        f["exposure"] = "internet" if _reached(p, "open") else "restricted"
+        f["link"] = f"#/exposure/{int(p['port'])}-{p['proto']}"
+        out.append(f)
+    return {"complete": bool(complete) and len(found) <= MAX_FINDINGS, "total": len(found), "list": out}
+
+
+def first_seen(doc, previous=None):
+    """When the scan first saw each port at `info` or above (before the marks,
+    so a mark taken back keeps its time): {fid: time}, for state.json. A port
+    still there keeps its time from `previous` (the map of the last state),
+    a new one gets the time of this scan. One that is gone is dropped, but
+    only when the check `exposure` is "checked": after a scan that could not
+    read everything, a port missing from it is not known to be gone, and its
+    time stays."""
+    at = doc.get("generated")
+    prev = {}
+    for k, v in (previous.items() if isinstance(previous, dict) else ()):
+        if isinstance(k, str) and PORT_FID_RE.match(k) and isinstance(v, str) and TIME_RE.match(v) \
+                and (not at or v <= at):
+            prev[k] = v
+    now = {port_fid(p) for p in doc.get("ports") or [] if ORDER.get(_base(p), 0) >= ORDER["info"]}
+    out = {fid: prev.get(fid, at) for fid in now}
+    if check_exposure(doc, "en")[0] != "checked":
+        for fid, v in prev.items():
+            out.setdefault(fid, v)
+    return dict(sorted(out.items()))
+
+
 def document(doc, lang, ver):
     items = items_of(doc, lang)
+    checks = checks_of(doc, lang, items)
+    exposure = next(c for c in checks if c["id"] == "exposure")
+    for i in items:
+        if i["id"] == "exposure":
+            i["findings"] = findings_of(doc, exposure["state"] == "checked")
     state = overall(items)
     found = [i for i in items if ORDER[i["state"]] >= ORDER["info"]]
     if found:
@@ -478,24 +757,33 @@ def document(doc, lang, ver):
     else:
         summary = t(lang, "summary.ok")
     return {"schema": SCHEMA, "addon": ADDON, "label": LABEL, "version": ver, "checked_at": doc.get("generated"),
-            "state": state, "summary": summary, "items": items}
+            "state": state, "summary": summary, "features": list(FEATURES), "checks": checks, "items": items}
 
 
 def none_document(lang, ver, why, checked_at=None):
+    """Nothing to show: never checked (`missing`: every check "unconfigured")
+    or status.json broken (`unreadable`: every check "failed")."""
     at = checked_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     item = {"id": "scan", "state": "none", "title": t(lang, why + ".title"), "detail": t(lang, why + ".detail"),
             "checked_at": at, "stale_after": STALE_AFTER}
+    state = "unconfigured" if why == "missing" else "failed"
+    checks = [{"id": a, "state": state, "title": t(lang, a + ".title"), "reason": t(lang, "check." + why)}
+              for a in AREAS]
     return {"schema": SCHEMA, "addon": ADDON, "label": LABEL, "version": ver, "checked_at": at,
-            "state": "none", "summary": t(lang, "summary." + why), "items": [item]}
+            "state": "none", "summary": t(lang, "summary." + why), "features": list(FEATURES), "checks": checks,
+            "items": [item]}
 
 
 def status_file(doc, ver):
     """What status.json holds: the English document, the German texts under
-    "i18n". `doc` is the view (marks applied)."""
+    "i18n" (summary, the titles and details of the items, the titles and
+    reasons of the checks; the titles of the findings are the same in both).
+    `doc` is the view (marks applied)."""
     en = document(doc, "en", ver)
     de = document(doc, "de", ver)
     en["i18n"] = {"de": {"summary": de["summary"],
                          "items": {i["id"]: {k: i[k] for k in ("title", "detail") if k in i} for i in de["items"]},
+                         "checks": {c["id"]: {k: c[k] for k in ("title", "reason") if k in c} for c in de["checks"]},
                          "scan_old": t("de", "scan.old")},
                   "en": {"scan_old": t("en", "scan.old")}}
     return en
@@ -516,6 +804,16 @@ def localize(status, lang, now=None):
             if k in ("title", "detail") and isinstance(v, str):
                 i[k] = v
         items.append(i)
+    if isinstance(status.get("checks"), list):
+        texts = tr.get("checks") if isinstance(tr.get("checks"), dict) and lang != "en" else {}
+        checks = []
+        for c in status["checks"]:
+            c = dict(c)
+            for k, v in (texts.get(c.get("id")) or {}).items():
+                if k in ("title", "reason") and isinstance(v, str):
+                    c[k] = v
+            checks.append(c)
+        out["checks"] = checks
     now = now or datetime.now(timezone.utc)
     try:
         at = datetime.strptime(str(status.get("checked_at")), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
@@ -567,4 +865,59 @@ def problems(status):
             out.append("length of " + repr(i.get("id")))
     if status.get("state") in ORDER and status.get("state") != overall(items):
         out.append("state does not follow the items")
+    return out + _problems_optional(status, [i for i in items if isinstance(i, dict)])
+
+
+def _text(v, n):
+    return isinstance(v, str) and 0 < len(v) <= n
+
+
+def _problems_optional(status, items):
+    """What breaks the optional parts (features, checks, findings)."""
+    out = []
+    feats = status.get("features")
+    if feats is not None and (not isinstance(feats, list) or not all(isinstance(f, str) for f in feats)):
+        out.append("features")
+    ids = {i.get("id") for i in items if isinstance(i.get("id"), str)}
+    checks = status.get("checks")
+    if checks is not None:
+        if not isinstance(checks, list) or len(checks) > MAX_CHECKS or not all(isinstance(c, dict) for c in checks):
+            return out + ["checks"]
+        cids = [c.get("id") for c in checks]
+        if len(cids) != len(set(map(str, cids))):
+            out.append("a check twice")
+        for c in checks:
+            if not ID_RE.match(str(c.get("id", ""))) or c.get("state") not in CHECK_STATES or \
+                    not _text(c.get("title"), MAX_TITLE):
+                out.append("check " + repr(c.get("id")))
+            stale = c.get("stale_after", 1)
+            if ("reason" in c and not _text(c["reason"], MAX_DETAIL)) or ("item" in c and str(c["item"]) not in ids) or \
+                    ("link" in c and not LINK_RE.match(str(c["link"]))) or \
+                    ("checked_at" in c and not isinstance(c["checked_at"], str)) or \
+                    not isinstance(stale, int) or isinstance(stale, bool):
+                out.append("fields of check " + repr(c.get("id")))
+    fids = []
+    for i in items:
+        if "findings" not in i:
+            continue
+        f = i["findings"]
+        lst = f.get("list") if isinstance(f, dict) else None
+        total = f.get("total") if isinstance(f, dict) else None
+        if not isinstance(f, dict) or not isinstance(f.get("complete"), bool) or not isinstance(lst, list) or \
+                not isinstance(total, int) or isinstance(total, bool) or total < len(lst):
+            out.append("findings of " + repr(i.get("id")))
+            continue
+        for x in lst:
+            if not isinstance(x, dict) or not FID_RE.match(str(x.get("fid", ""))) or x.get("state") not in ORDER or \
+                    not _text(x.get("title"), MAX_TITLE) or \
+                    ("since" in x and not (isinstance(x["since"], str) and TIME_RE.match(x["since"]))) or \
+                    ("exposure" in x and x["exposure"] not in EXPOSURES) or \
+                    ("link" in x and not LINK_RE.match(str(x["link"]))):
+                out.append("a finding of " + repr(i.get("id")))
+                continue
+            fids.append(x["fid"])
+    if len(fids) != len(set(fids)):
+        out.append("a fid twice")
+    if len(fids) > MAX_FINDINGS:
+        out.append("more than %d findings" % MAX_FINDINGS)
     return out

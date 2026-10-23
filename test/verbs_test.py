@@ -92,9 +92,14 @@ class Marks(unittest.TestCase):
         self.status = os.path.join(self.dir, "status.json")
         self.lock = os.path.join(self.dir, "marks.lock")
         doc, _ = make_states.state("ufw-docker")
+        doc["first_seen"]["port.8080-tcp"] = "2026-10-01T08:00:00Z"
         with open(self.state, "w", encoding="utf-8") as f:
             json.dump(doc, f)
         self.system = seccheck.System()
+
+    def findings(self):
+        with open(self.status, encoding="utf-8") as f:
+            return {x["fid"]: x for x in json.load(f)["items"][0]["findings"]["list"]}
 
     def mark(self, verb, rest):
         out, err = io.StringIO(), io.StringIO()
@@ -121,6 +126,7 @@ class Marks(unittest.TestCase):
                 st = json.load(f)
             self.assertEqual(st["items"][0]["state"], "info", "the status follows the mark at once")
             self.assertEqual(stat.S_IMODE(os.stat(self.status).st_mode), 0o644)
+            self.assertNotIn("port.8080-tcp", self.findings(), "a port marked as expected is no finding")
 
             rc, _, _ = self.mark("expect", ["container", "runner", "docker-socket", "--note", "CI needs it"])
             self.assertEqual(rc, 0)
@@ -131,6 +137,8 @@ class Marks(unittest.TestCase):
             rc, out, _ = self.mark("unexpect", ["port", "8080/tcp"])
             self.assertEqual((rc, out.strip()), (0, "Mark removed: 8080/tcp."))
             self.assertEqual(self.read()[0]["ports"], {})
+            self.assertEqual(self.findings()["port.8080-tcp"]["since"], "2026-10-01T08:00:00Z",
+                             "a finding again once the mark is gone, first seen when the state says")
             rc, out, _ = self.mark("unexpect", ["port", "8080/tcp"])
             self.assertEqual((rc, out.strip()), (0, "Not marked; nothing changed."))
 

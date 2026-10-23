@@ -743,6 +743,89 @@ test("a link that comes while the page is hidden: its tab once shown", async () 
     assert.match(text(r.d.getElementById("sm-sshd")), /PasswordAuthentication/i);
 });
 
+// The status links each finding to its port (#/exposure/<port>-<proto>, lib/secstatus.py).
+const marked = (d) => [...d.querySelectorAll("[aria-current]")].map((x) => x.id);
+const jump = (r, path) => { r.w.cockpit.location.path = path; r.listeners.locationchanged.forEach((f) => f()); };
+
+test("a link to a port in the open page: its tab, the row marked and brought into view once", async () => {
+    const r = boot({ location: ["ssh"] });
+    await settle();
+    assert.strictEqual(r.w.__scrolled, undefined, "a link to a tab scrolls to nothing");
+    jump(r, ["exposure", "8080-tcp"]);
+    assert.strictEqual(r.d.getElementById("sm-tab-exposure").hidden, false, "the exposure tab");
+    assert.strictEqual(r.d.getElementById("sm-tab-ssh").hidden, true);
+    assert.strictEqual(r.w.__scrolled, "sm-port-tcp-8080", "the row in view");
+    const row = r.d.getElementById("sm-port-tcp-8080");
+    same(marked(r.d), ["sm-port-tcp-8080"], "only that row is marked");
+    assert.strictEqual(row.getAttribute("aria-current"), "location");
+    assert.ok(row.querySelector("details").open, "its reasons unfolded");
+    same(r.calls.go, [], "following a link changes no location");
+    // A new status.json: the page loads again, keeps the mark and does not scroll again.
+    r.w.__scrolled = null;
+    r.watchers.find((x) => x.p === STATUS_FILE && x.json).cb(null, "tag-2");
+    await settle();
+    same(verbs(r.calls), ["show", "show"]);
+    assert.strictEqual(r.w.__scrolled, null, "once per link");
+    same(marked(r.d), ["sm-port-tcp-8080"], "still marked after the reload");
+    jump(r, ["exposure", "443-udp"]);
+    assert.strictEqual(r.w.__scrolled, "sm-port-udp-443", "another port of the same tab");
+    same(marked(r.d), ["sm-port-udp-443"]);
+    // A tab chosen on the page goes into the location; the mark ends with it.
+    r.d.getElementById("sm-tab-btn-containers").click();
+    same(r.calls.go[r.calls.go.length - 1], ["containers"]);
+    same(marked(r.d), []);
+    assert.strictEqual(r.d.getElementById("sm-tab-containers").hidden, false);
+    // The same link once more (a second click on the board): there again.
+    r.w.__scrolled = null;
+    jump(r, ["exposure", "443-udp"]);
+    assert.strictEqual(r.w.__scrolled, "sm-port-udp-443");
+    assert.strictEqual(r.d.getElementById("sm-tab-exposure").hidden, false);
+    // A port that is not there, a wrong one, or none: the tab, nothing marked, nothing to scroll to.
+    for (const path of [["exposure", "9-tcp"], ["exposure", "8080-icmp"], ["exposure", "8080-tcp-x"], ["exposure", "x"], ["exposure"]]) {
+        r.w.__scrolled = null;
+        jump(r, ["logins"]);
+        jump(r, path);
+        assert.strictEqual(r.d.getElementById("sm-tab-exposure").hidden, false, path.join("/"));
+        assert.strictEqual(r.w.__scrolled, null, path.join("/"));
+        same(marked(r.d), [], path.join("/"));
+    }
+    jump(r, ["nonsense", "8080-tcp"]);
+    assert.strictEqual(r.d.getElementById("sm-tab-exposure").hidden, false, "an unknown place changes nothing");
+});
+
+test("a link to a port when the page opens with it", async () => {
+    const r = boot({ location: ["exposure", "51820-udp"] });
+    assert.strictEqual(r.w.__scrolled, undefined, "no rows yet");
+    await settle();
+    assert.strictEqual(r.w.__scrolled, "sm-port-udp-51820", "once the rows are there");
+    same(marked(r.d), ["sm-port-udp-51820"]);
+});
+
+test("a link to a port while the page is hidden: brought into view once it is shown", async () => {
+    // Preloaded, never shown: the page has not started yet.
+    const r = boot({ hidden: true });
+    await settle();
+    jump(r, ["exposure", "8080-tcp"]);
+    assert.strictEqual(r.w.__scrolled, undefined, "hidden: no scrolling, the place is kept");
+    r.hint(false);
+    await settle();
+    assert.strictEqual(r.w.__scrolled, "sm-port-tcp-8080");
+    same(marked(r.d), ["sm-port-tcp-8080"]);
+    // Shown before, the user went elsewhere in Cockpit: the link comes while the frame is hidden.
+    r.hint(true);
+    r.w.__scrolled = null;
+    jump(r, ["exposure", "443-tcp"]);
+    assert.strictEqual(r.d.getElementById("sm-tab-exposure").hidden, false);
+    same(marked(r.d), ["sm-port-tcp-443"], "marked at once");
+    assert.strictEqual(r.w.__scrolled, null, "but not scrolled while hidden");
+    r.hint(false);
+    assert.strictEqual(r.w.__scrolled, "sm-port-tcp-443", "scrolled when shown");
+    r.w.__scrolled = null;
+    r.hint(true);
+    r.hint(false);
+    assert.strictEqual(r.w.__scrolled, null, "shown again: not again");
+});
+
 (async () => {
     let failed = 0;
     for (const { name, fn } of tests) {

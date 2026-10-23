@@ -6,6 +6,60 @@
  "checked_at": "2026-10-20T12:00:00Z",
  "state": "danger",
  "summary": "Findings in 3 areas: Reachable from the internet, SSH, Container hardening.",
+ "features": [
+  "checks",
+  "findings"
+ ],
+ "checks": [
+  {
+   "id": "exposure",
+   "state": "checked",
+   "title": "Reachable from the internet",
+   "item": "exposure",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "ssh",
+   "state": "checked",
+   "title": "SSH",
+   "item": "ssh",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "logins",
+   "state": "checked",
+   "title": "Logins",
+   "item": "logins",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "containers",
+   "state": "checked",
+   "title": "Container hardening",
+   "item": "containers",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "crowdsec",
+   "state": "notapplicable",
+   "title": "CrowdSec",
+   "reason": "CrowdSec is not installed",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  },
+  {
+   "id": "fail2ban",
+   "state": "notapplicable",
+   "title": "fail2ban",
+   "reason": "fail2ban is not installed",
+   "checked_at": "2026-10-20T12:00:00Z",
+   "stale_after": 3600
+  }
+ ],
  "items": [
   {
    "id": "exposure",
@@ -15,7 +69,29 @@
    "detail": "80/tcp http, 443/tcp https",
    "link": "#/exposure",
    "checked_at": "2026-10-20T12:00:00Z",
-   "stale_after": 3600
+   "stale_after": 3600,
+   "findings": {
+    "complete": true,
+    "total": 2,
+    "list": [
+     {
+      "fid": "port.80-tcp",
+      "state": "info",
+      "title": "80/tcp http",
+      "since": "2026-10-20T12:00:00Z",
+      "exposure": "internet",
+      "link": "#/exposure/80-tcp"
+     },
+     {
+      "fid": "port.443-tcp",
+      "state": "info",
+      "title": "443/tcp https",
+      "since": "2026-10-20T12:00:00Z",
+      "exposure": "internet",
+      "link": "#/exposure/443-tcp"
+     }
+    ]
+   }
   },
   {
    "id": "ssh",
@@ -76,6 +152,28 @@
     "scan": {
      "title": "Prüfung",
      "detail": "alle 15 Minuten, wenn eingerichtet"
+    }
+   },
+   "checks": {
+    "exposure": {
+     "title": "Aus dem Internet erreichbar"
+    },
+    "ssh": {
+     "title": "SSH"
+    },
+    "logins": {
+     "title": "Anmeldungen"
+    },
+    "containers": {
+     "title": "Container-Härtung"
+    },
+    "crowdsec": {
+     "title": "CrowdSec",
+     "reason": "CrowdSec ist nicht installiert"
+    },
+    "fail2ban": {
+     "title": "fail2ban",
+     "reason": "fail2ban ist nicht installiert"
     }
    },
    "scan_old": "die letzte Prüfung ist älter als eine Stunde"

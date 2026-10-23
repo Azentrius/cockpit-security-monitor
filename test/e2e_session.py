@@ -17,7 +17,8 @@ Playwright drives Chromium through Cockpit's own login and shell. Spec 4.7:
      protect container ports", its banned address listed (stage 2a); a
      socket-activated sshd without /run/sshd is "not checkable" with the fix
      the page names (decision 9.6), and that fix is then applied;
-  3. the status for the Status Board, as a user without sudo;
+  3. the status for the Status Board, as a user without sudo, with 8080/tcp
+     as a finding of its own (fid, link, first sighting) and a check per area;
   4. 8080/tcp marked as expected from the page, then the mark removed: only
      /etc/cockpit-security-monitor/exposure.conf changes;
   5. a DOCKER-USER rule, "Refresh": 8080/tcp is "VPN only", and sshd -T is read;
@@ -25,8 +26,9 @@ Playwright drives Chromium through Cockpit's own login and shell. Spec 4.7:
   7. a user without administrative access (German browser): the menu icon in
      German before the page is opened, then the summary only;
   8. a link #/ssh opens the SSH tab with the configuration; cockpit.jump to
-     another tab while the page is shown and into it while it is hidden,
-     without loading it again;
+     another tab while the page is shown, to the row of 8080/tcp
+     (#/exposure/8080-tcp, the link of its finding) while it is shown, and
+     into another tab while it is hidden, without loading it again;
   9. no JavaScript error and no failed request of the add-on's files, and no
      error of another kind than the baseline's.
 
@@ -357,6 +359,18 @@ def main():
              st.get("schema") == 1 and st.get("version") == E["NEW_VERSION"] and ex.get("state") == "warning"
              and "8080/tcp" in ex.get("detail", "") and ex.get("title") == "Aus dem Internet erreichbar",
              f"{st.get('state')}: {ex}"[:300])
+        found = (ex.get("findings") or {})
+        f8080 = next((f for f in found.get("list") or [] if f.get("fid") == "port.8080-tcp"), {})
+        checks = {c.get("id"): c for c in st.get("checks") or []}
+        cx = checks.get("exposure") or {}
+        note("the status names 8080/tcp as a finding of its own, and how each check went",
+             st.get("features") == ["checks", "findings"] and f8080.get("state") in ("warning", "danger")
+             and f8080.get("exposure") == "internet" and f8080.get("link") == "#/exposure/8080-tcp"
+             and bool(f8080.get("since")) and list(checks) == ["exposure", "ssh", "logins", "containers", "crowdsec",
+                                                              "fail2ban"]
+             and cx.get("title") == "Aus dem Internet erreichbar" and found.get("complete") == (cx.get("state") == "checked")
+             and (checks.get("fail2ban") or {}).get("state") in ("checked", "partial"),
+             f"{f8080}; " + ", ".join(f"{k} {v.get('state')}" for k, v in checks.items()))
 
         # 4. Mark as expected, then remove the mark.
         before = root("sh", "-c", f"ls -la /etc/cockpit-security-monitor; cat {MARKS} 2>/dev/null || true")
@@ -446,6 +460,18 @@ def main():
 
         own.evaluate("p => cockpit.jump(p)", "/security#/logins")
         at_tab("logins", "while the page is shown (cockpit.jump)")
+        # The link of a finding: the exposure tab, the port's row marked and brought into view.
+        own.evaluate("p => cockpit.jump(p)", "/security#/exposure/8080-tcp")
+        ok = poll(page, lambda: page.url.endswith("/security#/exposure/8080-tcp")
+                  and frame.locator("#sm-tab-exposure").is_visible()
+                  and port_row(frame).get_attribute("aria-current") == "location", 30)
+        in_view = own.evaluate("() => { const r = document.getElementById('sm-port-tcp-8080').getBoundingClientRect();"
+                               " return r.top >= 0 && r.top < window.innerHeight; }")
+        kept = own.evaluate("() => window.smNotReloaded === true")
+        note("a link to a port while the page is shown: the exposure tab, the row of 8080/tcp marked and in view",
+             bool(ok) and in_view and kept, f"{page.url.split('9090', 1)[-1]}, in view {in_view}, "
+                                            f"{'not loaded again' if kept else 'loaded again'}")
+        shot(page, "port-link")
         own.evaluate("p => cockpit.jump(p)", "/system")
         poll(page, lambda: not page.locator(FRAME).is_visible(), 30)
         system = next((f for f in page.frames if f.name.endswith("/system")), own)
