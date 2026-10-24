@@ -108,7 +108,8 @@ fail2ban and its jails, and lifting bans from the page, follow in a later versio
   service and the four classes. "Details" under the assessment names the binding, Docker's DNAT,
   and the rule or policy that decided per class.
 - **SSH, Logins, Containers, CrowdSec, fail2ban:** one tab each (CrowdSec and fail2ban only when
-  installed). Links like `#/ssh` open a tab, as the Status Board does.
+  installed). Links like `#/ssh` open a tab, as the Status Board does; `#/exposure/8080-tcp`, the
+  link of a finding in the status, marks that port's row and brings it into view.
 - **fail2ban:** the service, its version, the bans now and in 14 days, how long fail2ban keeps its
   history (`dbpurgeage`) and the findings for the whole; every jail with what it reads, where its
   ban takes effect (and whether the packet filter shows it there), its ports, counters, rules and

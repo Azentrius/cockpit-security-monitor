@@ -3,7 +3,20 @@
 ## Unreleased
 
 What could not be read is never OK, also when Docker does not answer or fail2ban runs many jails.
+The status says how each check went and names every port the internet reaches as a finding of its
+own.
 
+- **Checks and findings in the status:** the status for the Status Board now sends the optional
+  parts of the status contract (`features`). `checks` says for each area how its check went:
+  `checked` only when everything it rests on was read, else `partial`, `failed`, `unconfigured`,
+  `unsupported`, `notapplicable` or `noaccess`, with the reason in the language asked for. The item
+  `exposure` lists each port the internet reaches as a finding with a `fid` that never changes
+  (`port.5432-tcp`), so a second open port is told apart from the first. A port marked as expected
+  is no finding; a port that cannot be assessed makes the check `partial` and the list incomplete.
+  state.json keeps when the scan first saw each port (`first_seen`); the status gives it as `since`.
+- **Links to a port:** `#/exposure/<port>-<proto>`, the link of a finding, opens the exposure tab,
+  marks the port's row and brings it into view, also when the page is already open, and once it is
+  shown when the link arrives while it is hidden.
 - **Docker not answering:** with Docker's socket there but no answer from its API, no published
   port was known, so the docker-proxy socket of a port Docker forwards past UFW was judged by UFW's
   input chain: "not reachable" instead of open. A socket of docker-proxy, or one on a port a DNAT

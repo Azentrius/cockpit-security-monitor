@@ -8,7 +8,10 @@
                                     0600, the status of the add-on (status
                                     contract, no addresses or user names)
                                     with mode 0644
-                                    (cockpit-security-scan.service, as root)
+                                    (cockpit-security-scan.service, as root);
+                                    when each port the internet reaches was
+                                    first seen is taken over from the
+                                    previous state in FILE
 
 Only reads: listings of the packet filter, the sockets and the addresses,
 `sshd -T`, the journal, Docker's API with GET, cscli. No change to the
@@ -54,6 +57,17 @@ def write_atomic(path, doc, mode):
         raise
 
 
+def previous_state(path):
+    """The last state (or None): what it keeps over scans (`first_seen`) is
+    carried over. Read under the lock, before the new state replaces it."""
+    try:
+        with open(path, "rb") as f:
+            doc = json.loads(f.read(64 << 20).decode("utf-8"))
+    except (OSError, ValueError):
+        return None
+    return doc if isinstance(doc, dict) else None
+
+
 def lock():
     if os.geteuid() != 0:
         return None
@@ -77,7 +91,7 @@ def main(argv, system=None):
     held = lock()
     system = system or seccheck.System()
     try:
-        doc = seccheck.scan(system)
+        doc = seccheck.scan(system, previous_state(args.output) if args.output else None)
     except Exception as e:  # noqa: BLE001 - the previous state stays as it is
         print(f"scan failed: {type(e).__name__}: {e}", file=sys.stderr)
         return 1

@@ -865,6 +865,44 @@ class ScanScript(unittest.TestCase):
         self.assertEqual(sorted(set(os.listdir(d)) - {"scan.lock"}), ["state.json", "status.json"],
                          "no temporary file left (the lock exists only as root)")
 
+    def test_first_seen_over_two_runs(self):
+        """The second run takes over when each port was first seen from the state the first wrote;
+        the status names that time as `since`. A port gone in a complete check loses it."""
+        import importlib.util
+        import io
+        import stat as st
+        import tempfile
+        from contextlib import redirect_stdout
+        lib = os.path.join(HERE, "..", "lib")
+        spec = importlib.util.spec_from_file_location("security_scan", os.path.join(lib, "security-scan.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        d = tempfile.mkdtemp()
+        mod.LOCK = os.path.join(d, "scan.lock")
+        out, status = os.path.join(d, "state.json"), os.path.join(d, "status.json")
+
+        def run(now, **kw):
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(mod.main(["--output", out, "--status", status],
+                                          system=fakesys.FakeSystem("ufw-docker", meta={"now": now}, **kw)), 0)
+            with open(out, encoding="utf-8") as f, open(status, encoding="utf-8") as g:
+                return json.load(f), json.load(g)
+        state1, _ = run("2026-10-20T12:00:00Z")
+        state2, status2 = run("2026-10-20T12:15:00Z")
+        self.assertEqual(st.S_IMODE(os.stat(out).st_mode), 0o600)
+        self.assertEqual(state2["generated"], "2026-10-20T12:15:00Z")
+        self.assertEqual(state2["first_seen"], state1["first_seen"])
+        self.assertEqual(set(state2["first_seen"].values()), {"2026-10-20T12:00:00Z"})
+        since = {f["fid"]: f["since"] for f in status2["items"][0]["findings"]["list"]}
+        self.assertEqual(since["port.8080-tcp"], "2026-10-20T12:00:00Z")
+        vpn_only = fixture("ufw-docker", "commands", "iptables-save.txt").replace(
+            "-A DOCKER -d 172.17.0.2/32",
+            "-A DOCKER-USER -o docker0 -m conntrack --ctstate NEW ! -s 10.8.0.0/24 -j DROP\n-A DOCKER -d 172.17.0.2/32", 1)
+        state3, status3 = run("2026-10-20T12:30:00Z", results={"iptables-save": vpn_only})
+        self.assertNotIn("port.8080-tcp", state3["first_seen"])
+        self.assertNotIn("port.8080-tcp", [f["fid"] for f in status3["items"][0]["findings"]["list"]])
+        self.assertEqual(state3["first_seen"]["port.80-tcp"], "2026-10-20T12:00:00Z")
+
 
 class Fixtures(unittest.TestCase):
     def test_state_and_status_files_current(self):

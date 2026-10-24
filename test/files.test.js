@@ -111,6 +111,35 @@ t("the status module names the package folder", () => {
     assert.ok(py.includes('"/usr/share/cockpit/security/security.js"'));
 });
 
+t("every link of the status is a place the page follows", () => {
+    // The page's pattern for a port (#/exposure/<port>-<proto>) and the id of a port's row.
+    const m = js.match(/const PORT_PLACE = (\/.*\/);/);
+    assert.ok(m, "PORT_PLACE in security.js");
+    const place = new RegExp(m[1].slice(1, -1));
+    assert.ok(js.includes('id: "sm-port-" + p.proto + "-" + p.port'), "rows are sm-port-<proto>-<port>");
+    assert.ok(js.includes('"sm-port-" + m[2] + "-" + Number(m[1])'), "a link names the row the same way");
+    assert.ok(js.includes('cockpit.addEventListener("locationchanged", onLocation)'), "followed while the page is open");
+    assert.ok(js.includes('cockpit.addEventListener("visibilitychange", goToPlace)'), "scrolled once shown");
+    const tabs = JSON.parse(js.match(/const TABS = (\[[^\]]*\]);/)[1]);
+    const fix = path.join(__dirname, "fixtures");
+    let ports = 0;
+    fs.readdirSync(fix).filter((f) => /^status-.*\.json$/.test(f)).forEach((f) => {
+        const st = JSON.parse(fs.readFileSync(path.join(fix, f), "utf8"));
+        const links = st.items.map((i) => i.link).concat(...st.items.map((i) => ((i.findings || {}).list || []).map((x) => x.link)));
+        links.filter(Boolean).forEach((link) => {
+            const parts = link.replace(/^#\//, "").split("/");
+            assert.ok(tabs.includes(parts[0]), f + ": " + link + " names a tab");
+            if (parts.length > 1) {
+                const p = place.exec(parts[1]);
+                assert.ok(parts[0] === "exposure" && parts.length === 2 && p, f + ": " + link);
+                assert.ok(st.items[0].findings.list.some((x) => x.fid === "port." + p[1] + "-" + p[2] && x.link === link), f + ": " + link);
+                ports++;
+            }
+        });
+    });
+    assert.ok(ports > 20, "the fixtures link findings to ports");
+});
+
 t("the label classes exist in azentrius.css", () => {
     const css = read("azentrius.css");
     [...js.matchAll(/"az-label(?: az-label--([a-z]+))?"/g)].forEach((m) => {

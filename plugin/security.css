@@ -83,6 +83,9 @@ html { background: var(--bg-page); }
 .az-table td > .sm-v { display: block; min-width: 0; overflow-wrap: anywhere; }
 .sm-v > .az-cell-sub, .sm-v > .sm-sub { display: block; }
 .az-table td .az-label + .az-cell-sub { margin-block-start: 2px; }
+/* The port a link names (#/exposure/<port>-<proto>): the background of a row under the pointer. */
+.sm-ports-table tbody tr { scroll-margin-block-start: var(--space-lg); }
+.sm-ports-table tbody tr[aria-current="location"] { background: var(--bg-hover); }
 .sm-reach { white-space: nowrap; }
 .sm-reach--open { font-weight: 600; }
 .sm-reach--absent { color: var(--text-subtle); }

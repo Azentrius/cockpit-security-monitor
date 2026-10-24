@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 import secfw
 import seclib
 import secproc
+import secstatus
 
 FORMAT = 1
 NET = ipaddress.ip_network
@@ -160,7 +161,9 @@ class Sources:
 # ---------------------------------------------------------------------------
 # The scan
 
-def scan(system=None):
+def scan(system=None, previous=None):
+    """The state of this host. `previous`: the last state (or None), whose
+    `first_seen` is carried over (secstatus.first_seen)."""
     system = system or System()
     t_start = time.monotonic()
     now = system.now()
@@ -204,6 +207,8 @@ def scan(system=None):
     doc["crowdsec"] = assess_crowdsec(crowd, docker, rs if rules_ok else None)
     doc["fail2ban"] = assess_fail2ban(f2b, docker, rs if rules_ok else None, doc["ports"], now)
     doc["sources"] = src.items
+    # When each port the internet reaches was first seen: kept from the last state.
+    doc["first_seen"] = secstatus.first_seen(doc, previous.get("first_seen") if isinstance(previous, dict) else None)
     doc["took_ms"] = int((time.monotonic() - t_start) * 1000)
     return doc
 

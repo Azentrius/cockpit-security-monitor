@@ -52,6 +52,11 @@ def texts(doc):
     for i in doc["items"]:
         for k in ("title", "detail", "value"):
             yield i.get(k) or ""
+        for f in (i.get("findings") or {}).get("list") or []:
+            yield f["title"]
+    for c in doc.get("checks") or []:
+        yield c["title"]
+        yield c.get("reason") or ""
 
 
 def call(argv, path, now=NOW):
@@ -311,6 +316,319 @@ class Contract(unittest.TestCase):
         self.assertTrue(any(x.startswith("length") for x in p))
 
 
+def checks(st, lang="en"):
+    return {c["id"]: c for c in secstatus.localize(st, lang, NOW)["checks"]}
+
+
+def exposure_findings(st):
+    return next(i for i in st["items"] if i["id"] == "exposure")["findings"]
+
+
+def fids(st):
+    return [f["fid"] for f in exposure_findings(st)["list"]]
+
+
+def make_danger(doc, port, proto="tcp"):
+    """The port as a database port open to the whole internet (danger)."""
+    p = next(x for x in doc["ports"] if x["port"] == port and x["proto"] == proto)
+    p["reach"]["4"]["internet"]["result"] = "open"
+    p["state"], p["why"] = "danger", "public-danger"
+    return p
+
+
+class Extension(unittest.TestCase):
+    """The optional parts of the contract: `features`, a check per area, the findings of the
+    item `exposure` with a `fid` per port, and when each was first seen."""
+
+    def test_parts_of_every_scenario(self):
+        for s in make_states.SCENARIOS:
+            st = status(s)
+            self.assertEqual(st["features"], ["checks", "findings"], s)
+            self.assertEqual([c["id"] for c in st["checks"]], list(secstatus.AREAS), s)
+            items = {i["id"] for i in st["items"]}
+            for c in st["checks"]:
+                self.assertIn(c["state"], secstatus.CHECK_STATES)
+                self.assertEqual(c["title"], secstatus.t("en", c["id"] + ".title"), "the item's title")
+                self.assertEqual(c.get("item"), c["id"] if c["id"] in items else None, (s, c))
+                self.assertEqual((c["checked_at"], c["stale_after"]), (st["checked_at"], 3600))
+                self.assertEqual("reason" in c, c["state"] != "checked", (s, c))
+            fx = exposure_findings(st)
+            self.assertEqual((fx["complete"], fx["total"]), (True, len(fx["list"])), s)
+            for f in fx["list"]:
+                port, proto = f["fid"][len("port."):].split("-")
+                self.assertRegex(f["fid"], r"^port\.\d{1,5}-(tcp|udp)$")
+                self.assertTrue(f["title"].startswith(f"{port}/{proto}"), f)
+                self.assertEqual(f["link"], f"#/exposure/{port}-{proto}")
+                self.assertIn(f["exposure"], ("internet", "restricted"))
+                self.assertIn(f["state"], ("info", "warning", "danger"))
+                self.assertEqual(f["since"], st["checked_at"], "first seen in this scan")
+        self.assertEqual({c["id"]: c["state"] for c in status("nft-native")["checks"]},
+                         {"exposure": "checked", "ssh": "partial", "logins": "checked", "containers": "checked",
+                          "crowdsec": "notapplicable", "fail2ban": "notapplicable"})
+        self.assertEqual(checks(status("nft-native"))["ssh"]["reason"],
+                         "sshd -T without its privilege separation directory: not checkable")
+        self.assertEqual(fids(status("recorded-services"))[:3], ["port.22-tcp", "port.68-udp", "port.80-tcp"])
+        self.assertEqual([(f["fid"], f["exposure"]) for f in exposure_findings(status("nft-native"))["list"]][-1],
+                         ("port.60001-tcp", "restricted"), "only some addresses reach it")
+
+    def test_fids_the_same_in_every_language_order_and_run(self):
+        for s in ("ufw-docker", "nft-native", "recorded-services", "hetzner-open"):
+            doc, _ = make_states.state(s)
+            st = secstatus.status_file(seccheck.view(doc, NO_MARKS), "0.1.0")
+            want = fids(st)
+            self.assertTrue(want, s)
+            en, de = (secstatus.localize(st, lang, NOW) for lang in ("en", "de"))
+            self.assertEqual((fids(en), fids(de)), (want, want), s)
+            self.assertEqual(exposure_findings(en)["list"], exposure_findings(de)["list"], "titles too: ports, names")
+            backwards = json.loads(json.dumps(doc))
+            backwards["ports"].reverse()
+            self.assertEqual(fids(secstatus.status_file(seccheck.view(backwards, NO_MARKS), "0.1.0")), want, s)
+            again, _ = make_states.state(s)
+            self.assertEqual(fids(secstatus.status_file(seccheck.view(again, NO_MARKS), "0.1.0")), want, s)
+            de_doc = secstatus.document(seccheck.view(doc, NO_MARKS), "de", "0.1.0")
+            self.assertEqual(fids(de_doc), want, "the German document itself")
+
+    def test_second_dangerous_port_is_a_second_finding(self):
+        doc, _ = make_states.state("ufw-docker")
+        make_danger(doc, 8080)
+        one = secstatus.status_file(doc, "0.1.0")
+        ex = one["items"][0]
+        self.assertEqual((ex["state"], [(f["fid"], f["state"]) for f in ex["findings"]["list"] if f["state"] == "danger"]),
+                         ("danger", [("port.8080-tcp", "danger")]))
+        make_danger(doc, 5432)
+        two = secstatus.status_file(doc, "0.1.0")
+        ex = two["items"][0]
+        self.assertEqual(ex["state"], "danger", "the item stays danger")
+        self.assertEqual([(f["fid"], f["state"]) for f in ex["findings"]["list"] if f["state"] == "danger"],
+                         [("port.5432-tcp", "danger"), ("port.8080-tcp", "danger")], "one finding per port")
+        self.assertEqual((ex["findings"]["total"], ex["findings"]["complete"]), (6, True))
+        self.assertEqual([f for f in ex["findings"]["list"] if f["fid"] == "port.8080-tcp"],
+                         [f for f in one["items"][0]["findings"]["list"] if f["fid"] == "port.8080-tcp"],
+                         "the first finding unchanged")
+
+    def test_expected_port_is_no_finding(self):
+        marked = status("ufw-docker", {"ports": {"8080/tcp": "test page"}, "containers": {}})
+        self.assertNotIn("port.8080-tcp", fids(marked))
+        self.assertEqual(fids(marked), ["port.80-tcp", "port.443-tcp", "port.443-udp", "port.51820-udp"])
+        fx = exposure_findings(marked)
+        self.assertEqual((fx["total"], fx["complete"]), (4, True))
+        self.assertEqual(checks(marked)["exposure"]["state"], "checked")
+        self.assertIn("port.8080-tcp", fids(status("ufw-docker")), "without the mark it is one")
+
+    def test_unread_sources_make_exposure_partial(self):
+        """What the exposure rests on could not be read: the check is partial, the list is not
+        complete, and the reason says why; never "checked"."""
+        def run(scenario="ufw-docker", lang="en", **kw):
+            doc, system = make_states.state(scenario, **kw)
+            st = make_states.status(doc, system)
+            loc = secstatus.localize(st, lang, NOW)
+            self.assertEqual(secstatus.problems(loc), [])
+            return loc["checks"][0], exposure_findings(loc)
+        fail = fakesys.failing
+        cases = [
+            ({"results": {"iptables-save": fail("x"), "ip6tables-save": fail("x"), "nft": fail("x")}},
+             "the packet filter could not be read; 8 ports not assessable"),
+            ({"results": {"nft": fail("netlink: Error: cache initialization failed")}},
+             "part of the packet filter could not be read"),
+            ({"results": {"ip-addr": fail("Cannot open netlink socket")}},
+             "the addresses could not be read; 9 ports not assessable"),
+            ({"results": {"ss": fail("ss: failed")}}, "the listening sockets could not be read"),
+            ({"docker_error": TimeoutError("timed out")}, "Docker could not be asked; 1 port not assessable"),
+            ({"uid": 1000, "results": {"iptables-save": fakesys.failing("Permission denied (you must be root)"),
+                                       "ip6tables-save": fakesys.failing("Permission denied (you must be root)"),
+                                       "nft": fakesys.failing("Operation not permitted")},
+              "docker_error": PermissionError(13, "Permission denied")}, None),
+        ]
+        for kw, reason in cases:
+            check, fx = run(**kw)
+            self.assertEqual((check["id"], check["state"], fx["complete"]), ("exposure", "partial", False), kw)
+            if reason:
+                self.assertEqual(check["reason"], reason, kw)
+            self.assertEqual(fx["total"], len(fx["list"]))
+        check, fx = run(lang="de", results={"ip-addr": fakesys.failing("Cannot open netlink socket")})
+        self.assertEqual(check["reason"], "die Adressen ließen sich nicht lesen; 9 Ports nicht beurteilbar")
+        check, fx = run(results={"ss": fakesys.failing("ss: failed")})
+        self.assertEqual([f["fid"] for f in fx["list"]], ["port.8080-tcp"], "what Docker publishes still counts")
+        check, fx = run("hetzner-open", **fakesys.hetzner_firewalls(lambda h: h["firewalls"][0].update(rules=None)))
+        self.assertEqual((check["state"], check["reason"], fx["complete"]),
+                         ("partial", "the Hetzner Cloud Firewall could not be read", False))
+        # A port the evaluator cannot judge (an unreadable rule) makes it partial too, also when marked.
+        text = fakesys._fixture("ufw-docker", "commands", "iptables-save.txt").replace(
+            "-A ufw-user-input -i wg0 -j ACCEPT", "-A ufw-user-input -m mark --mark 0x1 -j ACCEPT\n"
+                                                  "-A ufw-user-input -i wg0 -j ACCEPT")
+        check, fx = run(results={"iptables-save": text})
+        self.assertEqual((check["state"], check["reason"], fx["complete"]), ("partial", "3 ports not assessable", False))
+        self.assertNotIn("port.9090-tcp", [f["fid"] for f in fx["list"]], "not assessable is no finding")
+        check, fx = run(results={"iptables-save": text}, files={seccheck.MARKS_FILE: "port 9090/tcp Cockpit\n"})
+        self.assertEqual((check["state"], fx["complete"]), ("partial", False), "a mark does not assess it")
+        check, fx = run()
+        self.assertEqual((check["state"], fx["complete"]), ("checked", True), "everything read")
+        self.assertNotIn("reason", check)
+
+    def test_checks_of_what_is_not_installed(self):
+        c = {k: v["state"] for k, v in checks(status("ufw-docker")).items()}
+        self.assertEqual(c, {"exposure": "checked", "ssh": "checked", "logins": "checked", "containers": "checked",
+                             "crowdsec": "notapplicable", "fail2ban": "notapplicable"})
+        de = checks(status("ufw-docker"), "de")
+        self.assertEqual((de["crowdsec"]["reason"], de["fail2ban"]["reason"], de["containers"]["title"]),
+                         ("CrowdSec ist nicht installiert", "fail2ban ist nicht installiert", "Container-Härtung"))
+        self.assertNotIn("item", de["crowdsec"], "no item for what is not installed")
+
+        def run(scenario="ufw-docker", **kw):
+            doc, system = make_states.state(scenario, **kw)
+            return checks(make_states.status(doc, system))
+        no_docker = run(meta={"exists": []})["containers"]
+        self.assertEqual((no_docker["state"], no_docker["reason"], no_docker.get("item")),
+                         ("notapplicable", "Docker is not installed", None))
+        failed = run(docker_error=ConnectionRefusedError(111, "Connection refused"))["containers"]
+        self.assertEqual((failed["state"], failed["reason"], failed["item"]),
+                         ("failed", "Docker could not be asked", "containers"))
+        self.assertEqual(run("hetzner-open")["crowdsec"]["state"], "checked")
+        cs = run("hetzner-open", results={"cscli-decisions": fakesys.failing("cannot connect to the API")})["crowdsec"]
+        self.assertEqual((cs["state"], cs["reason"]), ("partial", "cscli did not answer completely"))
+        self.assertEqual(run("fail2ban")["fail2ban"]["state"], "checked")
+        broken = {"f2b-dump": fakesys.failing("ERROR  bad", 255), "f2b-status": fakesys.failing("ERROR  NOK", 255)}
+        f2b = run("fail2ban", **fakesys.fail2ban_quiet(broken))["fail2ban"]
+        self.assertEqual((f2b["state"], f2b["reason"]),
+                         ("partial", "not checked completely: the configuration, the running jails"))
+        f2b = run("fail2ban", meta={"db_error": "locked"}, **fakesys.fail2ban_quiet())["fail2ban"]
+        self.assertEqual((f2b["state"], f2b["reason"]), ("partial", "history of bans not readable"))
+        f2b = run("fail2ban", **fakesys.fail2ban_jails(31))["fail2ban"]
+        self.assertEqual((f2b["state"], f2b["reason"]), ("partial", "not checked completely: 1 jail beyond the first 30"))
+        lg = run(results={"journal": secproc.Result(None, "", "", timeout=True)})["logins"]
+        self.assertEqual((lg["state"], lg["reason"]), ("failed", "the journal did not answer in time"))
+        lg = run(gone=("journal", "journal-start"))["logins"]
+        self.assertEqual((lg["state"], lg["reason"], lg.get("item")), ("unsupported", "journalctl is not installed", None))
+        ssh = run(files={"/usr/sbin/sshd": None})["ssh"]
+        self.assertEqual((ssh["state"], ssh["reason"]), ("notapplicable", "no SSH server installed"))
+        ssh = run(results={"sshd-T": fakesys.failing("/etc/ssh/sshd_config line 3: Bad configuration option")},
+                  files={"/etc/passwd": None})["ssh"]
+        self.assertEqual(ssh["state"], "failed", "neither the configuration nor the keys read")
+
+    def test_never_checked_or_broken(self):
+        for why, state, reason in (("missing", "unconfigured", "not checked yet"),
+                                   ("unreadable", "failed", "the last result could not be read")):
+            doc = secstatus.none_document("en", "0.1.0", why)
+            self.assertEqual(secstatus.problems(doc), [])
+            self.assertEqual(doc["features"], ["checks", "findings"])
+            self.assertEqual([(c["id"], c["state"], c["reason"]) for c in doc["checks"]],
+                             [(a, state, reason) for a in secstatus.AREAS])
+            self.assertFalse(any("item" in c or "checked_at" in c for c in doc["checks"]), "never checked: no time")
+        de = secstatus.none_document("de", "0.1.0", "missing")
+        self.assertEqual((de["checks"][0]["title"], de["checks"][0]["reason"]),
+                         ("Aus dem Internet erreichbar", "noch nicht geprüft"))
+
+    def test_more_findings_than_an_answer_holds(self):
+        doc, _ = make_states.state("ufw-docker")
+        base = next(p for p in doc["ports"] if p["port"] == 8080)
+        doc["ports"] = []
+        for n in range(120):
+            p = json.loads(json.dumps(base))
+            p["port"], p["id"] = 10000 + n, f"tcp-{10000 + n}"
+            p["state"] = "danger" if n >= 115 else "warning"
+            doc["ports"].append(p)
+        st = secstatus.status_file(doc, "0.1.0")
+        fx = exposure_findings(st)
+        self.assertEqual((len(fx["list"]), fx["total"], fx["complete"]), (100, 120, False))
+        self.assertEqual([f["fid"] for f in fx["list"][:5]], [f"port.{10115 + n}-tcp" for n in range(5)],
+                         "the most severe first")
+        self.assertEqual(checks(st)["exposure"]["state"], "checked", "read fully, only not all listed")
+        self.assertEqual(secstatus.problems(secstatus.localize(st, "en", NOW)), [])
+        self.assertTrue(len(json.dumps(secstatus.localize(st, "de", NOW)).encode()) < 64 << 10)
+
+    def test_since_comes_from_first_seen(self):
+        doc, _ = make_states.state("ufw-docker")
+        doc["first_seen"]["port.8080-tcp"] = "2026-10-01T08:00:00Z"
+        fx = exposure_findings(secstatus.status_file(doc, "0.1.0"))
+        self.assertEqual({f["fid"]: f["since"] for f in fx["list"]}["port.8080-tcp"], "2026-10-01T08:00:00Z")
+        del doc["first_seen"]
+        fx = exposure_findings(secstatus.status_file(doc, "0.1.0"))
+        self.assertFalse(any("since" in f for f in fx["list"]), "a state of an older version: no since")
+
+    def test_problems_catches_a_broken_extension(self):
+        st = secstatus.localize(status("ufw-docker"), "en", NOW)
+
+        def broken(change):
+            bad = json.loads(json.dumps(st))
+            change(bad)
+            return secstatus.problems(bad)
+        self.assertEqual(broken(lambda d: None), [])
+        self.assertTrue(broken(lambda d: d["checks"][0].update(state="fine")))
+        self.assertTrue(broken(lambda d: d["checks"][0].update(item="nothing")))
+        self.assertTrue(broken(lambda d: d["checks"].append(dict(d["checks"][0]))))
+        self.assertTrue(broken(lambda d: d["checks"][1].update(reason="x" * 201)))
+        self.assertTrue(broken(lambda d: d.update(checks="all")))
+        self.assertTrue(broken(lambda d: d.update(features="checks")))
+        def fx(d):
+            return d["items"][0]["findings"]
+        self.assertTrue(broken(lambda d: fx(d)["list"][0].update(fid="Port 8080")))
+        self.assertTrue(broken(lambda d: fx(d)["list"].append(dict(fx(d)["list"][0]))))
+        self.assertTrue(broken(lambda d: fx(d)["list"][0].update(link="javascript:alert(1)")))
+        self.assertTrue(broken(lambda d: fx(d)["list"][0].update(exposure="everywhere")))
+        self.assertTrue(broken(lambda d: fx(d)["list"][0].update(since="yesterday")))
+        self.assertTrue(broken(lambda d: fx(d).update(total=1)))
+        self.assertTrue(broken(lambda d: fx(d).update(complete="yes")))
+        self.assertTrue(broken(lambda d: fx(d)["list"].extend(
+            [dict(fx(d)["list"][0], fid=f"port.{n}-tcp") for n in range(20000, 20100)])))
+
+
+class FirstSeen(unittest.TestCase):
+    """state.json keeps when each port the internet reaches was first seen (`first_seen`): over
+    scans for a port still there, dropped for one that is gone, but only after a check that
+    read everything."""
+
+    T1, T2, T3, T4 = "2026-10-20T12:00:00Z", "2026-10-20T12:15:00Z", "2026-10-20T12:30:00Z", "2026-10-20T12:45:00Z"
+    VPN_ONLY = fakesys._fixture("ufw-docker", "commands", "iptables-save.txt").replace(
+        "-A DOCKER -d 172.17.0.2/32",
+        "-A DOCKER-USER -o docker0 -m conntrack --ctstate NEW ! -s 10.8.0.0/24 -j DROP\n-A DOCKER -d 172.17.0.2/32", 1)
+
+    def scan(self, now, previous=None, **kw):
+        meta = dict(kw.pop("meta", {}), now=now)
+        return seccheck.scan(fakesys.FakeSystem("ufw-docker", meta=meta, **kw), previous)
+
+    def test_kept_over_scans_and_dropped_when_gone(self):
+        first = self.scan(self.T1)
+        want = {f: self.T1 for f in ("port.443-tcp", "port.443-udp", "port.51820-udp", "port.80-tcp", "port.8080-tcp")}
+        self.assertEqual(first["first_seen"], want)
+        second = self.scan(self.T2, first)
+        self.assertEqual(second["first_seen"], want, "a second scan keeps the times")
+        st = secstatus.status_file(seccheck.view(second, NO_MARKS), "0.1.0")
+        self.assertEqual({f["since"] for f in exposure_findings(st)["list"]}, {self.T1})
+        gone = self.scan(self.T3, second, results={"iptables-save": self.VPN_ONLY})
+        self.assertEqual(secstatus.check_exposure(gone, "en")[0], "checked")
+        self.assertEqual(gone["first_seen"], {k: v for k, v in want.items() if k != "port.8080-tcp"},
+                         "8080 is VPN only now: gone")
+        back = self.scan(self.T4, gone)
+        self.assertEqual(back["first_seen"]["port.8080-tcp"], self.T4, "back again: seen anew")
+        self.assertEqual(back["first_seen"]["port.80-tcp"], self.T1)
+
+    def test_kept_when_the_check_could_not_read_everything(self):
+        second = self.scan(self.T2, self.scan(self.T1))
+        partial = self.scan(self.T3, second, docker_error=TimeoutError("timed out"))
+        self.assertEqual(secstatus.check_exposure(partial, "en")[0], "partial")
+        self.assertEqual(partial["first_seen"]["port.8080-tcp"], self.T1, "not assessable: not known to be gone")
+        no_ss = self.scan(self.T3, second, results={"ss": fakesys.failing("ss: failed")})
+        self.assertEqual(no_ss["first_seen"], second["first_seen"], "sockets not read: every time kept")
+
+    def test_marks_do_not_change_it(self):
+        marked = self.scan(self.T1, files={seccheck.MARKS_FILE: "port 8080/tcp test page\n"})
+        self.assertIn("port.8080-tcp", marked["first_seen"], "kept for when the mark is taken back")
+        v = seccheck.view(marked, {"ports": {"8080/tcp": "x"}, "containers": {}})
+        self.assertEqual(secstatus.first_seen(v, marked["first_seen"]), marked["first_seen"])
+
+    def test_garbage_in_the_previous_state(self):
+        prev = {"first_seen": {"port.8080-tcp": "2026-10-01T00:00:00Z", "port.80-tcp": "2099-01-01T00:00:00Z",
+                               "__proto__": "2026-10-01T00:00:00Z", "port.443-tcp": 5, "port.x-tcp": self.T1}}
+        doc = self.scan(self.T2, prev)
+        self.assertEqual(doc["first_seen"]["port.8080-tcp"], "2026-10-01T00:00:00Z")
+        self.assertEqual((doc["first_seen"]["port.80-tcp"], doc["first_seen"]["port.443-tcp"]), (self.T2, self.T2),
+                         "a time after the scan or no time: this scan")
+        self.assertEqual(sorted(doc["first_seen"]), sorted({"port.443-tcp", "port.443-udp", "port.51820-udp",
+                                                            "port.80-tcp", "port.8080-tcp"}))
+        for junk in (None, [], "x", {"first_seen": "x"}, {"first_seen": None}):
+            self.assertEqual(len(self.scan(self.T1, junk)["first_seen"]), 5)
+
+
 class Verb(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
@@ -327,6 +645,11 @@ class Verb(unittest.TestCase):
             self.assertEqual(doc["items"][0]["title"],
                              "Aus dem Internet erreichbar" if lang == "de" else "Reachable from the internet", argv)
             self.assertNotEqual(doc["version"], "unknown", "from security.js next to lib/")
+            self.assertEqual(doc["checks"][0]["title"], doc["items"][0]["title"], "the check in the same language")
+            self.assertEqual(doc["checks"][5]["reason"],
+                             "fail2ban ist nicht installiert" if lang == "de" else "fail2ban is not installed", argv)
+            self.assertEqual([f["fid"] for f in doc["items"][0]["findings"]["list"]],
+                             ["port.80-tcp", "port.443-tcp", "port.443-udp", "port.8443-tcp"], argv)
 
     def test_wrong_calls(self):
         for argv in (["--lang"], ["--lang", "x"], ["--lang", "de", "extra"], ["--lang", "../etc"], ["-l", "de"]):
@@ -336,6 +659,14 @@ class Verb(unittest.TestCase):
         rc, out, _ = call([], os.path.join(self.dir, "none.json"))
         doc = json.loads(out)
         self.assertEqual((rc, doc["state"], doc["summary"]), (0, "none", "Not checked yet."))
+        self.assertEqual({c["state"] for c in doc["checks"]}, {"unconfigured"}, "never checked")
+        with open(self.path, "w", encoding="utf-8") as f:
+            st = status("hetzner-open")
+            st["checks"][0]["state"] = "fine"
+            json.dump(st, f)
+        doc = json.loads(call([], self.path)[1])
+        self.assertEqual((doc["summary"], {c["state"] for c in doc["checks"]}),
+                         ("The state of Security Monitor could not be read.", {"failed"}), "a broken check: unreadable")
         with open(self.path, "w") as f:
             f.write("{not json")
         rc, out, _ = call(["--lang", "de"], self.path)

@@ -12,8 +12,8 @@ document together; the page tolerates fields it does not know.
 | `/usr/lib/cockpit-security-monitor/` | helpers: `security-scan.py`, `security.py`, `security-hetzner.py` (755); `seclib.py`, `secfw.py`, `seccheck.py`, `secstatus.py`, `secproc.py` (644) | root |
 | `/usr/lib/systemd/system/cockpit-security-scan.{service,timer}` | the scan and its timer (every 15 minutes, `*:04/15`); the timer is off until `security.py install timer` | root, 644 |
 | `/usr/lib/systemd/system/cockpit-security-hetzner.service` | the request to Hetzner's API; skipped without a token | root, 644 |
-| `/var/lib/cockpit-security-monitor/state.json` | the state with every detail (addresses, rules, user names) | root, **600** (folder 755) |
-| `/var/lib/cockpit-security-monitor/status.json` | the status for the Status Board: numbers, states, ports, service and container names | root, 644 |
+| `/var/lib/cockpit-security-monitor/state.json` | the state with every detail (addresses, rules, user names), and when each port the internet reaches was first seen | root, **600** (folder 755) |
+| `/var/lib/cockpit-security-monitor/status.json` | the status for the Status Board: numbers, states, ports, service and container names, how each check went, a finding per port the internet reaches | root, 644 |
 | `/var/lib/cockpit-security-hetzner/hetzner.json` | the answer of the Hetzner service (systemd's `DynamicUser`, kept below `/var/lib/private`) | the service's user, 600 |
 | `/etc/cockpit-security-monitor/exposure.conf` | findings marked as expected (below) | root, 644; `.bak` the previous version |
 | `/etc/cockpit-security-monitor/hetzner.token` | the read-only Hetzner Cloud API token (optional, set up by hand) | root, **600** |
@@ -73,7 +73,9 @@ root in the host's network namespace (it lists that namespace), with `IPAddressD
 `IPAddressAllow=localhost` (cscli asks CrowdSec's local API), `RestrictAddressFamilies=AF_UNIX
 AF_NETLINK AF_INET AF_INET6` and `CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_PTRACE
 CAP_DAC_READ_SEARCH`, `ProtectSystem=strict`, `ProtectHome=read-only` and the usual rest
-(`tools/check-units.sh` checks the exposure). It writes only its own folder.
+(`tools/check-units.sh` checks the exposure). It writes only its own folder. Under its lock it
+first reads the previous state.json for `first_seen` (when each port the internet reaches was first
+seen), carries it over and writes the new state.
 
 Commands run through `secproc.run`: a list (never a shell), `PATH=/usr/sbin:/usr/bin:/sbin:/bin`,
 `LC_ALL=C`, `TZ=UTC`, a process group of its own and a deadline. The sources, in this order:
@@ -239,10 +241,20 @@ A port marked as expected becomes `info` (`expected`, `base_state`).
                          "findings": [{"code": "input-only", "state": "warning", "value": "8080/tcp"}], "state": "warning"}],
               "bans": [{"ip": "192.0.2.80", "class": "internet", "jail": "web", "since": "…", "until": "…", "count": 2}],
               "bans_total": 1, "history_total": 3, "history_days": 14, "errors": {}},
- "sources": {"ip": {"state": "ok", "took_ms": 3}, …}}
+ "sources": {"ip": {"state": "ok", "took_ms": 3}, …},
+ "first_seen": {"port.443-tcp": "2026-10-12T08:04:00Z", "port.8080-tcp": "2026-10-20T12:00:00Z"}}
 ```
 
 - `format`: 1. A page that knows a lower format says so.
+- `first_seen`: when the scan first saw each port at `info` or above (the whole internet reaches
+  it, or only some addresses), by the `fid` of its finding in the status (`port.<port>-<proto>`).
+  Before the marks: a marked port keeps its time, so it is right again once the mark is taken back.
+  A port still there keeps the time of the previous state; a new one gets the time of this scan
+  (`generated`). One that is gone is dropped only when the check `exposure` is `checked`: after a
+  scan that could not read everything (see the checks under `status.json`) a port missing from it is
+  not known to be gone, and its time stays. Entries of the previous state that are not of that form,
+  or lie after this scan, are left out. A state without it (written before) gives findings without
+  `since`.
 - `network.public.<family>`: `true` (a public address), `false` (none), `null` (not known: `ip -j
   addr` failed).
 - `reach.<family>.<class>.result`: `open`, `restricted` (+ `sources`: networks, or `ipset NAME`;
@@ -394,6 +406,58 @@ to 200 characters. The file holds the English document plus the German texts und
 (`i18n.de.scan_old`, `i18n.en.scan_old`); the verb returns one language without `i18n`, with the
 version of the installed page (`const VERSION` in `security.js`).
 
+### Checks and findings
+
+The answer also carries the optional parts of the contract ("Optional: checks, findings and a
+host's profile"): `features: ["checks", "findings"]`, a check per area in `checks`, and the findings
+of the item `exposure`.
+
+```json
+"features": ["checks", "findings"],
+"checks": [{"id": "exposure", "state": "checked", "title": "Reachable from the internet", "item": "exposure",
+            "checked_at": "2026-10-20T12:00:00Z", "stale_after": 3600},
+           {"id": "ssh", "state": "partial", "title": "SSH", "item": "ssh",
+            "reason": "sshd -T without its privilege separation directory: not checkable", …},
+           {"id": "fail2ban", "state": "notapplicable", "title": "fail2ban", "reason": "fail2ban is not installed", …}],
+"items": [{"id": "exposure", …, "findings": {"complete": true, "total": 5, "list": [
+  {"fid": "port.8080-tcp", "state": "warning", "title": "8080/tcp web", "since": "2026-10-20T12:00:00Z",
+   "exposure": "internet", "link": "#/exposure/8080-tcp"}, …]}}]
+```
+
+**Checks:** always all six, in this order: `exposure`, `ssh`, `logins`, `containers`, `crowdsec`,
+`fail2ban`. `title` is the item's title, `item` the id of the item when the answer has one,
+`checked_at` and `stale_after` as the items', `reason` (in the language asked for, cut to 200
+characters) says why the check is not `checked`. A check is `checked` only when everything it rests
+on was read:
+
+| `id` | `checked` | `partial` | `failed` | otherwise |
+|---|---|---|---|---|
+| `exposure` | the packet filter, the addresses, the sockets with their processes, Docker's answer (its socket there) and the Hetzner Cloud Firewall (a token set) read, and every port assessed | one of them not read, also when only one of `iptables-save`, `ip6tables-save` and `nft` fails (a tool not installed is no gap), or a port not assessable, also a marked one (a mark does not assess it); the reason names each | | `unsupported`: neither `iptables-save` nor `nft` is installed |
+| `ssh` | `sshd -T` and the keys of every account read | `sshd -T` failed while the keys were read, `/etc/passwd` not readable, or the keys of other accounts not readable (no root) | `sshd -T` failed and no key could be read | `notapplicable`: no `/usr/sbin/sshd`; `noaccess`: `sshd -T` needs root |
+| `logins` | the journal read | only part of it (no root), or more than 100000 entries | `journalctl` failed or timed out | `unsupported`: no `journalctl` |
+| `containers` | Docker answered | | Docker's socket is there, but Docker does not answer | `notapplicable`: no Docker socket; `noaccess`: the socket needs root |
+| `crowdsec` | every list of `cscli` read | a list of `cscli` not read | | `notapplicable`: CrowdSec is not installed; `noaccess` |
+| `fail2ban` | everything read | a part it needs (`incomplete`), or only its database (the history) | | `notapplicable`: fail2ban is not installed; `noaccess` |
+
+`noaccess` comes only from a scan without root (the service runs as root). Without status.json the
+verb answers every check `unconfigured` ("not checked yet"), with a broken one `failed`; neither has
+a time or an item.
+
+**Findings of `exposure`:** one per port at `info` or above that is not marked as expected. `fid`
+is `port.<port>-<proto>`: never a text, a family, an address or the order, so it is the same in both
+languages and on every scan. `state` is the port's; `title` the port as the item's detail names it
+(`8080/tcp web`, the same in both languages, cut to 80 characters); `since` comes from `first_seen`
+in the state (left out without it); `exposure` is `internet` when the whole internet reaches it in
+one family, `restricted` when only some addresses do; `link` is `#/exposure/<port>-<proto>`, where
+the page marks that port's row and brings it into view. A port that could not be assessed is no
+finding: it makes the check `partial`. The most severe come first, at most 100 (the contract's limit
+per answer), and `total` counts them all. `complete` is true only when the check `exposure` is
+`checked` and every finding is listed. The item's own state and `value` stay as in the table above
+(a marked port still counts there, as `info`).
+
+`i18n.de.checks` holds the German titles and reasons of the checks. The verb checks the optional
+parts as well (`secstatus.problems()`): a status.json that breaks them is unreadable.
+
 ## Page internals
 
 - No build step, no framework, only `cockpit.js` from `../base1/`.
@@ -403,7 +467,13 @@ version of the installed page (`const VERSION` in `security.js`).
 - Tabs: `exposure`, `ssh`, `logins`, `containers`, `crowdsec` and `fail2ban` (both only when
   installed). The location
   `#/<tab>` opens a tab, also while the page is open (`locationchanged`), as a link of the Status
-  Board does.
+  Board does; a tab chosen on the page goes into the location (`cockpit.location.go([tab])`).
+- `#/exposure/<port>-<proto>`, the link of a finding, opens the exposure tab and marks that port's
+  row (`aria-current="location"`, with the background a row has under the pointer) for as long as
+  the location names it; once the rows are there and the page is shown, it unfolds the row's
+  reasons and brings the row into view, once per link: a reload of the state does not scroll again.
+  A link that arrives while the frame is hidden (`cockpit.hidden`) waits for `visibilitychange`. A
+  port that is not there opens the tab only.
 - Loading: `safeLoad()` never runs twice at once; the watch of status.json reloads only on a new tag.
 - **Status in Cockpit's menu:** the entry "Security Monitor" carries Cockpit's own status icon for
   the host whose menu is shown: `danger` as `error`, `warning` as `warning`, `info` as `info`; `ok`
@@ -427,7 +497,8 @@ version of the installed page (`const VERSION` in `security.js`).
     reads the host name for the signature. The flag holds once the first answer about
     `status.json` is back (the shell's hint comes right after `init`, and its messages arrive in
     order); without any answer the page decides after 3 seconds. A link that arrives while the page
-    is hidden selects its tab at once; the page has nothing to scroll to.
+    is hidden selects its tab at once; a link to a port is brought into view once the page is shown
+    and its rows are there.
 - Version: `const VERSION` in `security.js`; `index.html` loads every file with `?v=<version>`;
   `tools/check-version.sh` keeps them and `CHANGELOG.md` in step.
 
@@ -437,15 +508,15 @@ version of the installed page (`const VERSION` in `security.js`).
 |---|---|
 | `test/lib_test.py` | address classes, `ip -j addr`, every form of `ss` addresses, UFW's tuples, `sshd -T` and its assessment, authorized_keys (sizes and fingerprints equal to ssh-keygen's, options with quotes, DSA, garbage), accounts and key files, the journal (one failure per connection), cscli and the bouncer's YAML, the marks, Docker's allowed paths, fail2ban-client's `status` and `-d` (literals only, a jail only once added, the options that say where an action bans), port names and ranges, every code with its page text (fail2ban's findings and unread parts also with their status text) |
 | `test/fw_test.py` | iptables-save and nft's JSON read into chains; UFW's default deny and allow rules, `ufw limit`, the IPv6 routing header rule, DOCKER-USER (new connections, the original port, one allowed network, ban lists), unknown matches both ways (also across chains), a part of the internet whose rule cannot be read, too many forks, queues, ipsets (as the source: a country list, an allow list, a ban list, against networks; as the destination), source ports (DHCP replies, a drop avoided, `--ports`), goto, two base chains, verdict maps, netdev ingress, samples |
-| `test/scan_test.py` | every port of the three hand-made scenarios and of the four recorded servers with state and reason; Docker past UFW and docker-proxy for IPv6; addresses a socket is bound to; the addresses or the sockets not read (and, apart, a host really without a public address or a listening socket); the Hetzner Cloud Firewall (blocks, restricted, no token, stale, not matched, unreadable, rules not known, no incoming rule, several firewalls); SSH, logins, containers, CrowdSec; fail2ban (where each jail bans, the packet filter before the configuration, every finding, the bans now, not running, an unreadable database; on the scenario cut down to one jail: `-d`, `status`, `status JAIL` or ping failing, a configured jail not running, only the database missing; 31 jails, the last not asked); a DOCKER-USER rule (VPN only), no root, Docker failing (what it may publish not assessable, the rest as with its answer) or missing, legacy rules, an unreadable rule, an ipset as the source; the marks; the state fixtures current; only documentation and private addresses in the fixtures |
-| `test/status_test.py` | the status of every scenario in both languages: fields, ids, links, lengths, nothing private, no German in English; marks; unknown ports; an unreadable packet filter, addresses or sockets; Docker not answering; rules of a Hetzner Cloud Firewall not known; the fail2ban item (the warnings with their jail, else jails and bans; what could not be read, a jail not running, jails past the first 30, the history missing); an old state; `security.py status` (languages, wrong calls, missing, broken, unreadable, as a process within 2 seconds) |
-| `test/verbs_test.py` | the arguments of `expect`/`unexpect`; writing the marks file, its copy, lines by hand kept, a file others can change refused, root required, German messages |
+| `test/scan_test.py` | every port of the three hand-made scenarios and of the four recorded servers with state and reason; Docker past UFW and docker-proxy for IPv6; addresses a socket is bound to; the addresses or the sockets not read (and, apart, a host really without a public address or a listening socket); the Hetzner Cloud Firewall (blocks, restricted, no token, stale, not matched, unreadable, rules not known, no incoming rule, several firewalls); SSH, logins, containers, CrowdSec; fail2ban (where each jail bans, the packet filter before the configuration, every finding, the bans now, not running, an unreadable database; on the scenario cut down to one jail: `-d`, `status`, `status JAIL` or ping failing, a configured jail not running, only the database missing; 31 jails, the last not asked); a DOCKER-USER rule (VPN only), no root, Docker failing (what it may publish not assessable, the rest as with its answer) or missing, legacy rules, an unreadable rule, an ipset as the source; the marks; `security-scan.py` writing both files, and twice in a row (`first_seen` taken over, a port gone in a complete check dropped); the state fixtures current; only documentation and private addresses in the fixtures |
+| `test/status_test.py` | the status of every scenario in both languages: fields, ids, links, lengths, nothing private, no German in English; marks; unknown ports; an unreadable packet filter, addresses or sockets; Docker not answering; rules of a Hetzner Cloud Firewall not known; the fail2ban item (the warnings with their jail, else jails and bans; what could not be read, a jail not running, jails past the first 30, the history missing); an old state; the checks and findings: every scenario, the same `fid`s in English and German, with the ports in reverse order and on a second scan, a second dangerous port a second finding (the item stays danger), a marked port no finding, the packet filter, part of it, the addresses, the sockets, Docker, the Hetzner Cloud Firewall or a port not read making `exposure` partial and the list not complete, CrowdSec, fail2ban and Docker not installed (`notapplicable`) or not read, the journal, SSH, never checked and broken, more than 100 findings, `since`, a broken check or finding caught; `first_seen` kept, dropped when gone, kept after a partial check, garbage in it left out; `security.py status` (languages, the checks in German, wrong calls, missing, broken, unreadable, as a process within 2 seconds) |
+| `test/verbs_test.py` | the arguments of `expect`/`unexpect`; writing the marks file, its copy, lines by hand kept, a file others can change refused, root required, German messages; the status after a mark (the port no finding, after the mark is removed a finding again with its first sighting) |
 | `test/hetzner_test.py` | the server by IPv4 or IPv6 network, pages, no match, failures keeping the last good answer, the token never in the output, a firewall missing from the answer; how the scan reads rules (rules not known next to known ones, `[]`, the union of several firewalls) |
-| `test/page.test.js` | the page in jsdom with the state fixtures: overview, ports and their reasons, every tab, links and keyboard, the summary without administrative access, the first check by itself, Refresh and its failures, the dialogs (timer, marks), page messages, escaping; the addresses or sockets not read; Docker not answering; rules of a Hetzner Cloud Firewall not known; the menu icon (every scenario's status in both languages, no file, a broken one, an item worse than the whole, out of date, the check again after an hour, what the board ignores), the page loaded hidden (nothing run, the first check only once shown), a link while the page is hidden; the fail2ban tab (only when installed, findings, jails, bans, one hit and one ban in the singular, both languages, what could not be read, a jail not running, a jail not asked, only the history missing) |
-| `test/i18n.test.js`, `test/files.test.js` | every text in both languages, no German in English, no long dash; no HTML from strings, nothing the CSP blocks, only the fixed verbs, the menu icon reading status.json only and sending only its page status, the manifest |
+| `test/page.test.js` | the page in jsdom with the state fixtures: overview, ports and their reasons, every tab, links and keyboard, the summary without administrative access, the first check by itself, Refresh and its failures, the dialogs (timer, marks), page messages, escaping; the addresses or sockets not read; Docker not answering; rules of a Hetzner Cloud Firewall not known; the menu icon (every scenario's status in both languages, no file, a broken one, an item worse than the whole, out of date, the check again after an hour, what the board ignores), the page loaded hidden (nothing run, the first check only once shown), a link while the page is hidden; a link to a port (`#/exposure/<port>-<proto>`) in the open page, on opening and while hidden: its tab, the row marked and in view once, not again after a reload, the mark gone with a tab chosen, a port that is not there; the fail2ban tab (only when installed, findings, jails, bans, one hit and one ban in the singular, both languages, what could not be read, a jail not running, a jail not asked, only the history missing) |
+| `test/i18n.test.js`, `test/files.test.js` | every text in both languages, no German in English, no long dash; no HTML from strings, nothing the CSP blocks, only the fixed verbs, the menu icon reading status.json only and sending only its page status, the manifest; every link of the status fixtures a place the page follows |
 | `test/contrast_test.py`, `test/fonts_test.py` | WCAG contrast in light and dark; every font the page uses ships with it |
 | `tools/check-units.sh` | `systemd-analyze verify`, and `systemd-analyze security` exposure at most 5.0 |
-| `test/e2e/setup.sh`, `test/e2e_session.py` | CI (job `e2e`) on a throw-away runner: UFW on, Docker publishing 8080, fail2ban from Ubuntu with a jail on 8080 and one ban, a public address and a VPN as dummy interfaces; the page in a real Cockpit from the install with apt to the marks, a DOCKER-USER rule, the timer, a user without administrative access, the menu icon and links; the steps are at the top of `test/e2e_session.py` |
+| `test/e2e/setup.sh`, `test/e2e_session.py` | CI (job `e2e`) on a throw-away runner: UFW on, Docker publishing 8080, fail2ban from Ubuntu with a jail on 8080 and one ban, a public address and a VPN as dummy interfaces; the page in a real Cockpit from the install with apt to the marks, a DOCKER-USER rule, the timer, a user without administrative access, the menu icon and links (also the link of the finding of 8080/tcp, which the status names with its checks); the steps are at the top of `test/e2e_session.py` |
 
 Fixtures: `test/fixtures/<scenario>/` hold the outputs of the commands and files of a host; the text
 outputs are written by hand after the formats of iptables 1.8.10, iproute2 6.x, OpenSSH 9.6 and ufw

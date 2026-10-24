@@ -276,6 +276,48 @@
         if (TABS.indexOf(first) >= 0) selectTab(first);
     }
 
+    // --- Links to a port: #/exposure/<port>-<proto> ----------------------------------
+    // The status links each finding to its port. Cockpit keeps the page's frame and only
+    // changes the location, also while the frame is hidden: the row is marked for as long
+    // as the location names it, and brought into view once, when the rows are there and
+    // the page is shown (status contract: "An add-on that sets link must follow it").
+    const PORT_PLACE = /^([0-9]{1,5})-(tcp|udp|sctp)$/;
+    let place = null;           // the id of the row the location names, or null
+    let scrollPending = false;  // that row is still to be brought into view
+
+    function onLocation() {
+        const path = (cockpit.location && cockpit.location.path) || [];
+        if (TABS.indexOf(path[0] || "") < 0) return;     // an unknown place changes nothing
+        const m = path[0] === "exposure" ? PORT_PLACE.exec(path[1] || "") : null;
+        place = m ? "sm-port-" + m[2] + "-" + Number(m[1]) : null;
+        scrollPending = !!place;
+        followLocation();
+        markPlace();
+        goToPlace();
+    }
+    function markPlace() {
+        document.querySelectorAll(".sm-ports-table tr[aria-current]").forEach((r) => r.removeAttribute("aria-current"));
+        const row = place ? $(place) : null;
+        if (row) row.setAttribute("aria-current", "location");
+    }
+    function goToPlace() {
+        if (!scrollPending || cockpit.hidden || !state()) return;
+        scrollPending = false;
+        const row = $(place);
+        if (!row || row.closest("[hidden]")) return;
+        const det = row.querySelector("details");
+        if (det) det.open = true;
+        if (typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "start" });
+    }
+    // A tab chosen on the page goes into the location, and the place of a link ends there.
+    function chooseTab(k, focus) {
+        if (typeof cockpit.location.go === "function") cockpit.location.go([k]);
+        place = null;
+        scrollPending = false;
+        markPlace();
+        selectTab(k, focus);
+    }
+
     // --- Summary without administrative access ---------------------------------
     function renderSummary() {
         const box = $("sm-summary");
@@ -850,6 +892,7 @@
         renderContainers();
         renderCrowdsec();
         renderFail2ban();
+        markPlace();
         $("sm-loading").hidden = !((scanning && !state()) || (!loadedOnce));
     }
 
@@ -910,6 +953,7 @@
             setBusy(scanning);
             render();
             followLocation();
+            goToPlace();
             // A fresh install has no state yet: with administrative access, check once.
             if (admin && view && !view.state && !loadError && !autoScanned) {
                 autoScanned = true;
@@ -1048,16 +1092,14 @@
     $("sm-tabs").addEventListener("click", (e) => {
         const b = e.target instanceof Element ? e.target.closest("[role=tab]") : null;
         if (!b) return;
-        if (typeof cockpit.location.go === "function") cockpit.location.go([b.dataset.tab]);
-        selectTab(b.dataset.tab);
+        chooseTab(b.dataset.tab);
     });
     $("sm-tabs").addEventListener("keydown", (e) => {
         if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
         const tabs = visibleTabs();
         const i = tabs.indexOf(tab);
         const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
-        if (typeof cockpit.location.go === "function") cockpit.location.go([next]);
-        selectTab(next, true);
+        chooseTab(next, true);
         e.preventDefault();
     });
     document.addEventListener("click", (e) => {
@@ -1086,8 +1128,12 @@
     $("sm-dialog-confirm").addEventListener("click", () => dlg.run());
     $("sm-dialog-cancel").addEventListener("click", () => dlg.close());
     $("sm-dialog").addEventListener("cancel", (e) => { if (dlg.running) e.preventDefault(); });
-    if (typeof cockpit.addEventListener === "function") cockpit.addEventListener("locationchanged", followLocation);
-    followLocation();
+    // cockpit.js has both events; a stand-in for it may leave them out.
+    if (typeof cockpit.addEventListener === "function") {
+        cockpit.addEventListener("locationchanged", onLocation);
+        cockpit.addEventListener("visibilitychange", goToPlace);
+    }
+    onLocation();
     renderTabs();
     // Cockpit loads this page hidden right after the login, for the status icon in
     // its menu (menu-status.js). What reads or runs on the server, the root helper
