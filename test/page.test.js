@@ -58,7 +58,7 @@ test("ufw-docker, English: the overview, the ports in order, Docker past UFW", a
     assert.match(text(row(d, "tcp", 22)), /sshd ssh no yes no yes VPN only/);
     assert.match(text(row(d, "tcp", 6379)), /container cache redis · redis:7\.4 – yes – yes VPN only/);
     assert.match(text(d.getElementById("sm-unchecked-exposure")), /Rules this page cannot read/);
-    assert.strictEqual(text(d.getElementById("sm-sig-version")), "Security Monitor 0.3.1");
+    assert.strictEqual(text(d.getElementById("sm-sig-version")), "Security Monitor 0.4.0");
     assert.strictEqual(text(d.getElementById("sm-sig-host")), "server");
     assert.ok(!GERMAN.test(text(d.body)), "no German on the English page: " + (text(d.body).match(GERMAN) || [])[0]);
     assert.ok(d.getElementById("sm-loading").hidden);
@@ -723,7 +723,7 @@ test("preloaded hidden: only the icon; the page starts once it is shown", async 
     r.hint(false);
     await settle();
     same(verbs(r.calls), ["show", "scan", "show"], "shown: the state, and only now the first check by itself");
-    assert.strictEqual(text(r.d.getElementById("sm-sig-version")), "Security Monitor 0.3.1");
+    assert.strictEqual(text(r.d.getElementById("sm-sig-version")), "Security Monitor 0.4.0");
     same(r.calls.reads, ["/etc/hostname"]);
     r.hint(true);
     r.hint(false);
