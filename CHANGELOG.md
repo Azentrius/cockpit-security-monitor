@@ -33,9 +33,11 @@ own.
   Host Settings). Searching the menu for "azentrius" finds them all, and Cockpit's Help menu links
   the README.
 - **Contact:** the package and `SECURITY.md` name support@azentrius.com.
-- **Tested together:** Status Board 0.3.0, Host Settings 0.2.0 and Security Monitor 0.4.0. The
-  checks and the single findings take Status Board 0.3.0 and Host Settings 0.2.0 or newer to be
-  shown as tasks and told one by one.
+- **Tested together:** Status Board 0.3.0, Host Settings 0.2.0 and Security Monitor 0.4.0, with
+  their real packages in the end-to-end test of the suite (workflow `e2e-suite` of Host Settings):
+  real scans while ports open and close and while the packet filter cannot be listed. The checks
+  and the single findings take Status Board 0.3.0 and Host Settings 0.2.0 or newer to be shown as
+  tasks and told one by one.
 - **Older versions:** the status stays at schema 1 and its new parts are optional. Status Board
   and Host Settings in older versions read it as before, as a summary per item; add-ons in older
   versions still work with the new ones and show as "summary only".
