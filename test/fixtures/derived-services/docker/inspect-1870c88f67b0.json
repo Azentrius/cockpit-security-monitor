@@ -1,0 +1,76 @@
+{
+ "Id": "1870c88f67b0073860ed1e38e9e92d0f420812d0ace50876bab157f4c588fba4",
+ "Name": "/broker",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/broker-relay:1",
+  "User": "1000:1000"
+ },
+ "HostConfig": {
+  "NetworkMode": "broker-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/srv/broker/1",
+   "Destination": "/data/1",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "47101/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "47101"
+    },
+    {
+     "HostIp": "::",
+     "HostPort": "47101"
+    }
+   ],
+   "47102/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "47102"
+    },
+    {
+     "HostIp": "::",
+     "HostPort": "47102"
+    }
+   ],
+   "47102/udp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "47102"
+    },
+    {
+     "HostIp": "::",
+     "HostPort": "47102"
+    }
+   ],
+   "47104/tcp": [
+    {
+     "HostIp": "0.0.0.0",
+     "HostPort": "47104"
+    },
+    {
+     "HostIp": "::",
+     "HostPort": "47104"
+    }
+   ]
+  },
+  "Networks": {
+   "broker-net": {
+    "NetworkID": "f6c64b95a78b0f69696b38dd246e36759015471b34ac103b989a54687f517536",
+    "IPAddress": "172.20.0.3",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

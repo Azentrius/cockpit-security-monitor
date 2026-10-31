@@ -1,0 +1,48 @@
+{
+ "Id": "09f4da4989b20f7ec81aa7ced5df6118404c9720c39bc874a2d8503c9ea735f5",
+ "Name": "/app-server",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/app-server:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "app-server-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/srv/app-server/1",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/app-server/2",
+   "Destination": "/data/2",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "8080/tcp": [
+    {
+     "HostIp": "10.44.0.1",
+     "HostPort": "8080"
+    }
+   ]
+  },
+  "Networks": {
+   "app-server-net": {
+    "NetworkID": "6ebc21a9eddfa5ee4763057c0a01b48be85deb25299947d97f6f5fe143fdc86a",
+    "IPAddress": "172.18.0.2",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

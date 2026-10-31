@@ -1,0 +1,48 @@
+{
+ "Id": "c0f332a3625fceb55573e73516eb9e7bbce0a58954e4a13e546d514649fb375b",
+ "Name": "/app-sync",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/app-sync:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "app-server-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/srv/app-sync/1",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/app-sync/2",
+   "Destination": "/data/2",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "3000/tcp": [
+    {
+     "HostIp": "10.44.0.1",
+     "HostPort": "3000"
+    }
+   ]
+  },
+  "Networks": {
+   "app-server-net": {
+    "NetworkID": "6ebc21a9eddfa5ee4763057c0a01b48be85deb25299947d97f6f5fe143fdc86a",
+    "IPAddress": "172.18.0.3",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

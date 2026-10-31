@@ -339,13 +339,14 @@ class NftNative(unittest.TestCase):
         self.assertEqual(items["runner"][:2], ["docker-socket", "privileged"])
 
 
-class Recorded(unittest.TestCase):
-    """Four real servers, recorded read only (test/fixtures/capture.sh) and made anonymous: every
-    port with its state and reason, and what made each of them worth recording."""
+class Derived(unittest.TestCase):
+    """Four scenarios derived from real servers recorded read only (test/fixtures/capture.sh), with
+    addresses, ports and names changed and containers left out: every port with its state and
+    reason, and what made each of them worth recording."""
 
     @classmethod
     def setUpClass(cls):
-        cls.docs = {s: scan(s) for s in ("recorded-ci", "recorded-edge", "recorded-ipv6", "recorded-services")}
+        cls.docs = {s: scan(s) for s in ("derived-ci", "derived-edge", "derived-ipv6", "derived-services")}
 
     def states(self, s):
         return {k: (p["state"], p["why"]) for k, p in ports(self.docs[s]).items()}
@@ -362,12 +363,12 @@ class Recorded(unittest.TestCase):
 
     def test_ci(self):
         """UFW lets in only the VPN, but Docker publishes the gateway on the public address: past UFW."""
-        self.assertEqual(self.states("recorded-ci"), {
+        self.assertEqual(self.states("derived-ci"), {
             "22/tcp": ("ok", "only-vpn"), "53/tcp": ("ok", "local"), "53/udp": ("ok", "local"),
             "80/tcp": ("info", "public-expected"), "323/udp": ("ok", "local"), "443/tcp": ("info", "public-expected"),
-            "2222/tcp": ("ok", "only-vpn"), "8088/tcp": ("ok", "only-vpn"), "42469/tcp": ("ok", "local"),
+            "2200/tcp": ("ok", "only-vpn"), "8090/tcp": ("ok", "only-vpn"), "42469/tcp": ("ok", "local"),
             "58507/udp": ("ok", "only-vpn")})
-        p = ports(self.docs["recorded-ci"])
+        p = ports(self.docs["derived-ci"])
         inet = p["443/tcp"]["reach"]["4"]["internet"]
         self.assertEqual((inet["path"], inet["to"]["addr"]), ("forward", "172.19.0.15"))
         self.assertEqual(inet["steps"][-1]["rule"]["chain"], "DOCKER")
@@ -375,25 +376,25 @@ class Recorded(unittest.TestCase):
         self.assertEqual(vpn["to"]["addr"], "172.19.0.10", "the VPN address has a mapping of its own")
         self.assertEqual(p["443/tcp"]["service"]["containers"], ["gateway", "web"])
         self.assertEqual(p["58507/udp"]["name"], "wireguard", "the kernel's socket of a WireGuard peer")
-        self.assertEqual(self.docs["recorded-ci"]["firewall"]["input_filter"], {4: "on", 6: "on"})
-        self.assertEqual(self.docs["recorded-ci"]["ssh"]["sshd"], {"state": "ok", "match": []},
+        self.assertEqual(self.docs["derived-ci"]["firewall"]["input_filter"], {4: "on", 6: "on"})
+        self.assertEqual(self.docs["derived-ci"]["ssh"]["sshd"], {"state": "ok", "match": []},
                          "sshd -T works since /run/sshd exists")
-        socket = [c["name"] for c in self.docs["recorded-ci"]["containers"]["items"]
+        socket = [c["name"] for c in self.docs["derived-ci"]["containers"]["items"]
                   if any(f["kind"] == "docker-socket" for f in c["findings"])]
-        self.assertEqual(socket, ["runner-1", "runner-2", "runner-3", "runner-4", "socket-proxy"])
+        self.assertEqual(socket, ["runner-1", "runner-2", "socket-proxy"])
 
     def test_edge(self):
         """The WireGuard edge: UFW, Cockpit and the apps on the VPN address, SSH from the VPN and
         the private network, the DHCP client let in by UFW's rule for source port 67."""
-        self.assertEqual(self.states("recorded-edge"), {
+        self.assertEqual(self.states("derived-edge"), {
             "22/tcp": ("ok", "only-vpn-private"), "53/tcp": ("ok", "only-vpn"), "53/udp": ("ok", "only-vpn"),
             "68/udp": ("info", "public-expected"), "323/udp": ("ok", "local"), "443/tcp": ("ok", "only-vpn"),
             "3000/tcp": ("ok", "only-vpn"), "8080/tcp": ("ok", "only-vpn"), "9090/tcp": ("ok", "only-vpn"),
             "51820/udp": ("info", "public-expected")})
-        p = ports(self.docs["recorded-edge"])
+        p = ports(self.docs["derived-edge"])
         self.assertEqual(reach(p["22/tcp"]), {"internet": "closed", "vpn": "open", "private": "restricted",
                                               "local": "open"})
-        self.assertEqual(p["22/tcp"]["reach"]["4"]["private"]["sources"], ["10.0.0.0/24"])
+        self.assertEqual(p["22/tcp"]["reach"]["4"]["private"]["sources"], ["10.20.0.0/24"])
         dhcp = p["68/udp"]["reach"]["4"]["internet"]
         self.assertEqual(dhcp["steps"][-1]["rule"]["text"], "-p udp -m udp --sport 67 --dport 68 -j ACCEPT")
         self.assertEqual(p["68/udp"]["name"], "dhcp-client")
@@ -401,11 +402,11 @@ class Recorded(unittest.TestCase):
     def test_ipv6_only(self):
         """No public IPv4 (a shared address of 100.64.0.0/10), IPv6 closed but for the VPN; wg-quick's
         own nftables table is read next to UFW's."""
-        doc = self.docs["recorded-ipv6"]
+        doc = self.docs["derived-ipv6"]
         self.assertEqual(doc["network"]["public"], {"4": False, "6": True})
-        self.assertEqual(self.states("recorded-ipv6"), {
+        self.assertEqual(self.states("derived-ipv6"), {
             "22/tcp": ("ok", "only-vpn"), "53/tcp": ("ok", "local"), "53/udp": ("ok", "local"),
-            "68/udp": ("ok", "only-private"), "323/udp": ("ok", "local"), "18789/tcp": ("ok", "local"),
+            "68/udp": ("ok", "only-private"), "323/udp": ("ok", "local"), "17890/tcp": ("ok", "local"),
             "36797/tcp": ("ok", "local"), "38554/udp": ("ok", "local")})
         self.assertIn({"src": "nft", "family": "ip", "table": "wg-quick-wg0", "chains": 3, "rules": 3, "owners": []},
                       doc["firewall"]["tables"])
@@ -415,32 +416,28 @@ class Recorded(unittest.TestCase):
         """UFW off and no Hetzner token: every public port is "outside-only". The relay is limited to
         an ipset (a country list) in DOCKER-USER for IPv4, but its IPv6 goes to docker-proxy on
         the host, where nothing filters: that rule does not cover IPv6."""
-        self.assertEqual(self.states("recorded-services"), {
+        self.assertEqual(self.states("derived-services"), {
             "22/tcp": ("warning", "outside-only"), "53/tcp": ("ok", "local"), "53/udp": ("ok", "local"),
             "68/udp": ("warning", "outside-only"), "80/tcp": ("warning", "outside-only"),
-            "443/tcp": ("warning", "outside-only"), "1411/tcp": ("ok", "local"), "3000/tcp": ("ok", "local"),
-            "3001/tcp": ("ok", "local"), "3002/tcp": ("ok", "local"), "3003/tcp": ("ok", "local"),
-            "3010/tcp": ("ok", "local"), "3011/tcp": ("ok", "local"), "5006/tcp": ("ok", "local"),
-            "8000/tcp": ("ok", "local"), "8080/tcp": ("ok", "local"), "8089/tcp": ("ok", "local"),
-            "8091/tcp": ("ok", "local"), "21115/tcp": ("warning", "outside-only"),
-            "21116/tcp": ("warning", "outside-only"), "21116/udp": ("warning", "outside-only"),
-            "21117/tcp": ("warning", "outside-only"), "21118/tcp": ("warning", "outside-only"),
-            "21119/tcp": ("warning", "outside-only")})
-        doc = self.docs["recorded-services"]
+            "443/tcp": ("warning", "outside-only"), "8080/tcp": ("ok", "local"),
+            "47101/tcp": ("warning", "outside-only"), "47102/tcp": ("warning", "outside-only"),
+            "47102/udp": ("warning", "outside-only"), "47103/tcp": ("warning", "outside-only"),
+            "47104/tcp": ("warning", "outside-only"), "47105/tcp": ("warning", "outside-only")})
+        doc = self.docs["derived-services"]
         self.assertEqual(doc["firewall"]["input_filter"], {4: "off", 6: "off"})
         self.assertEqual((doc["firewall"]["ufw"]["installed"], doc["firewall"]["ufw"]["enabled"]), (True, False))
-        relay = ports(doc)["21116/udp"]
+        relay = ports(doc)["47102/udp"]
         v4, v6 = relay["reach"]["4"]["internet"], relay["reach"]["6"]["internet"]
-        self.assertEqual((v4["result"], v4["path"], v4["sources"]), ("restricted", "forward", ["ipset germany"]))
+        self.assertEqual((v4["result"], v4["path"], v4["sources"]), ("restricted", "forward", ["ipset geo-allow"]))
         self.assertEqual(v4["steps"][-1]["rule"]["chain"], "DOCKER", "Docker's rule lets the members in")
         lim = v4["limited_by"]
         self.assertEqual((lim["result"], lim["chain"]["chain"], lim["rule"]["chain"]), ("drop", "FORWARD", "DOCKER-USER"))
-        self.assertEqual(lim["rule"]["text"], "-p udp -m udp --dport 21116 -m set ! --match-set germany src -j DROP",
+        self.assertEqual(lim["rule"]["text"], "-p udp -m udp --dport 47102 -m set ! --match-set geo-allow src -j DROP",
                          "the geo rule keeps everyone else out")
         self.assertEqual((v6["result"], v6["path"], v6.get("proxy")), ("open", "input", True))
         self.assertNotIn("limited_by", v6)
         self.assertEqual(reach(ports(doc)["8080/tcp"]), {"internet": "absent", "vpn": "absent", "private": "absent",
-                                                         "local": "open"}, "the office suite on 127.0.0.1")
+                                                         "local": "open"}, "the editor on 127.0.0.1")
         f2b = [t for t in doc["firewall"]["tables"] if "fail2ban" in t["owners"]]
         self.assertEqual([(t["family"], t["table"]) for t in f2b], [("ip", "filter")])
 

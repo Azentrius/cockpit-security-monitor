@@ -201,7 +201,7 @@ system by itself.
 |---|---|---|
 | **Tested** | Ubuntu 24.04 (GitHub runner) with Ubuntu's own Cockpit, UFW and fail2ban, and Docker from the runner image | the page in a real Cockpit session in Chromium (job `e2e`): installed with apt, the first check by itself through the hardened service, Docker's port reachable past UFW, fail2ban's jail on that port reported as not reaching it, a mark set and removed, "VPN only" with a DOCKER-USER rule, the regular check, the status as a user without sudo, a user without administrative access, the menu icon, links into the tabs, no JavaScript errors |
 | **Tested** | Python 3.8 and 3.12 | the helper tests against the scenarios (job `python-min` and `make check`); 3.8 is the oldest supported |
-| **Recorded** | four real Ubuntu servers (24.04 and 26.04) | the scan against their outputs, recorded read only and made anonymous (`test/fixtures/recorded-*`) |
+| **Recorded** | four real Ubuntu servers (24.04 and 26.04) | the scan against scenarios derived from their outputs, recorded read only, with addresses, ports and names changed and containers left out (`test/fixtures/derived-*`) |
 | **Package installs** | Debian 13 (`.deb`), Fedora 43 (`.rpm`) | the package installs with the distribution's own dependencies, a scan as root and the status as an unprivileged user answer, the package removes cleanly. No Cockpit, systemd or packet filter runs there. |
 | **Expected, untested** | Debian 12 and 13, Ubuntu 22.04 and newer, with Cockpit 264 or newer | the page in a real Cockpit there |
 | **Not supported yet** | Fedora, RHEL, openSUSE | firewalld's tables are followed like any other nft table, but not explained on their own; releases carry no `.rpm`, and the package repository serves the add-on for Debian and Ubuntu only |
@@ -305,8 +305,9 @@ python3 tools/preview/shoot.py         # screenshots (light, dark, phone) to doc
 
 The helper tests run against hand-made scenarios in `test/fixtures/` (UFW with Docker past it; UFW
 off behind a Hetzner Cloud Firewall with CrowdSec; nftables with a verdict map and a failing
-`sshd -T`; UFW with Docker plus fail2ban with four jails), their variants, and four real servers
-recorded read only and made anonymous (`test/fixtures/capture.sh`). The CI job `e2e` runs on a
+`sshd -T`; UFW with Docker plus fail2ban with four jails), their variants, and four scenarios
+derived from real servers recorded read only (`test/fixtures/capture.sh`), with addresses, ports
+and names changed and containers left out, so they depict no real host. The CI job `e2e` runs on a
 throw-away runner with UFW on, Docker publishing a port and fail2ban from Ubuntu with a jail in
 front of that port: the page in a real Cockpit reports the port as reachable from the internet past
 UFW, the jail as not reaching it, and the port as VPN only with a DOCKER-USER rule (all steps:

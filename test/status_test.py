@@ -93,15 +93,15 @@ class Contract(unittest.TestCase):
                                          ("crowdsec", "warning", "2"), ("scan", "ok", None)]),
             "nft-native": ("danger", [("exposure", "warning", "4"), ("ssh", "warning", "2"), ("logins", "ok", "0"),
                                       ("containers", "danger", "2"), ("scan", "ok", None)]),
-            "recorded-ci": ("danger", [("exposure", "info", "2"), ("ssh", "info", None), ("logins", "ok", "0"),
-                                       ("containers", "danger", "5"), ("scan", "ok", None)]),
-            "recorded-edge": ("danger", [("exposure", "info", "2"), ("ssh", "info", None), ("logins", "ok", "0"),
-                                         ("containers", "danger", "1"), ("scan", "ok", None)]),
-            "recorded-ipv6": ("danger", [("exposure", "ok", "0"), ("ssh", "info", None), ("logins", "ok", "0"),
-                                         ("containers", "danger", "1"), ("scan", "ok", None)]),
-            "recorded-services": ("danger", [("exposure", "warning", "10"), ("ssh", "info", None),
-                                             ("logins", "ok", "0"), ("containers", "danger", "1"),
-                                             ("scan", "ok", None)]),
+            "derived-ci": ("danger", [("exposure", "info", "2"), ("ssh", "info", None), ("logins", "ok", "0"),
+                                      ("containers", "danger", "3"), ("scan", "ok", None)]),
+            "derived-edge": ("danger", [("exposure", "info", "2"), ("ssh", "info", None), ("logins", "ok", "0"),
+                                        ("containers", "danger", "1"), ("scan", "ok", None)]),
+            "derived-ipv6": ("danger", [("exposure", "ok", "0"), ("ssh", "info", None), ("logins", "ok", "0"),
+                                        ("containers", "danger", "1"), ("scan", "ok", None)]),
+            "derived-services": ("danger", [("exposure", "warning", "10"), ("ssh", "info", None),
+                                            ("logins", "ok", "0"), ("containers", "danger", "1"),
+                                            ("scan", "ok", None)]),
             "fail2ban": ("danger", [("exposure", "warning", "5"), ("ssh", "warning", "3"), ("logins", "ok", "1"),
                                     ("containers", "danger", "1"), ("fail2ban", "warning", "3"), ("scan", "ok", None)]),
         }
@@ -367,12 +367,12 @@ class Extension(unittest.TestCase):
                           "crowdsec": "notapplicable", "fail2ban": "notapplicable"})
         self.assertEqual(checks(status("nft-native"))["ssh"]["reason"],
                          "sshd -T without its privilege separation directory: not checkable")
-        self.assertEqual(fids(status("recorded-services"))[:3], ["port.22-tcp", "port.68-udp", "port.80-tcp"])
+        self.assertEqual(fids(status("derived-services"))[:3], ["port.22-tcp", "port.68-udp", "port.80-tcp"])
         self.assertEqual([(f["fid"], f["exposure"]) for f in exposure_findings(status("nft-native"))["list"]][-1],
                          ("port.60001-tcp", "restricted"), "only some addresses reach it")
 
     def test_fids_the_same_in_every_language_order_and_run(self):
-        for s in ("ufw-docker", "nft-native", "recorded-services", "hetzner-open"):
+        for s in ("ufw-docker", "nft-native", "derived-services", "hetzner-open"):
             doc, _ = make_states.state(s)
             st = secstatus.status_file(seccheck.view(doc, NO_MARKS), "0.1.0")
             want = fids(st)

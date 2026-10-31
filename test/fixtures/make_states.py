@@ -21,7 +21,7 @@ import seccheck  # noqa: E402
 import secstatus  # noqa: E402
 
 SCENARIOS = ("ufw-docker", "hetzner-open", "nft-native", "fail2ban",
-             "recorded-ci", "recorded-edge", "recorded-ipv6", "recorded-services")
+             "derived-ci", "derived-edge", "derived-ipv6", "derived-services")
 VERSION = "0.1.0"
 
 

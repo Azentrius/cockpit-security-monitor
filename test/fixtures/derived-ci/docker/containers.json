@@ -1,0 +1,74 @@
+[
+ {
+  "Id": "0d08c7513c47a07abc2699c68f512f650938b19054d3eb5d4a563aa1d99661b8",
+  "Names": [
+   "/runner-1"
+  ],
+  "Image": "registry.example/runner:1",
+  "State": "running"
+ },
+ {
+  "Id": "3647c0aa775d22ef13f930079e805448e6ddd29c81bf9ea48bd336bf6ab34ca2",
+  "Names": [
+   "/runner-2"
+  ],
+  "Image": "registry.example/runner:1",
+  "State": "running"
+ },
+ {
+  "Id": "8d8785e3edd02b7ab97fbf573e893660d072e519c5ab17daa02fb3b73ad5317a",
+  "Names": [
+   "/gateway"
+  ],
+  "Image": "registry.example/gateway:1",
+  "State": "running"
+ },
+ {
+  "Id": "71fffd64764963141b447172276b7b0bfdcc20214d7fb5fed5e05d04d85eccf8",
+  "Names": [
+   "/forge-api"
+  ],
+  "Image": "registry.example/forge-api:1",
+  "State": "running"
+ },
+ {
+  "Id": "f9d28a0060ec396087f01c49a2ab390a8d7e2cb74f6c8bcb7ed49ed1775fa051",
+  "Names": [
+   "/forge"
+  ],
+  "Image": "registry.example/forge:1",
+  "State": "running"
+ },
+ {
+  "Id": "46b8474e90f4e5a6831014592906033ae1caad70543c4ed42fbce01b18f76474",
+  "Names": [
+   "/forge-db"
+  ],
+  "Image": "registry.example/db:1",
+  "State": "running"
+ },
+ {
+  "Id": "77c7fb9fad795dcb3e1f577dafaf9e59e3d35428bdef8d9f915db6f393418c57",
+  "Names": [
+   "/watcher"
+  ],
+  "Image": "registry.example/watcher:1",
+  "State": "running"
+ },
+ {
+  "Id": "119f25b5e1aa40564a08acbd0a5ff763065a0a0b51fd15daa98ce57b50c0baff",
+  "Names": [
+   "/socket-proxy"
+  ],
+  "Image": "registry.example/socket-proxy:1",
+  "State": "running"
+ },
+ {
+  "Id": "1681b42d1d66f2e846dbdf67007343bf0c0213b89773206221d7635ca39b656e",
+  "Names": [
+   "/web"
+  ],
+  "Image": "registry.example/web:1",
+  "State": "running"
+ }
+]

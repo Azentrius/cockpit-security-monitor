@@ -1,0 +1,61 @@
+{
+ "Id": "ee05fc237f6b983dcd90ff0492ac9e4e37066e5ed60dfec2f4ceecbd59604160",
+ "Name": "/editor",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/editor:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "editor-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/editor-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/editor/2",
+   "Destination": "/data/2",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/editor/3",
+   "Destination": "/data/3",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/editor/4",
+   "Destination": "/data/4",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "443/tcp": null,
+   "80/tcp": [
+    {
+     "HostIp": "127.0.0.1",
+     "HostPort": "8080"
+    }
+   ]
+  },
+  "Networks": {
+   "editor-net": {
+    "NetworkID": "8397e6f3692029ce53bb7d8fd1603e6b7f0810e7cfc89e6019f9c89315df152c",
+    "IPAddress": "172.18.0.2",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}
