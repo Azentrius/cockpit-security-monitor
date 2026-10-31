@@ -1,0 +1,37 @@
+{
+ "Id": "46b8474e90f4e5a6831014592906033ae1caad70543c4ed42fbce01b18f76474",
+ "Name": "/forge-db",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/db:1",
+  "User": "999:999"
+ },
+ "HostConfig": {
+  "NetworkMode": "forge-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/forge-db-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "5432/tcp": null
+  },
+  "Networks": {
+   "forge-net": {
+    "NetworkID": "07270d42454cce4e47112c54dfe5fbcb41037bb294fc7fb73f81c621719ad983",
+    "IPAddress": "172.18.0.2",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

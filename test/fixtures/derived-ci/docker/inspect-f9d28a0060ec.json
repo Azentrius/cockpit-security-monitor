@@ -1,0 +1,55 @@
+{
+ "Id": "f9d28a0060ec396087f01c49a2ab390a8d7e2cb74f6c8bcb7ed49ed1775fa051",
+ "Name": "/forge",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/forge:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "forge-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/forge-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/etc/localtime",
+   "Destination": "/etc/localtime",
+   "RW": false
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "22/tcp": [
+    {
+     "HostIp": "10.44.0.2",
+     "HostPort": "2200"
+    }
+   ],
+   "3000/tcp": null
+  },
+  "Networks": {
+   "build-net": {
+    "NetworkID": "4791ea4b7f449b8f91c9502f0b8852ca3e272ee4084a354ca2110e14066684ea",
+    "IPAddress": "172.19.0.7",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   },
+   "forge-net": {
+    "NetworkID": "07270d42454cce4e47112c54dfe5fbcb41037bb294fc7fb73f81c621719ad983",
+    "IPAddress": "172.18.0.3",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

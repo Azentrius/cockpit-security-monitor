@@ -1,0 +1,62 @@
+{
+ "Id": "1681b42d1d66f2e846dbdf67007343bf0c0213b89773206221d7635ca39b656e",
+ "Name": "/web",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/web:1",
+  "User": ""
+ },
+ "HostConfig": {
+  "NetworkMode": "build-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/web-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/web-2/_data",
+   "Destination": "/data/2",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/web/3",
+   "Destination": "/data/3",
+   "RW": false
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "2019/tcp": null,
+   "443/tcp": [
+    {
+     "HostIp": "10.44.0.2",
+     "HostPort": "443"
+    }
+   ],
+   "443/udp": null,
+   "80/tcp": [
+    {
+     "HostIp": "10.44.0.2",
+     "HostPort": "80"
+    }
+   ]
+  },
+  "Networks": {
+   "build-net": {
+    "NetworkID": "4791ea4b7f449b8f91c9502f0b8852ca3e272ee4084a354ca2110e14066684ea",
+    "IPAddress": "172.19.0.10",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

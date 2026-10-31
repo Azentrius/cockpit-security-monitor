@@ -1,0 +1,95 @@
+[
+ {
+  "Name": "socket-proxy-net",
+  "Id": "4e5e8592560ce8457a8386166e7e7b9a337134dd5c67d6e6b6b647d6eefb97d1",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.25.0.0/16",
+     "Gateway": "172.25.0.1"
+    }
+   ]
+  }
+ },
+ {
+  "Name": "host",
+  "Id": "79fc994bcd10581ff8021d1f40d3f03cd54cf71b67c6275adbcf0df938267623",
+  "Driver": "host",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": []
+  }
+ },
+ {
+  "Name": "editor-net",
+  "Id": "8397e6f3692029ce53bb7d8fd1603e6b7f0810e7cfc89e6019f9c89315df152c",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.18.0.0/16",
+     "Gateway": "172.18.0.1"
+    }
+   ]
+  }
+ },
+ {
+  "Name": "none",
+  "Id": "b1ace3cd768e1e88e400b2cf52114c1a1b5bc61a0a3353d254e06b8996390834",
+  "Driver": "null",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": []
+  }
+ },
+ {
+  "Name": "bridge",
+  "Id": "36c23ee9fd13ccb84e0abd9696b04e6500c591de7cafe42aa116f5b3a672a922",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {
+   "com.docker.network.bridge.default_bridge": "true",
+   "com.docker.network.bridge.enable_icc": "true",
+   "com.docker.network.bridge.enable_ip_masquerade": "true",
+   "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+   "com.docker.network.bridge.name": "docker0",
+   "com.docker.network.driver.mtu": "1500"
+  },
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.17.0.0/16",
+     "Gateway": "172.17.0.1"
+    }
+   ]
+  }
+ },
+ {
+  "Name": "broker-net",
+  "Id": "f6c64b95a78b0f69696b38dd246e36759015471b34ac103b989a54687f517536",
+  "Driver": "bridge",
+  "EnableIPv6": false,
+  "Internal": false,
+  "Options": {},
+  "IPAM": {
+   "Config": [
+    {
+     "Subnet": "172.20.0.0/16",
+     "Gateway": "172.20.0.1"
+    }
+   ]
+  }
+ }
+]

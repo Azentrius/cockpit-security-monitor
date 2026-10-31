@@ -1,0 +1,35 @@
+{
+ "Id": "71fffd64764963141b447172276b7b0bfdcc20214d7fb5fed5e05d04d85eccf8",
+ "Name": "/forge-api",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/forge-api:1",
+  "User": "65532:65532"
+ },
+ "HostConfig": {
+  "NetworkMode": "build-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [],
+ "NetworkSettings": {
+  "Ports": {
+   "8080/tcp": [
+    {
+     "HostIp": "10.44.0.2",
+     "HostPort": "8090"
+    }
+   ]
+  },
+  "Networks": {
+   "build-net": {
+    "NetworkID": "4791ea4b7f449b8f91c9502f0b8852ca3e272ee4084a354ca2110e14066684ea",
+    "IPAddress": "172.19.0.3",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

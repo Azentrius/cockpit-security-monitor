@@ -1,0 +1,54 @@
+{
+ "Id": "8d8785e3edd02b7ab97fbf573e893660d072e519c5ab17daa02fb3b73ad5317a",
+ "Name": "/gateway",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/gateway:1",
+  "User": "0"
+ },
+ "HostConfig": {
+  "NetworkMode": "build-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/gateway-1/_data",
+   "Destination": "/data/1",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/gateway/2",
+   "Destination": "/data/2",
+   "RW": false
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {
+   "443/tcp": [
+    {
+     "HostIp": "198.51.100.40",
+     "HostPort": "443"
+    }
+   ],
+   "80/tcp": [
+    {
+     "HostIp": "198.51.100.40",
+     "HostPort": "80"
+    }
+   ]
+  },
+  "Networks": {
+   "build-net": {
+    "NetworkID": "4791ea4b7f449b8f91c9502f0b8852ca3e272ee4084a354ca2110e14066684ea",
+    "IPAddress": "172.19.0.15",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

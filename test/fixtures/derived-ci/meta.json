@@ -1,0 +1,8 @@
+{
+ "now": "2026-10-20T12:00:00Z",
+ "uid": 0,
+ "exists": [
+  "/var/run/docker.sock"
+ ],
+ "recorded": "Derived from a server recorded read only with test/fixtures/capture.sh on 2026-10-20: addresses, ports and names changed and containers left out, so it depicts no real host. Not recorded: the journal (empty here), /etc/passwd (written by hand), authorized_keys (none here)."
+}
