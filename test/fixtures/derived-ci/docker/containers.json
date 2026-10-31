@@ -1,8 +1,24 @@
 [
  {
+  "Id": "c771ecb5a1daf437b64fa4b405157915b2c3d1f34765cce131de7575ba46a13e",
+  "Names": [
+   "/runner-4"
+  ],
+  "Image": "registry.example/runner:1",
+  "State": "running"
+ },
+ {
   "Id": "0d08c7513c47a07abc2699c68f512f650938b19054d3eb5d4a563aa1d99661b8",
   "Names": [
    "/runner-1"
+  ],
+  "Image": "registry.example/runner:1",
+  "State": "running"
+ },
+ {
+  "Id": "79a2698b24c8867d430850f441fd651648533c2baec6cda7e26a97c83ebd8147",
+  "Names": [
+   "/runner-3"
   ],
   "Image": "registry.example/runner:1",
   "State": "running"

@@ -115,8 +115,8 @@
    "id": "containers",
    "state": "danger",
    "title": "Container hardening",
-   "value": "3",
-   "detail": "Docker socket: runner-1, runner-2, socket-proxy",
+   "value": "5",
+   "detail": "Docker socket: runner-1, runner-2, runner-3 (+2)",
    "link": "#/containers",
    "checked_at": "2026-10-20T12:00:00Z",
    "stale_after": 3600
@@ -147,7 +147,7 @@
     },
     "containers": {
      "title": "Container-Härtung",
-     "detail": "Docker-Socket: runner-1, runner-2, socket-proxy"
+     "detail": "Docker-Socket: runner-1, runner-2, runner-3 (+2)"
     },
     "scan": {
      "title": "Prüfung",

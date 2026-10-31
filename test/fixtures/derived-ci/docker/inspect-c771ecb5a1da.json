@@ -1,0 +1,47 @@
+{
+ "Id": "c771ecb5a1daf437b64fa4b405157915b2c3d1f34765cce131de7575ba46a13e",
+ "Name": "/runner-4",
+ "AppArmorProfile": "docker-default",
+ "Config": {
+  "Image": "registry.example/runner:1",
+  "User": "0:0"
+ },
+ "HostConfig": {
+  "NetworkMode": "build-net",
+  "Privileged": false,
+  "PidMode": "",
+  "CapAdd": null,
+  "SecurityOpt": null
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/var/run/docker.sock",
+   "Destination": "/var/run/docker.sock",
+   "RW": true
+  },
+  {
+   "Type": "volume",
+   "Source": "/var/lib/docker/volumes/runner-4-2/_data",
+   "Destination": "/data/2",
+   "RW": true
+  },
+  {
+   "Type": "bind",
+   "Source": "/srv/runner-4/3",
+   "Destination": "/data/3",
+   "RW": false
+  }
+ ],
+ "NetworkSettings": {
+  "Ports": {},
+  "Networks": {
+   "build-net": {
+    "NetworkID": "4791ea4b7f449b8f91c9502f0b8852ca3e272ee4084a354ca2110e14066684ea",
+    "IPAddress": "172.19.0.6",
+    "IPPrefixLen": 16,
+    "GlobalIPv6Address": ""
+   }
+  }
+ }
+}

@@ -94,7 +94,7 @@ class Contract(unittest.TestCase):
             "nft-native": ("danger", [("exposure", "warning", "4"), ("ssh", "warning", "2"), ("logins", "ok", "0"),
                                       ("containers", "danger", "2"), ("scan", "ok", None)]),
             "derived-ci": ("danger", [("exposure", "info", "2"), ("ssh", "info", None), ("logins", "ok", "0"),
-                                      ("containers", "danger", "3"), ("scan", "ok", None)]),
+                                      ("containers", "danger", "5"), ("scan", "ok", None)]),
             "derived-edge": ("danger", [("exposure", "info", "2"), ("ssh", "info", None), ("logins", "ok", "0"),
                                         ("containers", "danger", "1"), ("scan", "ok", None)]),
             "derived-ipv6": ("danger", [("exposure", "ok", "0"), ("ssh", "info", None), ("logins", "ok", "0"),

@@ -381,7 +381,7 @@ class Derived(unittest.TestCase):
                          "sshd -T works since /run/sshd exists")
         socket = [c["name"] for c in self.docs["derived-ci"]["containers"]["items"]
                   if any(f["kind"] == "docker-socket" for f in c["findings"])]
-        self.assertEqual(socket, ["runner-1", "runner-2", "socket-proxy"])
+        self.assertEqual(socket, ["runner-1", "runner-2", "runner-3", "runner-4", "socket-proxy"])
 
     def test_edge(self):
         """The WireGuard edge: UFW, Cockpit and the apps on the VPN address, SSH from the VPN and

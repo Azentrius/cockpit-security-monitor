@@ -99,7 +99,7 @@
     "family": "ip",
     "table": "raw",
     "chains": 2,
-    "rules": 10,
+    "rules": 12,
     "owners": []
    },
    {
@@ -199,7 +199,7 @@
    "version": "29.1.3",
    "backend": "iptables",
    "backend_known": true,
-   "containers": 9
+   "containers": 11
   },
   "hetzner": {
    "configured": false
@@ -1827,6 +1827,44 @@
    },
    {
     "name": "runner-2",
+    "image": "registry.example/runner:1",
+    "findings": [
+     {
+      "kind": "docker-socket",
+      "state": "danger",
+      "detail": "/var/run/docker.sock"
+     },
+     {
+      "kind": "root-user",
+      "state": "info"
+     },
+     {
+      "kind": "no-new-privileges",
+      "state": "info"
+     }
+    ]
+   },
+   {
+    "name": "runner-3",
+    "image": "registry.example/runner:1",
+    "findings": [
+     {
+      "kind": "docker-socket",
+      "state": "danger",
+      "detail": "/var/run/docker.sock"
+     },
+     {
+      "kind": "root-user",
+      "state": "info"
+     },
+     {
+      "kind": "no-new-privileges",
+      "state": "info"
+     }
+    ]
+   },
+   {
+    "name": "runner-4",
     "image": "registry.example/runner:1",
     "findings": [
      {
