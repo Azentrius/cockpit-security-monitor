@@ -62,13 +62,13 @@ jobs:
       - name: Install and remove the .deb on Debian 13, the .rpm on Fedora 43
         run: |
           for image in debian:13 fedora:43; do
-            docker run --rm -e IMAGE="$image" -v "$PWD/dist:/dist:ro" "$image" sh -ec '
+            docker run --rm -e IMAGE="$image" -v "$PWD/dist:/dist:ro" -v "$PWD/tools/dnf.sh:/dnf.sh:ro" "$image" sh -ec '
               case "$IMAGE" in
                 debian*) # the same limits as tools/apt-get.sh, which is not in this container
                   apt="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
                   timeout 300 apt-get $apt update -qq
                   timeout 300 apt-get $apt install -y -qq /dist/*.deb > /dev/null ;;
-                fedora*) dnf install -y -q /dist/*.rpm ;;
+                fedora*) sh /dnf.sh install -y -q /dist/*.rpm ;; # time limits, three tries
               esac
               test -x /usr/lib/cockpit-security-monitor/security-scan.py
               test -x /usr/lib/cockpit-security-monitor/security.py
