@@ -29,7 +29,7 @@ python3 tools/preview/build.py   # the page with test data: tools/preview/out/se
 The offline tests need no root and no network: the helpers read the scenarios in `test/fixtures/`
 through `test/fakesys.py`. A new case of the packet filter goes into `test/fw_test.py` (a few
 iptables-save lines are enough) or, when it needs a whole host, into a new scenario. The `test`
-workflow runs the lint, the tests and the package build on every push and pull request; the job
+workflow runs the lint, the tests and the package build on every pull request and every push to `main`; the job
 `python-min` runs the helper tests on Python 3.8, and the job `e2e` runs the page in a real
 Cockpit with UFW, Docker and fail2ban.
 
