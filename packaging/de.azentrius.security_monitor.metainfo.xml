@@ -10,19 +10,23 @@
   <summary xml:lang="de">Was auf einem Server von wo erreichbar ist, wer sich anmeldet, was seine Container schwächt</summary>
   <description>
     <p>
-      The page shows per port whether it is reachable from the internet, the VPN, the private
-      network or only the server itself, for IPv4 and IPv6, with the rule that decides. It reads
-      UFW, Docker (which forwards published ports past UFW), nftables and iptables, and
-      optionally the Hetzner Cloud Firewall with a read-only token. It also shows the SSH
+      For Debian and Ubuntu servers, the page assesses per port whether it is reachable from the
+      internet, the VPN, the private network or only the server itself, for IPv4 and IPv6, with
+      the rule that decides. The assessment rests on the server's own data: its addresses and
+      listening sockets, UFW, Docker (which forwards published ports past UFW), nftables and
+      iptables, and optionally the Hetzner Cloud Firewall, read with a read-only token. No port is
+      tested from outside. It also shows the SSH
       configuration and keys, the logins of the last 14 days, container settings that weaken
       the boundary to the host, and CrowdSec and fail2ban if they are installed. It only reads;
       the one change it makes is marking a finding as expected in its own file.
     </p>
     <p xml:lang="de">
-      Die Seite zeigt je Port, ob er aus dem Internet, dem VPN, dem Privatnetz oder nur vom
-      Server selbst erreichbar ist, für IPv4 und IPv6, mit der Regel, die entscheidet. Sie liest
-      UFW, Docker (das veröffentlichte Ports an UFW vorbei weiterleitet), nftables und iptables
-      und auf Wunsch die Hetzner Cloud Firewall mit einem nur lesenden Token. Dazu zeigt sie die
+      Für Server mit Debian und Ubuntu bewertet die Seite je Port, ob er aus dem Internet, dem
+      VPN, dem Privatnetz oder nur vom Server selbst erreichbar ist, für IPv4 und IPv6, mit der
+      Regel, die entscheidet. Die Bewertung stützt sich auf die Daten des Servers selbst: seine
+      Adressen und lauschenden Sockets, UFW, Docker (das veröffentlichte Ports an UFW vorbei
+      weiterleitet), nftables und iptables und auf Wunsch die Hetzner Cloud Firewall, gelesen mit
+      einem nur lesenden Token. Von außen wird kein Port getestet. Dazu zeigt sie die
       SSH-Konfiguration und Schlüssel, die Anmeldungen der letzten 14 Tage, Einstellungen von
       Containern, die die Grenze zum Host schwächen, und CrowdSec und fail2ban, wenn sie
       installiert sind. Sie liest nur; die einzige Änderung ist, einen Befund in ihrer eigenen
