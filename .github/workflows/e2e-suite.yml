@@ -1,0 +1,40 @@
+name: e2e-suite
+
+# E2E-1, the shared suite of Security Monitor, Host Settings and Status Board, with this
+# repository's commit as the candidate for Security Monitor: the three products built from exact
+# commits and installed with their real packages on a throw-away runner.
+#
+# The suite itself is the reusable workflow suite.yml of Azentrius/cockpit-host-settings, pinned
+# below by a full commit. The same commit gives the test and the released combination
+# (test/e2e-suite/suite-manifest.json there), from which the other two products come. What it
+# runs and what its artifact e2e-suite holds: docs/INTERNALS.md of Host Settings, "The shared
+# suite (E2E-1)".
+#
+# A pull request tests its head commit; a push on main tests the merged commit, which the release
+# requires (release.yml). A pull request that changes only text (Markdown other than the status
+# contract, docs/img, LICENSE, NOTICE) skips the suite, and the job gate still reports. The check
+# to require is "e2e-suite / gate". No secrets, read-only contents: a pull request from a fork
+# runs it as it is.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a pull request replaces its running suite; runs on main and by hand never cancel
+# each other (each commit on main keeps its own run for the release).
+concurrency:
+  group: e2e-suite-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  suite:
+    name: e2e-suite
+    # The same full commit in uses and in suite (job plan checks it). After a change of the suite
+    # or its released combination in Host Settings, move both to the merged commit there.
+    uses: Azentrius/cockpit-host-settings/.github/workflows/suite.yml@b044b3d62afb627a360e2b452af2ae1a2f6a3a6d
+    with:
+      suite: b044b3d62afb627a360e2b452af2ae1a2f6a3a6d

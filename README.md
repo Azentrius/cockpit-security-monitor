@@ -320,7 +320,8 @@ UFW, the jail as not reaching it, and the port as VPN only with a DOCKER-USER ru
    (`tools/check-version.sh` checks that the three agree).
 2. Merge to `main`.
 3. On GitHub: Actions › **release** › Run workflow (branch `main`). The workflow checks the version,
-   waits for the test workflow of that commit to pass, runs the tests, builds the `.deb` and the
+   waits for the test workflow and the shared suite (workflow `e2e-suite`, with the real Host
+   Settings and Status Board) of that commit to pass, runs the tests, builds the `.deb` and the
    source archive `cockpit-security-monitor-X.Y.Z.tar.gz` with `SHA256SUMS` and a signed build
    provenance, and creates the tag `vX.Y.Z` with a release whose notes come from `CHANGELOG.md`.
    Releases carry no `.rpm` yet.
