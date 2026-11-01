@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.4.1 – 2026-11-01
+
+The package texts say what the assessment of each port rests on and which systems the add-on is
+for. The page and the helpers are the same as in 0.4.0.
+
+**Upgrading:** nothing to do.
+
+- **What it assesses:** the README, the AppStream data and the package description say that the
+  page assesses per port whether it is reachable, from the server's own addresses, listening
+  sockets and packet filter and, when set up, the rules of the Hetzner Cloud Firewall. No port is
+  tested from outside, so a router, another firewall or port forwarding in front of the server can
+  change what really gets in. All three name Debian and Ubuntu as the systems it supports, and the
+  README's known limits say the same.
+- **Tested together:** Status Board 0.4.0, Host Settings 0.3.0 and Security Monitor 0.4.1, with
+  their real packages in the shared suite (workflow `e2e-suite` of Host Settings).
+- **Releases:** the release workflow waits for the shared suite to pass for the commit it releases
+  (Security Monitor with the real Host Settings and Status Board), and every pull request runs it
+  too.
+- **Upgrade test:** CI installs 0.3.1 from its release, with its timer on, a marked port and a
+  scan, and this version over it. The marks and the timer stay, the first scan writes when each
+  port was first seen and a status with its checks and findings, and Status Board 0.3.0 reads that
+  status without leaving anything out. Removing the package keeps the marks and removes the state.
+
 ## 0.4.0 – 2026-10-26
 
 What could not be read is never OK, also when Docker does not answer or fail2ban runs many jails.
