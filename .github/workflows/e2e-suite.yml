@@ -35,6 +35,6 @@ jobs:
     name: e2e-suite
     # The same full commit in uses and in suite (job plan checks it). After a change of the suite
     # or its released combination in Host Settings, move both to the merged commit there.
-    uses: Azentrius/cockpit-host-settings/.github/workflows/suite.yml@d05ace96b0082d9cb8db0fe201c2f2f61443aa13
+    uses: Azentrius/cockpit-host-settings/.github/workflows/suite.yml@98e39eb38de0f407af1251f9dcec50d526ba5f5d
     with:
-      suite: d05ace96b0082d9cb8db0fe201c2f2f61443aa13
+      suite: 98e39eb38de0f407af1251f9dcec50d526ba5f5d
