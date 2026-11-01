@@ -1,9 +1,9 @@
 # Makes a release on request: Actions › release › Run workflow (on main).
-# Checks the version, requires the test workflow to have passed for this commit (waiting up to 20
-# minutes for it), runs the tests, builds the .deb and the source archive and creates the tag
-# vVERSION with a GitHub release (package, archive, SHA256SUMS, signed build provenance, notes
-# from CHANGELOG.md). Releases carry no .rpm yet: the page is tested only on Debian and Ubuntu
-# so far.
+# Checks the version, requires the test workflow and the shared suite (workflow e2e-suite) to have
+# passed for this commit (waiting up to 20 minutes for each), runs the tests, builds the .deb and
+# the source archive and creates the tag vVERSION with a GitHub release (package, archive,
+# SHA256SUMS, signed build provenance, notes from CHANGELOG.md). Releases carry no .rpm yet: the
+# page is tested only on Debian and Ubuntu so far.
 name: release
 
 on:
@@ -22,7 +22,7 @@ permissions:
   contents: write       # tag and release
   id-token: write       # signing the build provenance
   attestations: write   # storing the build provenance
-  actions: read         # the test workflow's result for this commit
+  actions: read         # the results of the test workflow and the shared suite for this commit
 
 concurrency:
   group: release
@@ -31,7 +31,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Only from main
         if: github.ref != 'refs/heads/main'
@@ -94,6 +94,55 @@ jobs:
             echo "Waiting for the test workflow (${state:-no run listed yet})."
             sleep 20
           done
+
+      # The shared suite (workflow e2e-suite, E2E-1) on this very commit: its push run on main
+      # built this commit as the candidate, with the counterparts of the released combination it
+      # pins, and both its job E2E-1 and its gate passed. The version manifest in the run's
+      # artifact must name exactly this commit for this repository, and no problem; a run that
+      # skipped the suite or built another commit does not count. Asked as the test workflow is.
+      - name: The shared suite passed for this commit
+        timeout-minutes: 22
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          limit=$(( $(date +%s) + 1200 ))
+          while :; do
+            run=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow e2e-suite.yml --commit "$GITHUB_SHA" \
+              --event push --limit 1 --json databaseId,status,conclusion \
+              --jq '.[] | "\(.status)/\(.conclusion) \(.databaseId)"') || run=
+            state=${run%% *}
+            case $state in
+              completed/success) break ;;
+              completed/*)
+                echo "::error::The shared suite did not pass for $GITHUB_SHA (${state#completed/}, run ${run#* }). Fix it first."
+                exit 1 ;;
+            esac
+            state=${state%/}
+            if [ "$(date +%s)" -ge "$limit" ]; then
+              echo "::error::The shared suite has not passed for $GITHUB_SHA within 20 minutes (${state:-no run}). Wait for it, then start the release again."
+              exit 1
+            fi
+            echo "Waiting for the shared suite (${state:-no run listed yet})."
+            sleep 20
+          done
+          id=${run#* }
+          gh run view "$id" --repo "$GITHUB_REPOSITORY" --json jobs --jq '.jobs[] | "\(.conclusion) \(.name)"' > "$RUNNER_TEMP/suite-jobs.txt"
+          cat "$RUNNER_TEMP/suite-jobs.txt"
+          for job in "e2e-suite / E2E-1 (real components)" "e2e-suite / gate"; do
+            if ! grep -qxF "success $job" "$RUNNER_TEMP/suite-jobs.txt"; then
+              echo "::error::Run $id of the shared suite has no successful job \"$job\"."
+              exit 1
+            fi
+          done
+          gh run download "$id" --repo "$GITHUB_REPOSITORY" --name e2e-suite --dir "$RUNNER_TEMP/suite-proof"
+          if ! jq -e --arg repo "$GITHUB_REPOSITORY" --arg sha "$GITHUB_SHA" \
+            '(.problems | length) == 0 and ([.components[] | select(.repository == $repo and .commit == $sha and .source == "candidate")] | length) == 1' \
+            "$RUNNER_TEMP/suite-proof/manifest.json" > /dev/null; then
+            echo "::error::The version manifest of run $id does not name $GITHUB_REPOSITORY at $GITHUB_SHA as its candidate, or has a problem."
+            exit 1
+          fi
+          jq -r '.components[] | "\(.repository) \(.source) \(.commit) \(.version)"' "$RUNNER_TEMP/suite-proof/manifest.json"
+          echo "The shared suite passed for $GITHUB_SHA: run $id."
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
