@@ -17,7 +17,7 @@ body:
       label: Add-on version
       description: >-
         Shown in the page footer ("Security Monitor X.Y.Z"), or the output of `dpkg -s cockpit-security-monitor`.
-      placeholder: "0.4.0"
+      placeholder: "0.4.1"
     validations:
       required: true
   - type: input
