@@ -11,6 +11,14 @@ on:
 permissions:
   contents: read
 
+# The release the upgrade test (test/e2e/upgrade.sh) installs first: 0.3.1, the last one before
+# checks, findings and first_seen, as its GitHub release serves it, pinned by SHA-256
+# (test/e2e/release-asset.sh also checks it against the release's SHA256SUMS).
+env:
+  PREVIOUS_TAG: v0.3.1
+  PREVIOUS_DEB: cockpit-security-monitor_0.3.1-1_all.deb
+  PREVIOUS_DEB_SHA256: 8e9af02590d5652cbd1e01d9913937e50972cc6a2a14288cd2dcc6182ef2d4af
+
 jobs:
   # Everything that runs without a server: lint, the offline tests, the packages (built twice to
   # the same bytes), installed on Debian and Fedora with a scan as root and the status as a user,
@@ -194,6 +202,57 @@ jobs:
         with:
           name: e2e-session
           path: e2e-session/
+
+  # The update from the previous release (PREVIOUS_* above) on this throw-away runner
+  # (test/e2e/upgrade.sh): a public address, UFW with 5432/tcp and 6379/tcp allowed and a listener
+  # on each; that release with its timer on, 6379/tcp marked and a scan; the package of this build
+  # over it with apt. The marks and the timer stay; the scan the upgrade starts writes first_seen
+  # and a status with features, checks and findings, which Status Board's status.js of its
+  # v0.3.0 reads whole as nobody gets it; the next scan keeps the first sightings; removing the
+  # package keeps the marks and removes the state. The steps and raw answers are in the artifact
+  # upgrade-session.
+  upgrade:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Status Board v0.3.0, for its rules (src/lib/status.js)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Azentrius/cockpit-status-board
+          ref: fb6a8a7a2478449b4ff1c7d26a5b5f65d0ec7c2e # v0.3.0
+          path: board
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: The package of this build
+        run: |
+          sh tools/apt-get.sh update
+          sh tools/apt-get.sh install --no-install-recommends rpm
+          make packages
+      - name: The .deb of the previous release (test/e2e/release-asset.sh)
+        run: sh test/e2e/release-asset.sh "$GITHUB_REPOSITORY" "$PREVIOUS_TAG" "$PREVIOUS_DEB" "$PREVIOUS_DEB_SHA256" previous
+      - name: The previous release with a mark and a scan, this build over it (test/e2e/upgrade.sh)
+        run: |
+          sudo env OUT="$PWD/upgrade-session" BOARD="$PWD/board" NODE="$(command -v node)" \
+            sh test/e2e/upgrade.sh "previous/$PREVIOUS_DEB" dist/*.deb
+      - name: Report and logs
+        if: always()
+        run: |
+          # The script ran as root: the folder is root's until it is handed back.
+          sudo mkdir -p upgrade-session
+          sudo chown -R "$(id -u)" upgrade-session
+          [ ! -f upgrade-session/report.md ] || cat upgrade-session/report.md >> "$GITHUB_STEP_SUMMARY"
+          sudo journalctl --no-pager -n 2000 -u 'cockpit-security*' > upgrade-session/journal.txt 2>&1 || true
+      - name: Keep the report and the logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: upgrade-session
+          path: upgrade-session/
 
   # Secrets in the files and in the whole history (gitleaks, pinned with its checksum). The
   # findings are redacted in the log; GitHub's own secret scanning with push protection runs
