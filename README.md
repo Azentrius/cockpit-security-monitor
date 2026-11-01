@@ -1,10 +1,15 @@
 # Security Monitor
 
-A [Cockpit](https://cockpit-project.org/) add-on that answers three questions per server: what is
-reachable from where, who logs in, and what is blocked. For every port it says whether a new
-connection gets in from the internet, the VPN, the private network or only the server itself, for
-IPv4 and IPv6, and which rule decides. It sees what Cockpit's own firewall page does not: UFW, and
-the ports Docker forwards past it.
+A [Cockpit](https://cockpit-project.org/) add-on for Debian and Ubuntu that answers three questions
+per server: what is reachable from where, who logs in, and what is blocked. For every port it says
+whether a new connection gets in from the internet, the VPN, the private network or only the server
+itself, for IPv4 and IPv6, and which rule decides. It sees what Cockpit's own firewall page does
+not: UFW, and the ports Docker forwards past it.
+
+This is an assessment from the server's own data: its addresses, its listening sockets, its packet
+filter and, when set up, the rules of the Hetzner Cloud Firewall. No port is tested from outside,
+so a router, another firewall or port forwarding in front of the server can change what really gets
+in (see [What it does not check](#what-it-does-not-check)).
 
 The add-on only reads. A local service checks the server and writes the state; the page shows it.
 It changes no firewall rule and nothing in CrowdSec or fail2ban. The only things the page can
@@ -329,6 +334,10 @@ UFW, the jail as not reaching it, and the port as VPN only with a DOCKER-USER ru
 
 ## Known limits
 
+- Reachability is worked out from the server's own addresses, sockets and packet filter, and the
+  Hetzner Cloud Firewall's rules when set up; it is not measured from outside. Firewalls and port
+  forwarding outside the server are not seen (except Hetzner's), and only Debian and Ubuntu are
+  supported ([Supported systems](#supported-systems)).
 - The packet filter is followed for new TCP and UDP connections; marks, other tools' `xt` matches
   and ipsets other than as the source are not read (the port is then "Not assessable" if they
   decide). An ipset of sources limits a port to "ipset NAME" without knowing its members; a source
