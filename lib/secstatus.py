@@ -756,7 +756,7 @@ def document(doc, lang, ver):
         summary = t(lang, "summary.unchecked")
     else:
         summary = t(lang, "summary.ok")
-    return {"schema": SCHEMA, "addon": ADDON, "label": LABEL, "version": ver, "checked_at": doc.get("generated"),
+    return {"schema_version": SCHEMA, "addon": ADDON, "label": LABEL, "version": ver, "checked_at": doc.get("generated"),
             "state": state, "summary": summary, "features": list(FEATURES), "checks": checks, "items": items}
 
 
@@ -769,7 +769,7 @@ def none_document(lang, ver, why, checked_at=None):
     state = "unconfigured" if why == "missing" else "failed"
     checks = [{"id": a, "state": state, "title": t(lang, a + ".title"), "reason": t(lang, "check." + why)}
               for a in AREAS]
-    return {"schema": SCHEMA, "addon": ADDON, "label": LABEL, "version": ver, "checked_at": at,
+    return {"schema_version": SCHEMA, "addon": ADDON, "label": LABEL, "version": ver, "checked_at": at,
             "state": "none", "summary": t(lang, "summary." + why), "features": list(FEATURES), "checks": checks,
             "items": [item]}
 
